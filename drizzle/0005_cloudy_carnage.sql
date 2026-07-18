@@ -1,0 +1,2 @@
+CREATE INDEX `content_episodes_series_idx` ON `content_episodes` (`series_slug`,`publication_status`,`number`);--> statement-breakpoint
+CREATE INDEX `content_series_publication_idx` ON `content_series` (`publication_status`,`is_featured`,`updated_at`);

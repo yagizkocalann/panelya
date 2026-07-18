@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "generator": "built-in image generation",
+  "cliFallbackUsed": false,
+  "useCase": "illustration-story",
+  "rulebook": "../../../../webtoon-kural-kitabi.md#v1.1",
+  "promptPack": "../prompt-pack-v2.md",
+  "characterReferences": [
+    "../characters/SELIN_turnaround-v1-clean.png",
+    "../characters/SELIN_expressions-v1-clean.png",
+    "../characters/SELIN_outfits-v2-clean.png",
+    "../characters/MERT_turnaround-v2-clean.png",
+    "../characters/MERT_expressions-v1-clean.png",
+    "../characters/MERT_outfits-v1-clean.png"
+  ],
+  "assets": [
+    { "panel": "P001", "sourceGeneration": "exec-bba4a114-77b7-4817-810c-0efa53733ae8.png", "final": "panels/P001-E-v3-clean.png", "size": "1536x1024", "version": 3 },
+    { "panel": "P002", "sourceGeneration": "exec-de4877fe-5a55-492f-9998-82717f8c5b00.png", "final": "panels/P002-N-v1-clean.png", "size": "1536x1024", "version": 1 },
+    { "panel": "P003", "sourceGeneration": "exec-585b321f-0489-4361-a371-5f823ca8015f.png", "final": "panels/P003-N-v1-clean.png", "size": "1536x1024", "version": 1 },
+    { "panel": "P004", "sourceGeneration": "exec-89e2fa5c-4ba1-40db-981a-733e2caa0163.png", "final": "panels/P004-B-v1-clean.png", "size": "1024x1536", "version": 1 },
+    { "panel": "P005", "sourceGeneration": "exec-606c2b92-d5a0-441d-9b52-d17fc8a47862.png", "final": "panels/P005-C-v1-clean.png", "size": "1254x1254", "version": 1 },
+    { "panel": "P006", "sourceGeneration": "exec-86099823-0d97-4669-81c3-aed06e3b82b9.png", "final": "panels/P006-E-v1-clean.png", "size": "1536x1024", "version": 1 },
+    { "panel": "P007", "sourceGeneration": "exec-bba1723a-62c3-4679-931e-ed8c3a12fb4c.png", "final": "panels/P007-N-v1-clean.png", "size": "1024x1536", "version": 1 },
+    { "panel": "P008", "sourceGeneration": "exec-54a22f75-a431-4fce-9231-982f376a45b1.png", "final": "panels/P008-N-v1-clean.png", "size": "1254x1254", "version": 1 },
+    { "panel": "P009", "sourceGeneration": "exec-6225963f-f795-43f0-a2ed-3a1eda47dd0e.png", "final": "panels/P009-B-v1-clean.png", "size": "1024x1536", "version": 1 },
+    { "panel": "P010", "sourceGeneration": "exec-4c2332e1-0440-47d0-9568-11df9dc96522.png", "final": "panels/P010-E-v1-clean.png", "size": "1536x1024", "version": 1 },
+    { "panel": "P011", "sourceGeneration": "exec-4755e185-d3d6-4a72-a22e-6516e6031243.png", "final": "panels/P011-N-v1-clean.png", "size": "1024x1536", "version": 1 },
+    { "panel": "P012", "sourceGeneration": "exec-6c629d3c-5885-4071-9fae-a17cae8c33c2.png", "final": "panels/P012-B-v2-clean.png", "size": "1024x1536", "version": 2 }
+  ],
+  "discarded": [
+    { "panel": "P001", "sourceGeneration": "exec-87dccd39-a656-49d1-87fe-62c101efeb9d.png", "reason": "Arka plan foto-gerçekçi ve ıslak zemin fazla parlaktı." },
+    { "panel": "P001", "sourceGeneration": "exec-bfb076da-e647-4f73-aac9-3be059d702a2.png", "reason": "Arka plan fazla steril ve vektör şeması gibi kaldı." },
+    { "panel": "P012", "sourceGeneration": "exec-65f8ef9c-fc78-4e14-9908-542a9b8026b0.png", "workspaceAsset": "panels/P012-rejected-v1.png", "reason": "Kilit kapı yüzeyine bağlı değildi." }
+  ]
+}

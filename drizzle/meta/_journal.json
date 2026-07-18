@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1784358905905,
+      "tag": "0000_loving_spirit",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784371628942,
+      "tag": "0001_gifted_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784373119208,
+      "tag": "0002_sleepy_toad_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784376036779,
+      "tag": "0003_bent_gabe_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1784384641559,
+      "tag": "0004_typical_mantis",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1784384660332,
+      "tag": "0005_cloudy_carnage",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784387206424,
+      "tag": "0006_lying_black_queen",
+      "breakpoints": true
+    }
+  ]
+}

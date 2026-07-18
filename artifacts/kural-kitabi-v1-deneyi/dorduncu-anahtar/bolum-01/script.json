@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "series": "dorduncu-anahtar",
+  "episode": "bolum-01-style-master",
+  "sceneLocks": ["S01"],
+  "panels": [
+    {
+      "scene": "S01",
+      "panel": "P001",
+      "shot": "wide_establishing",
+      "action": "Selin pasajda portfolyosunu korurken Mert şemsiyeyle içeri girer.",
+      "chars": ["SELIN", "MERT"],
+      "bubbles": [{ "type": "narrator", "char": null, "text": "ALTI SAAT ÖNCE." }],
+      "size": "wide_3_2",
+      "gag": false,
+      "bg": "white",
+      "asset": "panels/S01_P001-v1-clean.png"
+    },
+    {
+      "scene": "S01",
+      "panel": "P002",
+      "shot": "over_shoulder_waist",
+      "action": "Mert ikinci pirinç anahtarı açık avucunda gösterir.",
+      "chars": ["SELIN", "MERT"],
+      "bubbles": [{ "type": "speech", "char": "MERT", "text": "SANIRIM AYNI KAPIYI ARIYORUZ." }],
+      "size": "portrait_2_3",
+      "gag": false,
+      "bg": "white",
+      "asset": "panels/S01_P002-v1-clean.png"
+    },
+    {
+      "scene": "S01",
+      "panel": "P003",
+      "shot": "extreme_hand_object_insert",
+      "action": "Aynı dişlere sahip iki anahtar farklı ellerde yan yana gelir.",
+      "chars": ["SELIN", "MERT"],
+      "bubbles": [],
+      "size": "square_1_1",
+      "gag": false,
+      "bg": "white",
+      "asset": "panels/S01_P003-v1-clean.png"
+    },
+    {
+      "scene": "S01",
+      "panel": "P004",
+      "shot": "close_face",
+      "action": "Selin anahtardan Mert'e bakarken kuşkusu meraka dönüşür.",
+      "chars": ["SELIN"],
+      "bubbles": [
+        { "type": "speech", "char": "SELIN", "text": "TESADÜF." },
+        { "type": "thought", "char": "SELIN", "text": "HİÇ NORMAL DEĞİL." }
+      ],
+      "size": "portrait_2_3",
+      "gag": false,
+      "bg": "white",
+      "asset": "panels/S01_P004-v1-clean.png"
+    },
+    {
+      "scene": "S01",
+      "panel": "P005",
+      "shot": "gag_square",
+      "action": "Selin normalmiş gibi davranırken eski bina yükünün altında kalır.",
+      "chars": ["SELIN"],
+      "bubbles": [{ "type": "thought", "char": "SELIN", "text": "ESKİ BİNA DETAYI." }],
+      "size": "small_square",
+      "gag": true,
+      "bg": "white",
+      "asset": "panels/S01_P005-v2-clean.png"
+    }
+  ]
+}

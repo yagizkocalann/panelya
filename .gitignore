@@ -1,0 +1,70 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/.vinext/
+/out/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.devserver.*.log
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+next-env.d.ts
+/dist/
+/.wrangler/
+/outputs/
+/work/
+/.tools/
+/.openai/hosting.json
+
+# generated build output
+/build-output/
+
+# Local image-generation and research binaries. Keep prompt, manifest, QA and
+# production notes in Git; keep heavyweight raster sources on local storage.
+/artifacts/**/*.png
+/artifacts/**/*.jpg
+/artifacts/**/*.jpeg
+/artifacts/**/*.webp
+/artifacts/**/*.gif
+/artifacts/**/*.avif
+
+# Public runtime images are committed as optimized WebP. Original PNG/JPEG
+# sources remain available locally and can be regenerated with the helper.
+/public/images/**/*.png
+/public/images/**/*.jpg
+/public/images/**/*.jpeg
+
+# Local database files
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal

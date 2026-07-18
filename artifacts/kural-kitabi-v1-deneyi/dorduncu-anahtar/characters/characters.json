@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "series": "dorduncu-anahtar",
+  "characters": [
+    {
+      "id": "SELIN",
+      "name": "Selin",
+      "identityBlock": "[CHAR:SELIN] Selin, 25 yaşında kadın.\nSAÇ: Koyu kestane, köprücük kemiğinin üç parmak altında düz uzunluk, ortadan hafif sola ayrık, iki yumuşak perde kâkül; sağ şakakta küçük adaçayı yeşili mine toka (asla değişmez).\nYÜZ: Sıcak kahve badem gözler, düz doğal kaşlar, alt dudağın sağ altında çok küçük ben.\nVÜCUT: 168 cm izlenimi, ince yapı, düşünürken omuzları hafif öne kapanır.\nİMZA DETAY: Adaçayı yeşili saç tokası ve çiziklerle eskimiş hardal-kahve deri portfolyo çantası.",
+      "sceneOutfit": "Kırık beyaz ince örgü kazak, açık güvercin grisi diz altı trençkot, yüksek bel kömür rengi düz paça pantolon, bordo deri loafer.",
+      "sheets": {
+        "turnaround": "SELIN_turnaround-v1-clean.png",
+        "expressions": "SELIN_expressions-v1-clean.png",
+        "outfits": "SELIN_outfits-v2-clean.png"
+      }
+    },
+    {
+      "id": "MERT",
+      "name": "Mert",
+      "identityBlock": "[CHAR:MERT] Mert, 29 yaşında erkek.\nSAÇ: Yumuşak dalgalı siyah, yanlar kısa fakat kazınmamış, soldan ayrık, alnın sağ tarafına düşen tek belirgin tutam (asla değişmez).\nYÜZ: Soğuk gri-kahve yarı düşük gözler, düz koyu kaşlar, sağ kaşın dış üçte birinde ince dikey iz.\nVÜCUT: 186 cm izlenimi, uzun ve ince, rahat fakat mesafeli duruş.\nİMZA DETAY: Gömlek cebine takılı ince yuvarlak gümüş okuma gözlüğü ve koyu orman yeşili şemsiye.",
+      "sceneOutfit": "Soluk lacivert yün overshirt, fildişi bisiklet yaka tişört, açık taupe düz pantolon, siyah alçak deri bot, koyu deri saat.",
+      "sheets": {
+        "turnaround": "MERT_turnaround-v2-clean.png",
+        "expressions": "MERT_expressions-v1-clean.png",
+        "outfits": "MERT_outfits-v1-clean.png"
+      }
+    }
+  ]
+}

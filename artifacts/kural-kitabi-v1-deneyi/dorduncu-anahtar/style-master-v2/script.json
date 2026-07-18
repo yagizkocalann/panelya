@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "series": "dorduncu-anahtar",
+  "episode": "style-master-v2",
+  "rulebookVersion": "1.1",
+  "status": "candidate-awaiting-user-approval",
+  "sceneLocks": ["S01", "S02", "S03"],
+  "panels": [
+    { "panel": "P001", "scene": "S01", "register": "E", "asset": "panels/P001-E-v3-clean.png" },
+    { "panel": "P002", "scene": "S01", "register": "N", "asset": "panels/P002-N-v1-clean.png" },
+    { "panel": "P003", "scene": "S01", "register": "N", "asset": "panels/P003-N-v1-clean.png" },
+    { "panel": "P004", "scene": "S01", "register": "B", "asset": "panels/P004-B-v1-clean.png" },
+    { "panel": "P005", "scene": "S01", "register": "C", "asset": "panels/P005-C-v1-clean.png" },
+    { "panel": "P006", "scene": "S02", "register": "E", "asset": "panels/P006-E-v1-clean.png" },
+    { "panel": "P007", "scene": "S02", "register": "N", "asset": "panels/P007-N-v1-clean.png" },
+    { "panel": "P008", "scene": "S02", "register": "N", "asset": "panels/P008-N-v1-clean.png" },
+    { "panel": "P009", "scene": "S02", "register": "B", "asset": "panels/P009-B-v1-clean.png" },
+    { "panel": "P010", "scene": "S03", "register": "E", "asset": "panels/P010-E-v1-clean.png" },
+    { "panel": "P011", "scene": "S03", "register": "N", "asset": "panels/P011-N-v1-clean.png" },
+    { "panel": "P012", "scene": "S03", "register": "B", "asset": "panels/P012-B-v2-clean.png" }
+  ],
+  "rejected": [
+    {
+      "panel": "P012",
+      "asset": "panels/P012-rejected-v1.png",
+      "reason": "Kilit kapı yüzeyi yerine karakter gövdesinin önünde fiziksel olarak yüzüyordu."
+    }
+  ]
+}

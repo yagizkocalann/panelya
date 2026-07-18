@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "seriesSlug": "yarinki-ses",
+  "episodeSlug": "bolum-1",
+  "title": "Kayıtta Ben Varım",
+  "provenance": "Completely original Panelya production generated with the built-in image generation tool; no reference-site assets were used as generation inputs.",
+  "lettering": "Separate HTML layer",
+  "qaScore": 93,
+  "panels": [
+    { "position": 1, "mode": "B", "file": "images/panel-001-mode-b-v1-clean.webp", "width": 972, "height": 1619 },
+    { "position": 2, "mode": "Insert", "file": "images/panel-002-insert-v1-clean.webp", "width": 972, "height": 1619 },
+    { "position": 3, "mode": "B", "file": "images/panel-003-mode-b-v1-clean.webp", "width": 1122, "height": 1402 },
+    { "position": 4, "mode": "Title", "file": "images/panel-004-title-v1-clean.webp", "width": 864, "height": 1821 },
+    { "position": 5, "mode": "E", "file": "images/panel-005-mode-e-v2-clean.webp", "width": 1122, "height": 1402 },
+    { "position": 6, "mode": "N", "file": "images/panel-006-mode-n-v1-clean.webp", "width": 1122, "height": 1402 },
+    { "position": 7, "mode": "C", "file": "images/panel-007-mode-c-v1-clean.webp", "width": 1097, "height": 1434 },
+    { "position": 8, "mode": "N", "file": "images/panel-008-mode-n-v1-clean.webp", "width": 1003, "height": 1568 },
+    { "position": 9, "mode": "Insert", "file": "images/panel-009-insert-v2-clean.webp", "width": 1002, "height": 1570 },
+    { "position": 10, "mode": "N", "file": "images/panel-010-mode-n-v1-clean.webp", "width": 1122, "height": 1402 },
+    { "position": 11, "mode": "N", "file": "images/panel-011-mode-n-v1-clean.webp", "width": 864, "height": 1821 },
+    { "position": 12, "mode": "C", "file": "images/panel-012-mode-c-v2-clean.webp", "width": 864, "height": 1821 },
+    { "position": 13, "mode": "N", "file": "images/panel-013-mode-n-v1-clean.webp", "width": 887, "height": 1774 },
+    { "position": 14, "mode": "B", "file": "images/panel-014-mode-b-v1-clean.webp", "width": 887, "height": 1774 },
+    { "position": 15, "mode": "Insert", "file": "images/panel-015-insert-v1-clean.webp", "width": 930, "height": 1692 },
+    { "position": 16, "mode": "N", "file": "images/panel-016-mode-n-v1-clean.webp", "width": 864, "height": 1821 },
+    { "position": 17, "mode": "B", "file": "images/panel-017-mode-b-v1-clean.webp", "width": 862, "height": 1825 },
+    { "position": 18, "mode": "E", "file": "images/panel-018-mode-e-v1-clean.webp", "width": 862, "height": 1825 }
+  ],
+  "rejected": [
+    { "file": "images/panel-005-mode-e-rejected-v1-clean.png", "reason": "Baran appeared before the story introduced him." },
+    { "file": "images/panel-009-insert-rejected-v1-clean.png", "reason": "The shared windscreen was not centered between both reaching hands." },
+    { "file": "images/panel-012-mode-c-rejected-v1-clean.png", "reason": "A musical recorder was drawn instead of a digital field recorder." }
+  ]
+}
