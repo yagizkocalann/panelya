@@ -34,7 +34,7 @@ P1 (yerel dikey dilim basladi):
 
 P2:
 
-- Expo Router mobil uygulamasi, deep link, cevrimdisi son bolum, bildirimler.
+- Flutter mobil uygulamasi (ADR-019), deep link, cevrimdisi son bolum, bildirimler.
 - Ucretli bolum/abonelik ancak lisans ve odeme modeli kesinlestikten sonra.
 
 ## 3. Teknik kararlar
@@ -45,7 +45,7 @@ P2:
 - Veri: Cloudflare D1 + Drizzle. Typed seed bos veritabanini baslatir ve public okumalarda gecici D1 arizasina karsi guvenli geri dusus saglar. Temel varliklar: User, Series, Genre, SeriesGenre, Episode, EpisodeAsset, ReadingProgress, LibraryItem, Review.
 - Medya: kaynak kapak/paneller hashli ve degismez anahtarla R2'ye yazilir; metadata D1'de tutulur. Public nesne yalniz yayindaki seri/bolumun halen bagli asset'i ise servis edilir. Turetilmis responsive formatlar Cloudflare Images/edge cache sonraki dilimdir.
 - Kimlik: Yerel gelistirmede PBKDF2 tabanli parola, HttpOnly SameSite oturum ve origin kontrolu kullanilir. Ilk yerel hesap kolaylik amaciyla admin olur. Bu otomatik yetki ve uygulama-ici kimlik modeli production icin onaylanmis degildir; production oncesi yonetilen kimlik saglayicisi ve rate limit karari zorunludur.
-- Mobil: Web saglamlastiginda npm workspaces: `apps/web`, `apps/mobile`, `packages/contracts`, `packages/domain`.
+- Mobil: Flutter istemcisi ayri `apps/mobile` dizininde yasar (ADR-019). Web ile kod degil API sozlesmesi paylasilir; Dart modelleri `schemaVersion`'li JSON sozlesmesinden turetilir.
 - SEO: seri ve bolum bazli metadata, canonical, sitemap ve yapılandirilmis veri P1'in erken parcasi.
 
 ## 4. Veri modeli cekirdegi
@@ -141,4 +141,5 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-015 / D1 icerik kaynagi: Studio seri ve bolum kayitlari D1'de acik alanlar ve yayin durumuyla tutulur. Public katalog yalniz `published` seri ile en az bir `published` bolumu dondurur; taslak ve arsiv kayitlari sizmaz. Typed katalog eksik bundled original kayitlarini `INSERT OR IGNORE` ile idempotent ekler; mevcut Studio degisikliklerini ezmez ve build probe/gecici D1 arizasinda public okuma geri dususu olarak kalir. Mutation'lar yalniz Studio hostundaki admin API'lerinden yapilir ve audit kaydi uretir.
 - ADR-016 / Romantik webtoon uretim grameri: Belirli sanatci veya eser kopyalanmaz; temiz modern dijital romantik webtoonun genel cizgi ekonomisi, mobil ritmi ve oyunculuk ilkeleri kullanilir. Bolum tek uzun AI gorseli olarak uretilmez. Paneller N normal, C komedi, B duygusal vurgu ve E kurucu modlariyla ayri uretilir; metin/SFX ayri katmanda dizilir. Yeni stil, 12 karelik master paketi ve 100 uzerinden en az 85 QA puani olmadan seri uretimine giremez.
 - ADR-017 / R2 medya siniri: Binary medya D1'e yazilmaz; R2 binding arkasindaki `MediaStorage` adaptoru kullanilir. D1 yalniz hashli storage key, MIME, byte, piksel, sahiplik ve icerik baglantisini tutar. Upload dosya imzasi ile beyan edilen MIME'i birlikte dogrular ve hata halinde R2/D1 telafisi yapar. Public endpoint, asset'in yayindaki icerikte halen bagli oldugunu her istekte kontrol eder.
-- ADR-018 / Repository ve paralel istemci akisi: `main` web ve mobil icin dogrulanmis ortak tabandir. Windows web gelistirmesi `codex/web`, MacBook Expo gelistirmesi `codex/mobile` branch'inde ilerler; API, auth, migration ve domain sozlesmesi degisiklikleri `main` uzerinden koordine edilir. Agir imagegen/arastirma rasterlari Git'e alinmaz; metin provenance/QA dosyalari kalir ve web runtime asset'leri optimize WebP olarak commit edilir.
+- ADR-018 / Repository ve paralel istemci akisi: `main` web ve mobil icin dogrulanmis ortak tabandir. Windows web gelistirmesi `codex/web`, MacBook mobil gelistirmesi `codex/mobile` branch'inde ilerler; API, auth, migration ve domain sozlesmesi degisiklikleri `main` uzerinden koordine edilir. Agir imagegen/arastirma rasterlari Git'e alinmaz; metin provenance/QA dosyalari kalir ve web runtime asset'leri optimize WebP olarak commit edilir.
+- ADR-019 / Mobil istemci stack'i (ADR-004 revizyonu): Mobil uygulama Expo/React Native yerine Flutter ile yazilir; iskelet olarak mevcut Novel-Project uygulamasinin kanitlanmis kaliplari (feature-first yapi, Riverpod state, go_router, design token temasi, env/dart-define katmani, repository interface deseni) baz alinir. TypeScript tip paylasimi hedefi dusurulur; Dart modelleri `schemaVersion` tasiyan JSON API sozlesmesinden turetilir ve sozlesme degisiklikleri `main` uzerinden koordine edilir. Mobil istemci D1/R2'ye dogrudan baglanmaz, yalniz web deployment'inin API sinirini kullanir. Novel'in Firebase katmani tasinmaz; ayni repository interface'lerinin arkasina Panelya REST client'i yazilir. Okuyucu, video pager degil kesintisiz dikey panel scroll'u olarak sifirdan uygulanir.
