@@ -33,7 +33,7 @@
 ## P2
 
 1. Tamamlandi: GPT Image ile ozgun `Yarınki Ses` pilotunun 18/18 panel uretimi, QA ve public okuyucu yayini.
-2. Web akisi sabitlendikten sonra Expo Router mobil uygulamasi.
+2. Web akisi sabitlendikten sonra Flutter mobil uygulamasi (ADR-019).
 3. Deep link, cevrimdisi okuma ve push bildirimleri.
 
 ## Su anda tamamlanan etkilesim yuzeyi

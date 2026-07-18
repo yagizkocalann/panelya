@@ -2,7 +2,7 @@
 
 ## 1. Urun tezi
 
-Panelya, Turkce ve mobil-oncelikli bir dikey cizgi hikaye okuma platformudur. Ilk teslimat web uygulamasidir; mobil uygulama, web urun akisi ve veri sozlesmeleri oturduktan sonra Expo Router ile ayni API ve paylasilan TypeScript semalarini kullanir.
+Panelya, Turkce ve mobil-oncelikli bir dikey cizgi hikaye okuma platformudur. Ilk teslimat web uygulamasidir; mobil uygulama, web urun akisi ve veri sozlesmeleri oturduktan sonra Flutter ile ayni API'yi ve dil bagimsiz JSON sozlesmelerini kullanir (ADR-019).
 
 Referans alinan urun ilkeleri:
 
@@ -39,7 +39,7 @@ P2:
 
 ## 3. Teknik kararlar
 
-- Dil: TypeScript. Web ve gelecekteki React Native uygulamasi arasinda tip/veri modeli paylasimi saglar.
+- Dil: Web'de TypeScript, mobilde Dart/Flutter. Veri modeli paylasimi kod degil dil bagimsiz sozlesme kaynagi (JSON Schema/OpenAPI) uzerinden saglanir; web TypeScript tiplerini, mobil Dart modellerini bu kaynaktan uretir.
 - Web: Next.js App Router + React Server Components; mevcut vinext/Cloudflare Workers yapisi korunur.
 - API: Web ile ayni deployment icinde Route Handlers. Mobil asamasinda ayni JSON sozlesmeleri kullanilir.
 - Veri: Cloudflare D1 + Drizzle. Typed seed bos veritabanini baslatir ve public okumalarda gecici D1 arizasina karsi guvenli geri dusus saglar. Temel varliklar: User, Series, Genre, SeriesGenre, Episode, EpisodeAsset, ReadingProgress, LibraryItem, Review.
@@ -127,7 +127,7 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-001 / Moduler monolit: P0'da web, route handler ve domain verisi ayni deploy'da; is kurallari sayfa JSX'ine dagitilmaz.
 - ADR-002 / Depolama: P0 typed seed. Sites/Cloudflare yolu icin ilk kalici aday D1 + Drizzle, medya icin R2. Auth, odeme veya karmasik raporlama P1 kapsaminda kesinlesmeden once PostgreSQL alternatifi yeniden degerlendirilir.
 - ADR-003 / Medya manifesti: Bir bolum tek mega gorsel degil, sirali asset listesidir. Yayinlanan URL'ler hashli ve immutable olur.
-- ADR-004 / Mobil: Web UI kodu React Native'e zorla tasinmaz; contracts, API client, domain utility ve design token paylasilir.
+- ADR-004 / Mobil: Web UI kodu mobile tasinmaz; her platform kendi native UI'sini yazar. Paylasim, dil bagimsiz sozlesmeler (JSON Schema/OpenAPI kaynakli contracts) ve design token degerleri uzerinden olur. Stack karari icin bkz. ADR-019.
 - ADR-005 / Lisans: Seed/demo katalog yalniz ozgun, komisyonlu veya acikca lisansli icerikten olusur.
 - ADR-006 / Studio hostu: Yonetim paneli public siteden ayri hostta calisir. Production hedefi `studio.<ana-domain>`, yerel hedef `studio.localhost` olur. Ilk fazda ayni deployment ve D1 paylasilir; host tabanli yonlendirme public `/studio` isteklerini Studio hostuna tasir. Studio oturumu host-only cookie kullanir ve public oturum otomatik paylasilmaz.
 - ADR-007 / Yerel kimlik: Ilk kayit admin, sonraki kayitlar reader olur. Yalniz yerel QA kolayligidir; production'a aynen tasinmaz.
@@ -142,4 +142,4 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-016 / Romantik webtoon uretim grameri: Belirli sanatci veya eser kopyalanmaz; temiz modern dijital romantik webtoonun genel cizgi ekonomisi, mobil ritmi ve oyunculuk ilkeleri kullanilir. Bolum tek uzun AI gorseli olarak uretilmez. Paneller N normal, C komedi, B duygusal vurgu ve E kurucu modlariyla ayri uretilir; metin/SFX ayri katmanda dizilir. Yeni stil, 12 karelik master paketi ve 100 uzerinden en az 85 QA puani olmadan seri uretimine giremez.
 - ADR-017 / R2 medya siniri: Binary medya D1'e yazilmaz; R2 binding arkasindaki `MediaStorage` adaptoru kullanilir. D1 yalniz hashli storage key, MIME, byte, piksel, sahiplik ve icerik baglantisini tutar. Upload dosya imzasi ile beyan edilen MIME'i birlikte dogrular ve hata halinde R2/D1 telafisi yapar. Public endpoint, asset'in yayindaki icerikte halen bagli oldugunu her istekte kontrol eder.
 - ADR-018 / Repository ve paralel istemci akisi: `main` web ve mobil icin dogrulanmis ortak tabandir. Windows web gelistirmesi `codex/web`, MacBook mobil gelistirmesi `codex/mobile` branch'inde ilerler; API, auth, migration ve domain sozlesmesi degisiklikleri `main` uzerinden koordine edilir. Agir imagegen/arastirma rasterlari Git'e alinmaz; metin provenance/QA dosyalari kalir ve web runtime asset'leri optimize WebP olarak commit edilir.
-- ADR-019 / Mobil istemci stack'i (ADR-004 revizyonu): Mobil uygulama Expo/React Native yerine Flutter ile yazilir; iskelet olarak mevcut Novel-Project uygulamasinin kanitlanmis kaliplari (feature-first yapi, Riverpod state, go_router, design token temasi, env/dart-define katmani, repository interface deseni) baz alinir. TypeScript tip paylasimi hedefi dusurulur; Dart modelleri `schemaVersion` tasiyan JSON API sozlesmesinden turetilir ve sozlesme degisiklikleri `main` uzerinden koordine edilir. Mobil istemci D1/R2'ye dogrudan baglanmaz, yalniz web deployment'inin API sinirini kullanir. Novel'in Firebase katmani tasinmaz; ayni repository interface'lerinin arkasina Panelya REST client'i yazilir. Okuyucu, video pager degil kesintisiz dikey panel scroll'u olarak sifirdan uygulanir.
+- ADR-019 / Mobil istemci stack'i (ADR-004 revizyonu): Mobil uygulama Expo/React Native yerine Flutter ile yazilir; iskelet olarak mevcut Novel-Project uygulamasinin kanitlanmis kaliplari (feature-first yapi, Riverpod state, go_router, design token temasi, env/dart-define katmani, repository interface deseni) baz alinir. TypeScript tip paylasimi hedefi dusurulur; ortak sozlesme kaynagi dil bagimsiz JSON Schema/OpenAPI olarak tutulur, web TypeScript tiplerini ve mobil Dart modellerini bu kaynaktan uretir. Sozlesme kaynagi `main`'e gelene kadar Dart modelleri `schemaVersion` tasiyan mevcut JSON API cevaplarini birebir aynalar ve sozlesme degisiklikleri `main` uzerinden koordine edilir. Mobil istemci D1/R2'ye dogrudan baglanmaz, yalniz web deployment'inin API sinirini kullanir. Novel'in Firebase katmani tasinmaz; ayni repository interface'lerinin arkasina Panelya REST client'i yazilir. Okuyucu, video pager degil kesintisiz dikey panel scroll'u olarak sifirdan uygulanir.
