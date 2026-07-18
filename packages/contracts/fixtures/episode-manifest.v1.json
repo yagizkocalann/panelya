@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "series": {
+    "slug": "gece-denemesi",
+    "title": "Gece Denemesi"
+  },
+  "episode": {
+    "slug": "bolum-1",
+    "number": 1,
+    "title": "İlk İşaret",
+    "publishedAt": "19 Temmuz 2026",
+    "readTime": "4 dk",
+    "panels": [
+      {
+        "id": "panel-1",
+        "scene": "Boş bir durakta yanan tek ışık.",
+        "caption": "Saat gece yarısını geçmişti.",
+        "dialogue": "Burada biri var mı?",
+        "tone": "blue",
+        "align": "left",
+        "image": {
+          "src": "/images/gece-denemesi/panel-1.webp",
+          "alt": "Gece vakti boş bir durakta bekleyen özgün bir karakter.",
+          "width": 1080,
+          "height": 1920
+        }
+      }
+    ]
+  },
+  "navigation": {
+    "previous": null,
+    "next": {
+      "slug": "bolum-2",
+      "number": 2
+    }
+  }
+}
