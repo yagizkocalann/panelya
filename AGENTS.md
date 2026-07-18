@@ -19,7 +19,7 @@ Her gorevde once `production-bible.md` ve bu dosyayi oku. `.env` degerlerini yaz
 - Art director: stil adaylari ve style-master tutarliligi. Sol/high.
 - Web implementer: App Router, components, CSS, Route Handlers. Terra/medium.
 - QA operator: route matrisi, log tarama, viewport ve kare sayimi. Luna/low ya da Terra/low.
-- Mobile implementer: yalniz P0 web tamamlaninca Expo Router. Terra/medium; mimari degisiklik Sol/high review.
+- Mobile implementer: yalniz P0 web tamamlaninca Flutter (ADR-019, Novel-Project kaliplari). Terra/medium; mimari degisiklik Sol/high review.
 
 ## Kod kurallari
 

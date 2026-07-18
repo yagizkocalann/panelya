@@ -4,7 +4,7 @@
 
 - `main`: Web ve mobilin ortak, doğrulanmış başlangıç noktasıdır. Doğrudan günlük geliştirme yapılmaz.
 - `codex/web`: Windows tarafındaki aktif web geliştirme branch'idir.
-- `codex/mobile`: MacBook tarafındaki Expo/mobil geliştirme branch'idir. MacBook'ta güncel `origin/main` üzerinden oluşturulur.
+- `codex/mobile`: MacBook tarafındaki Flutter/mobil geliştirme branch'idir (ADR-019). MacBook'ta güncel `origin/main` üzerinden oluşturulur.
 
 Uzun süreli iki branch aynı dosyaları gereksiz yere değiştirmemelidir. Web'e özgü değişiklikler mevcut kök uygulamada; mobil uygulama kodu ileride `apps/mobile` altında tutulur. Ortak API sözleşmesi veya domain tipi gerektiğinde önce küçük ve bağımsız bir değişiklik olarak `main` üzerinde uzlaştırılır.
 
@@ -25,7 +25,7 @@ npm ci
 npm test
 ```
 
-Mobil branch ilk aşamada web kökünü taşımamalıdır. Expo uygulaması başlatılacağı zaman `apps/mobile` oluşturulur; API/domain ortaklaştırması gerçek ihtiyaç çıktıkça `packages/contracts` ve `packages/domain` sınırlarına taşınır.
+Mobil branch ilk aşamada web kökünü taşımamalıdır. Flutter uygulaması `apps/mobile` altında yaşar; API/domain ortaklaştırması gerçek ihtiyaç çıktıkça dil bağımsız `packages/contracts` (JSON Schema/OpenAPI) ve `packages/domain` sınırlarına taşınır.
 
 ## Güncel kalma
 
