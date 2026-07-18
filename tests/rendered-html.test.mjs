@@ -250,15 +250,17 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(episodeApi, /writeAudit/);
 });
 test("Studio medya hattı R2, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
-  const [schema, hosting, mediaApi, privateMedia, publicMedia, validation, storage, mediaPage, proxy] = await Promise.all([
+  const [schema, hosting, mediaApi, mediaManageApi, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, proxy] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/media/manage/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/media/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/media/image-validation.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/media/storage.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/media/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/episodes/[episode]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
   ]);
   assert.equal(JSON.parse(hosting).r2, "MEDIA");
@@ -278,5 +280,12 @@ test("Studio medya hattı R2, host sınırı ve yayın görünürlüğü sözle�
   assert.match(storage, /env\.MEDIA/);
   assert.match(mediaPage, /multipart\/form-data/);
   assert.match(mediaPage, /Dosyayı doğrula ve yükle/);
+  assert.match(mediaPage, /cover_restore/);
+  assert.match(episodePage, /panel_move/);
+  assert.match(episodePage, /panel_remove/);
+  assert.match(mediaManageApi, /media\.panel_reordered/);
+  assert.match(mediaManageApi, /media\.panel_unlinked/);
+  assert.match(mediaManageApi, /media\.cover_restored/);
+  assert.match(mediaManageApi, /isStudioRequest/);
   assert.match(proxy, /"media"/);
 });

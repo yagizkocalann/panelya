@@ -28,7 +28,8 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: seri bazli puan/yorum, spoiler gizleme, okuyucu raporlama ve Studio moderasyon kuyrugu.
 - Tamamlanan: Studio'da seri ve bolum CRUD, taslak/yayin/arsiv durumlari, one cikarma ve D1 tabanli public katalog yayini.
 - Tamamlanan: Studio R2 kapak/panel yukleme, JPEG/PNG/WebP dosya-imza-boyut-piksel dogrulamasi, D1 medya metadata'si ve yayin durumuna bagli public medya servisi.
-- Siradaki: panel siralama/kaldirma, taslak onizleme ve production olcekli dagitik rate limit.
+- Tamamlanan: Studio bolum ekraninda panel siralama, yalniz Studio yuklemesi olan panel baglantisini kaynak R2 nesnesini silmeden kaldirma ve medya ekraninda kapak gecmisinden geri yukleme; tum mutation'lar audit kaydi uretir.
+- Siradaki: responsive medya turetme kuyrugu, taslak onizleme ve production olcekli dagitik rate limit.
 - D1 tablolarina gecis hesap ve katalog verisi icin tamamlandi. Medya yerelde R2 binding emulasyonu kullanir; production bucket yasam dongusu ve turetilmis format kuyrugu deployment oncesi tamamlanir.
 - Arama indeksi, moderasyon, telif bildirim sureci, analitik ve hata izleme.
 

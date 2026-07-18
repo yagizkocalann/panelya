@@ -6,8 +6,9 @@
 1. Tamamlandi: Studio seri/bolum CRUD, taslak-yayin-arsiv durumu, one cikarma ve mutation audit kayitlari.
 2. Tamamlandi: public katalog D1 tablolarindan okunur; typed seed baslatma/geri dusus olarak kalir ve API sozlesmesi korunur.
 3. Tamamlandi: yerel R2 binding'i ile kapak/panel yukleme, dosya imzasi, MIME, byte ve piksel kontrolu, D1 metadata ve yayinla sinirli public servis.
-4. Siradaki: panel siralama/kaldirma, kapak gecmisi ve turetilmis responsive format kuyrugu.
-5. Siradaki: yayinlanmamis icerik icin guvenli taslak onizleme baglantisi.
+4. Tamamlandi: panel siralama, Studio'dan yuklenen panel baglantisini R2 kaynagini silmeden kaldirma ve kapak gecmisinden geri yukleme.
+5. Siradaki: turetilmis responsive format kuyrugu.
+6. Siradaki: yayinlanmamis icerik icin guvenli taslak onizleme baglantisi.
 
 ## P1 - Okuyucu ve topluluk
 
