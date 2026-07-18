@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "featuredSlug": "gece-denemesi",
+  "series": [
+    {
+      "slug": "gece-denemesi",
+      "title": "Gece Denemesi",
+      "eyebrow": "Özgün Seri",
+      "creator": "Panelya Studio",
+      "description": "Şehir uyurken başlayan özgün bir deneme hikâyesi.",
+      "longDescription": "Bu sentetik içerik yalnız API sözleşmesini doğrulamak için kullanılır.",
+      "status": "Devam Ediyor",
+      "genres": ["Gizem", "Romantik"],
+      "tone": "mint",
+      "updatedAt": "Bugün",
+      "rating": 4.5,
+      "followers": "1,2 B",
+      "isNew": true,
+      "coverImage": "/images/gece-denemesi.webp",
+      "episodeCount": 1,
+      "latestEpisode": {
+        "slug": "bolum-1",
+        "number": 1,
+        "title": "İlk İşaret",
+        "publishedAt": "19 Temmuz 2026",
+        "readTime": "4 dk",
+        "panels": [
+          {
+            "id": "panel-1",
+            "scene": "Boş bir durakta yanan tek ışık.",
+            "tone": "blue"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -48,7 +48,7 @@ Simulator aynı Mac üzerinde çalışan web API'sine erişebilir. Fiziksel ciha
 
 1. Web bileşenleri kopyalanmaz; platforma özgü Flutter widget'ları yazılır ama ortak tasarım token'ları kullanılır.
 2. Seri, bölüm, panel, medya, okuma ilerlemesi, pagination ve API hata modellerinin bağımsız mobil kopyaları türetilmez; Dart modelleri API JSON sözleşmesini birebir izler.
-3. Ortak sözleşmeler ileride `packages/contracts` altında dil bağımsız kaynak (JSON Schema/OpenAPI) olarak toplanacak; web TypeScript tiplerini, mobil Dart modellerini bu kaynaktan üretecek. Bu paket `main`'e gelene kadar mobil tarafta kalıcı alternatif paket açılmaz; `apps/mobile/lib/core/contracts/` altında TEK bir adapter katmanı tutulur ve dosya başlıklarında açıkça GEÇİCİ olarak işaretlenir. `codex/studio-media-workflow` çıktıları `main`'e gelince bu adapter ortak sözleşmeyle değiştirilir.
+3. Ortak sözleşmenin tek kaynağı `packages/contracts/schema.json` (JSON Schema 2020-12), HTTP eşlemesi `packages/contracts/openapi.json` dosyasıdır. Web ve mobil parser/model testleri `packages/contracts/fixtures` içindeki aynı sentetik cevapları kullanır. Kaynak `main`'e gelene kadar mobildeki `apps/mobile/lib/core/contracts/` adapter katmanı geçici kalır; entegrasyondan sonra Dart modelleri bu sözleşmeyle doğrulanır veya üretilir.
 4. Tasarım değerleri ileride `packages/design-tokens` tek kaynağına bağlanacak; o zamana kadar mobil tema `app/globals.css` token'larını birebir aynalar (aşağıdaki tablo).
 5. API çağrıları ekran widget'larına dağıtılmaz; `apps/mobile/lib/core/api/` altındaki merkezi client katmanından geçer.
 6. API origin'i kaynak koda gömülmez; `env/` dart-define config katmanından okunur.

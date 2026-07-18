@@ -1,0 +1,99 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Panelya Public API",
+    "version": "1.0.0",
+    "description": "Public, read-only contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
+  },
+  "servers": [
+    { "url": "http://localhost:3000", "description": "Local web API" }
+  ],
+  "paths": {
+    "/api/catalog": {
+      "get": {
+        "operationId": "getCatalog",
+        "summary": "List published series",
+        "responses": {
+          "200": {
+            "description": "Published catalog",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/CatalogResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/series/{slug}": {
+      "get": {
+        "operationId": "getSeriesDetail",
+        "summary": "Get a published series and its episode summaries",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published series detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/SeriesDetailResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Series not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/series/{slug}/episodes/{episodeSlug}": {
+      "get": {
+        "operationId": "getEpisodeManifest",
+        "summary": "Get a published episode reader manifest",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          },
+          {
+            "name": "episodeSlug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published episode manifest",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/EpisodeManifestResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Episode not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
