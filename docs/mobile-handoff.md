@@ -35,12 +35,12 @@ Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimli
 
 ## Web → mobil entegrasyon kapıları
 
-Mobil taraf aşağıdaki iki ortak teslim `main` dalına girene kadar geçici adapter sınırını korur:
+Mobil taraf aşağıdaki iki ortak teslimi `origin/main` uzerinden alip adapter/codegen entegrasyonuna devam eder:
 
 | Teslim | Durum | Main'e giriş koşulu | Mobil tarafa bildirilecek çıktı |
 | --- | --- | --- | --- |
-| Responsive medya varyantları | HAZIR | Public katalog, seri ve bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | Merge commit'i, `PublicMediaVariant` ile değişen `StoryPanelImage`/`SeriesMetadataFields` tanımları, response `schemaVersion: 1.0` (geriye uyumlu opsiyonel alanlar), OpenAPI `1.1.0` ve üç v1 fixture |
-| Production auth/session | PR HAZIR | ADR-039 Auth0'yu, sistem tarayıcılı Authorization Code + PKCE'yi, 15 dakikalık access tokenini ve 30 günlük dönen refresh tokenini seçer. Giriş/code exchange, refresh, revoke, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme değildir. Bu PR `main` dalına merge edilip web/mobil contract testleri geçmeden entegrasyon başlamaz. | Merge commit'i, OpenAPI `1.2.0`, ADR-039, `AuthProviderConfigResponse`/token/state/error tanımları ve sentetik `auth-*.v1.json` fixture listesi |
+| Responsive medya varyantları | MAIN'E MERGE EDILDI (PR #20, `ab1c92e`) | Public katalog, seri ve bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | `PublicMediaVariant` ile değişen `StoryPanelImage`/`SeriesMetadataFields` tanımları, response `schemaVersion: 1.0` (geriye uyumlu opsiyonel alanlar), OpenAPI `1.1.0` ve üç v1 fixture |
+| Production auth/session | MAIN'E MERGE EDILDI (PR #21, `7ca0f24`) | ADR-039 Auth0'yu, sistem tarayıcılı Authorization Code + PKCE'yi, 15 dakikalık access tokenini ve 30 günlük dönen refresh tokenini seçer. Giriş/code exchange, refresh, revoke, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme değildir. Gercek tenant/gateway/JWKS degerleri gelmeden fixture degerleri runtime config sayilmaz. | OpenAPI `1.2.0`, ADR-039, `AuthProviderConfigResponse`/token/state/error tanımları ve sentetik `auth-*.v1.json` fixture listesi |
 
 Bir teslim yalnız pull request `main` dalına merge edildiğinde ve zorunlu CI kontrolleri geçtiğinde hazır sayılır. Web tarafı bu noktada mobil tarafa merge commit'ini ve yukarıdaki değişiklik özetini gönderir; mobil taraf `origin/main` aldıktan sonra codegen/adapter entegrasyonunu ayrı committe yapar.
 
