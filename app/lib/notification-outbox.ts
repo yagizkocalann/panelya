@@ -3,12 +3,13 @@ import { getDatabase } from "./database";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-export const OUTBOX_RETENTION_POLICY_VERSION = 1;
+export const OUTBOX_RETENTION_POLICY_VERSION = 2;
 export const OUTBOX_RETENTION = {
   opened: 1 * DAY_MS,
   queuedPasswordReset: 1 * DAY_MS,
   queuedVerification: 2 * DAY_MS,
   queuedAdminInvitation: 2 * DAY_MS,
+  queuedNewEpisode: 7 * DAY_MS,
   queuedSecurityNotice: 30 * DAY_MS,
 } as const;
 
@@ -20,6 +21,7 @@ function retentionCutoffs(now: number) {
     passwordReset: now - OUTBOX_RETENTION.queuedPasswordReset,
     verification: now - OUTBOX_RETENTION.queuedVerification,
     adminInvitation: now - OUTBOX_RETENTION.queuedAdminInvitation,
+    newEpisode: now - OUTBOX_RETENTION.queuedNewEpisode,
     securityNotice: now - OUTBOX_RETENTION.queuedSecurityNotice,
   };
 }
@@ -29,11 +31,12 @@ const RETENTION_WHERE = `(
   OR (status = 'queued' AND kind = 'password_reset' AND created_at <= ?)
   OR (status = 'queued' AND kind = 'verify_email' AND created_at <= ?)
   OR (status = 'queued' AND kind = 'security_notice' AND action_url LIKE '%/accept-admin-invite?%' AND created_at <= ?)
+  OR (status = 'queued' AND kind = 'new_episode' AND created_at <= ?)
   OR (status = 'queued' AND kind = 'security_notice' AND (action_url IS NULL OR action_url NOT LIKE '%/accept-admin-invite?%') AND created_at <= ?)
 )`;
 
 function bindCutoffs<T extends { bind(...values: Array<string | number | null>): T }>(statement: T, cutoffs: RetentionCutoffs) {
-  return statement.bind(cutoffs.opened, cutoffs.passwordReset, cutoffs.verification, cutoffs.adminInvitation, cutoffs.securityNotice);
+  return statement.bind(cutoffs.opened, cutoffs.passwordReset, cutoffs.verification, cutoffs.adminInvitation, cutoffs.newEpisode, cutoffs.securityNotice);
 }
 
 export type OutboxRetentionSummary = {

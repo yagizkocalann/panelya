@@ -253,6 +253,64 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(proxy, /url\.pathname\.startsWith\("\/api\/admin\/"\)/);
 });
 
+test("kütüphane aktif durumu, seri takibi ve yeni bölüm bildirimi aynı kalıcı okuyucu akışına bağlıdır", async () => {
+  const [schema, database, subscriptions, subscriptionApi, seriesPage, libraryPage, episodeApi, notifications, retention, outboxPage, outboxOpenApi, migration, manualQa] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/series-subscriptions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/subscriptions/[slug]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/library/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/notifications.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/notification-outbox.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/outbox/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/outbox/[id]/open/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0011_chief_wind_dancer.sql", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /sqliteTable\("series_subscriptions"/);
+  assert.match(schema, /notifyNewEpisodes: integer\("notify_new_episodes"/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS series_subscriptions/);
+  assert.match(database, /notification_outbox_next/);
+  assert.match(migration, /CREATE TABLE `series_subscriptions`/);
+  assert.match(migration, /ALTER TABLE `notification_outbox` ADD `dedupe_key`/);
+  assert.match(subscriptions, /getSeriesReaderState/);
+  assert.match(subscriptions, /toggleSeriesFollow/);
+  assert.match(subscriptions, /toggleNewEpisodeNotifications/);
+  assert.match(subscriptions, /kind: "new_episode"/);
+  assert.match(subscriptions, /dedupeKey: `new-episode:/);
+  assert.match(subscriptionApi, /assertSameOrigin/);
+  assert.match(subscriptionApi, /subscription\.followed/);
+  assert.match(subscriptionApi, /subscription\.notifications_enabled/);
+  assert.match(seriesPage, /aria-pressed=\{readerState\.inLibrary\}/);
+  assert.match(seriesPage, /Takip ediliyor/);
+  assert.match(seriesPage, /Yeni bölüm bildirimi açık/);
+  assert.match(libraryPage, /Takip edilenler/);
+  assert.match(libraryPage, /action=\{`\/api\/subscriptions\/\$\{row\.series_slug\}`\}/);
+  assert.match(episodeApi, /previousEpisode\?\.publicationStatus !== "published"/);
+  assert.match(episodeApi, /dispatchNewEpisodeNotifications/);
+  assert.match(notifications, /ON CONFLICT\(dedupe_key\) DO NOTHING/);
+  assert.match(retention, /OUTBOX_RETENTION_POLICY_VERSION = 2/);
+  assert.match(retention, /queuedNewEpisode: 7 \* DAY_MS/);
+  assert.match(outboxPage, /new_episode: "Yeni bölüm"/);
+  assert.match(outboxOpenApi, /publishedEpisodeAllowed/);
+  assert.match(manualQa, /QA-FOL-01/);
+
+  const anonymousSeries = await (await request("/gece-vardiyasi")).text();
+  assert.match(anonymousSeries, /action="\/api\/subscriptions\/gece-vardiyasi"/);
+  assert.match(anonymousSeries, /aria-pressed="false"/);
+  const unauthenticatedFollow = await request("/api/subscriptions/gece-vardiyasi", "text/html", "http://localhost:3000", {
+    method: "POST",
+    headers: { origin: "http://localhost:3000", "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ action: "follow", return_to: "/gece-vardiyasi" }),
+  });
+  assert.equal(unauthenticatedFollow.status, 303);
+  const followLocation = new URL(unauthenticatedFollow.headers.get("location") ?? "http://localhost:3000");
+  assert.equal(followLocation.pathname, "/login");
+  assert.equal(followLocation.searchParams.get("return_to"), "/gece-vardiyasi");
+});
+
 test("atomik D1 ve Cloudflare edge rate-limit adaptörü fail-closed güvenlik sınırını korur", async () => {
   const [rateLimit, auth, runtimeConfig, envExample, qaPage, manualQa, worker, deployment] = await Promise.all([
     readFile(new URL("../app/lib/rate-limit.ts", import.meta.url), "utf8"),
@@ -469,11 +527,12 @@ test("bildirim adaptörü ve outbox saklama politikası fail-closed yönetim sı
   assert.match(runtimeConfig, /local_outbox/);
   assert.match(notifications, /Record<NotificationDeliveryMode, DeliveryFactory>/);
   assert.match(notifications, /if \(!factory\) throw new NotificationDeliveryUnavailableError/);
-  assert.match(retention, /OUTBOX_RETENTION_POLICY_VERSION = 1/);
+  assert.match(retention, /OUTBOX_RETENTION_POLICY_VERSION = 2/);
   assert.match(retention, /queuedPasswordReset: 1 \* DAY_MS/);
   assert.match(retention, /queuedVerification: 2 \* DAY_MS/);
   assert.match(retention, /queuedAdminInvitation: 2 \* DAY_MS/);
   assert.match(retention, /queuedSecurityNotice: 30 \* DAY_MS/);
+  assert.match(retention, /queuedNewEpisode: 7 \* DAY_MS/);
   assert.match(retention, /DELETE FROM notification_outbox WHERE/);
   assert.match(retentionApi, /isStudioRequest\(request\)/);
   assert.match(retentionApi, /assertSameOrigin/);

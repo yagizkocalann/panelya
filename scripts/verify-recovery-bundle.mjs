@@ -26,6 +26,7 @@ export const REQUIRED_D1_TABLES = Object.freeze([
   "reading_progress",
   "review_reports",
   "reviews",
+  "series_subscriptions",
   "sessions",
   "users",
 ]);

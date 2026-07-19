@@ -34,10 +34,11 @@ async function ensureSchema(db: D1Database) {
       id TEXT PRIMARY KEY NOT NULL,
       user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       recipient TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK(kind IN ('verify_email','password_reset','security_notice')),
+      kind TEXT NOT NULL CHECK(kind IN ('verify_email','password_reset','security_notice','new_episode')),
       subject TEXT NOT NULL,
       body TEXT NOT NULL,
       action_url TEXT,
+      dedupe_key TEXT,
       status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','opened')),
       created_at INTEGER NOT NULL,
       opened_at INTEGER
@@ -71,6 +72,14 @@ async function ensureSchema(db: D1Database) {
       series_slug TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'plan' CHECK(status IN ('plan','reading','completed','paused','dropped')),
       is_favorite INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, series_slug)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS series_subscriptions (
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      series_slug TEXT NOT NULL,
+      notify_new_episodes INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       PRIMARY KEY (user_id, series_slug)
@@ -225,6 +234,7 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_user_idx ON account_tokens(user_id, purpose, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_expiry_idx ON account_tokens(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS outbox_created_idx ON notification_outbox(created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS series_subscriptions_series_idx ON series_subscriptions(series_slug, notify_new_episodes)"),
     db.prepare("CREATE INDEX IF NOT EXISTS admin_invitations_email_status_idx ON admin_invitations(email, status, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS admin_invitations_expiry_idx ON admin_invitations(expires_at)"),
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS admin_invitations_pending_email_unique ON admin_invitations(email) WHERE status = 'pending'"),
@@ -246,6 +256,41 @@ async function ensureSchema(db: D1Database) {
     // Existing local accounts predate verification; preserve their QA access.
     await db.prepare("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL").run();
   }
+
+  const outboxDefinition = await db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notification_outbox'").first<{ sql: string }>();
+  if (outboxDefinition?.sql.includes("CHECK(kind IN") && !outboxDefinition.sql.includes("'new_episode'")) {
+    await db.batch([
+      db.prepare("DROP TABLE IF EXISTS notification_outbox_next"),
+      db.prepare(`CREATE TABLE notification_outbox_next (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        recipient TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK(kind IN ('verify_email','password_reset','security_notice','new_episode')),
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        action_url TEXT,
+        dedupe_key TEXT,
+        status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','opened')),
+        created_at INTEGER NOT NULL,
+        opened_at INTEGER
+      )`),
+      db.prepare(`INSERT INTO notification_outbox_next
+        (id, user_id, recipient, kind, subject, body, action_url, dedupe_key, status, created_at, opened_at)
+        SELECT id, user_id, recipient, kind, subject, body, action_url, NULL, status, created_at, opened_at
+        FROM notification_outbox`),
+      db.prepare("DROP TABLE notification_outbox"),
+      db.prepare("ALTER TABLE notification_outbox_next RENAME TO notification_outbox"),
+    ]);
+  } else {
+    const outboxColumns = await db.prepare("PRAGMA table_info(notification_outbox)").all<{ name: string }>();
+    if (!outboxColumns.results.some((column) => column.name === "dedupe_key")) {
+      await db.prepare("ALTER TABLE notification_outbox ADD COLUMN dedupe_key TEXT").run();
+    }
+  }
+  await db.batch([
+    db.prepare("CREATE INDEX IF NOT EXISTS outbox_created_idx ON notification_outbox(created_at DESC)"),
+    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS notification_outbox_dedupe_unique ON notification_outbox(dedupe_key)"),
+  ]);
 
   const derivativeColumns = await db.prepare("PRAGMA table_info(media_derivative_jobs)").all<{ name: string }>();
   const derivativeColumnNames = new Set(derivativeColumns.results.map((column) => column.name));

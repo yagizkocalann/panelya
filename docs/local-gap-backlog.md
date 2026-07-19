@@ -12,9 +12,9 @@
 
 ## P1 - Okuyucu ve topluluk
 
-1. Seri sayfasinda kutuphane/favori butonlarinin aktif durumunu sunucudan gostermek.
+1. Tamamlandi: seri sayfasinda kutuphane/favori butonlarinin aktif durumunu sunucudan gostermek.
 2. Yorum yanitlari, begeni ve kullanici engelleme tercihleri.
-3. Takip edilen seriler ve yeni bolum bildirim tercihleri.
+3. Tamamlandi: kutuphaneden bagimsiz seri takibi, yeni bolum bildirim tercihi, ilk yayin gecisinde dogrulanmis takipcilere idempotent yerel outbox fan-out'u. Kalan dis is: canli e-posta/push adapter'i.
 4. D1 tabanli arama, siralama, filtreleme ve cursor pagination.
 
 ## P1 - Hesap ve guvenlik

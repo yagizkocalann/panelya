@@ -9,7 +9,7 @@ import { publicSiteUrlForCurrentRequest } from "../../lib/server-site-origins";
 
 export const dynamic = "force-dynamic";
 type OutboxRow = { id: string; recipient: string; kind: string; subject: string; body: string; action_url: string | null; status: "queued" | "opened"; created_at: number };
-const kindLabels: Record<string, string> = { verify_email: "E-posta doğrulama", password_reset: "Şifre sıfırlama", security_notice: "Güvenlik bildirimi" };
+const kindLabels: Record<string, string> = { verify_email: "E-posta doğrulama", password_reset: "Şifre sıfırlama", security_notice: "Güvenlik bildirimi", new_episode: "Yeni bölüm" };
 
 function notificationLabel(item: OutboxRow) {
   if (item.action_url) {
@@ -36,7 +36,7 @@ export default async function StudioOutboxPage({ searchParams }: { searchParams:
   const deletedCount = Math.max(0, Number.parseInt(query.count ?? "0", 10) || 0);
   const formatter = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" });
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
-    <div className="studio-top"><div><p className="section-kicker">Bildirim teslimat sınırı</p><h1>E-posta kutusu</h1><p>Gerçek sağlayıcı bağlanana kadar doğrulama, sıfırlama, yönetici daveti ve güvenlik bildirimleri burada test edilir.</p></div><Link className="button button--ghost" href="/">← Studio</Link></div>
+    <div className="studio-top"><div><p className="section-kicker">Bildirim teslimat sınırı</p><h1>E-posta kutusu</h1><p>Gerçek sağlayıcı bağlanana kadar doğrulama, sıfırlama, yönetici daveti, güvenlik ve yeni bölüm bildirimleri burada test edilir.</p></div><Link className="button button--ghost" href="/">← Studio</Link></div>
     <aside className="studio-notice"><strong>Aktif adaptör:</strong> {deliveryMode === "local_outbox" ? "Yerel D1 outbox" : `Tanımsız (${deliveryMode})`}. Bağlantılar loglara yazılmaz; production sağlayıcısı aynı vendor-bağımsız sözleşmeyi uygulayacak.</aside>
     {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
     {query.retention === "purged" && <p className="form-message form-message--success" role="status">Outbox bakımı tamamlandı; {deletedCount} süresi dolan kayıt silindi.</p>}
@@ -44,7 +44,7 @@ export default async function StudioOutboxPage({ searchParams }: { searchParams:
     <section className="studio-section outbox-retention" aria-labelledby="retention-title">
       <div className="section-heading"><div><p className="section-kicker">Politika v{retention.policyVersion}</p><h2 id="retention-title">Saklama ve veri minimizasyonu</h2></div><span className="sort-note">{retention.total} kayıt</span></div>
       <div className="outbox-retention__layout"><div className="outbox-retention__metrics"><article><span>Temizlenebilir</span><strong>{retention.purgeable}</strong></article><article><span>Aktif bağlantı</span><strong>{retention.queuedWithAction}</strong></article><article><span>En eski</span><strong>{retention.oldestCreatedAt ? formatter.format(retention.oldestCreatedAt) : "—"}</strong></article></div>
-        <div className="outbox-retention__policy"><p>Açılmış kayıtlar 24 saat; sıradaki şifre sıfırlamalar 24 saat; doğrulama ve yönetici davetleri 48 saat; bağlantısız güvenlik bildirimleri 30 gün tutulur.</p>
+        <div className="outbox-retention__policy"><p>Açılmış kayıtlar 24 saat; sıradaki şifre sıfırlamalar 24 saat; doğrulama ve yönetici davetleri 48 saat; yeni bölüm bildirimleri 7 gün; bağlantısız güvenlik bildirimleri 30 gün tutulur.</p>
           {retention.purgeable > 0 ? <form action="/api/admin/outbox/retention" method="post"><input type="hidden" name="action" value="purge_expired" /><button className="button button--danger" type="submit">Süresi dolanları temizle</button></form> : <p className="retention-current">Şu anda politika dışına çıkan kayıt yok.</p>}
         </div></div>
     </section>

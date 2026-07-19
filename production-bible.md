@@ -38,9 +38,10 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: uzun pencere urun kotalarini eszamanli isteklerde atomik uygulayan D1 kesin sayaci; production'da lokasyon bazli Cloudflare Rate Limiting binding'ini ani trafik kalkani olarak one ekleyen `d1_strict`/`cloudflare_hybrid` adapter siniri. Bilinmeyen mod, eksik binding ve servis hatasi korunan mutation'i fail-closed reddeder.
 - Tamamlanan: Studio `/qa` ve admin-only `/api/admin/platform-readiness` uzerinden D1/R2/Images/Queue/rate-limit binding'leri ile runtime modlarini secret veya hesap kaynak kimligi sizdirmadan kontrol eden deployment readiness kapisi. Public host 404, oturumsuz Studio 401, eksik zorunlu otomatik kontrol 503 doner; consumer retry/DLQ politikasi dis deployment dogrulamasi olarak ayrilir.
 - Tamamlanan: request hostundan public origine baglanan canonical metadata, public ve Studio icin ayri robots politikasi, yalniz indexlenebilir kurumsal/seri rotalarini iceren D1 tabanli sitemap ve yayin verisinden guvenli `ComicSeries`/`ComicIssue` JSON-LD.
+- Tamamlanan: seri sayfasinda sunucudan okunan aktif kutuphane/favori durumu; kutuphaneden bagimsiz D1 seri takibi ve yeni bolum bildirimi tercihi; ilk yayin gecisinde dogrulanmis takipcilere idempotent, vendor-bagimsiz yerel outbox fan-out'u.
 - Siradaki: deployment ortaminda Queue producer/consumer, Images, rate-limit namespace ve dead-letter politikasini provision edip readiness + gercek servis smoke testlerini calistirmak; yonetilen kimlik/canli e-posta saglayicisi karari.
 - D1 tablolarina gecis hesap ve katalog verisi icin tamamlandi. Medya yerelde R2 binding emulasyonu kullanir; production bucket yasam dongusu ile Queue kaynagi deployment oncesi platform ayarlarinda provision edilir.
-- Arama indeksi, moderasyon, telif bildirim sureci, analitik ve hata izleme.
+- Arama indeksi, yorum yaniti/begeni/engelleme, telif bildirim sureci, analitik ve hata izleme.
 
 P2:
 
@@ -65,6 +66,7 @@ Series 1---N Episode 1---N EpisodeAsset
 Series N---N Genre
 User 1---N ReadingProgress N---1 Episode
 User 1---N LibraryItem N---1 Series
+User 1---N SeriesSubscription N---1 Series
 User 1---N Review N---1 Series
 ```
 
@@ -79,6 +81,7 @@ Episode sirasinda gorunen etiket ile dahili `sequence` ayridir; prolog/0/ara bol
 - `POST /api/account/*`: profil, sifre ve hesap silme.
 - `POST /api/account/sessions/*`: kullanicinin diger oturumlarini tekil veya toplu kapatma.
 - `GET/POST /api/library/*`, `POST /api/progress`: yetkili okuyucu durumu.
+- `POST /api/subscriptions/:slug`: seri takibini ve yeni bolum bildirim tercihini bagimsiz olarak degistiren, ayni-origin ve oturum korumali okuyucu mutation'i.
 - `POST /api/contact`: lokal iletisim, uretici ve telif mesaji kaydi.
 - `POST /api/admin/messages/:id`: admin mesaj durumu guncelleme.
 - `POST /api/reviews/:slug`: kullanicinin seri degerlendirmesini ekleme, guncelleme veya silme.
@@ -179,3 +182,4 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-029 / Platform readiness kapisi: Tek kaynak `getPlatformReadiness`, local (`local_browser` + `d1_strict`), production (`cloudflare_queue` + `cloudflare_hybrid`) veya guvensiz karma profili belirler. D1/R2 her profilde; Images/Queue ve edge binding'leri ilgili production modu secildiginde zorunludur. Studio `/qa` ayni sonucu gorunur kilarken `/api/admin/platform-readiness` yalniz Studio hostu ve admin oturumuna acilir, no-store cevap verir ve zorunlu otomatik kontrol eksiginde 503 doner. Runtime Queue binding'i consumer retry/DLQ politikasini aciklamadigindan bu madde `manual` kalir; production hazirligi otomatik sonucu dis deployment kaynagi dogrulamasi olmadan tamamlanmis saymaz. API binding nesnesi, secret, hesap/namespace kimligi veya kaynak adi dondurmez.
 - ADR-030 / Yedekleme ve kurtarma: Kisa sureli D1 geri donusu otomatik Time Travel bookmark'lariyla, pencere disi kurtarma tam SQL exportuyla yapilir. R2 canli kovasi yedek sayilmaz; hashli immutable nesneler delete yetkisiz kopyalama kimligiyle ayri retention-lock'li yedek kovasina alinip surumlu manifestle eslestirilir. `recovery-metadata.json`, `database.sql` ve `media-manifest.json` paketi sema, kanonik tablo listesi, yol siniri ve SHA-256 kurallariyla restore'dan once salt okunur dogrulanir. Destructive restore otomatik UI aksiyonu degildir; bakim penceresi ve ikinci onay ister. Restore sonrasi dirilebilecek oturum, hesap/preview tokeni ve bekleyen yonetici davetleri trafik acilmadan gecersizlestirilir. Gercek export ve manifest Git'e girmez; tatbikat yalniz sentetik veya izole D1/R2 kaynaklarinda calisir.
 - ADR-031 / Public SEO siniri: `metadataBase`, canonical, robots ve sitemap URL'leri `PUBLIC_SITE_ORIGIN` tanimliysa onu, yerel QA'da request hostundan turetilen public localhost originini kullanir. Public robots API, hesap/auth, preview ve Studio yollarini taramaya kapatir; Studio hostunun `/robots.txt` cevabi proxy katmaninda tum taramayi reddeder. Sitemap okuyucu bolumlerini kapsamaz cunku okuyucu `noindex,follow` kalir; yalniz kurumsal sayfalar ile D1'de yayinlanmis ve en az bir yayinlanmis bolumu bulunan seri sayfalari listelenir. Seri JSON-LD'si Schema.org `ComicSeries` ve `ComicIssue` tiplerini, ekrandaki yayin verisini ve absolute public URL'leri kullanir; Studio girdisi script kapanisi uretemesin diye JSON icindeki `<` karakterleri Unicode escape edilir. Taslak, preview, hesap, API ve Studio verisi structured data veya sitemap'e girmez.
+- ADR-032 / Okuyucu takibi ve yayin bildirimi: Kutuphane/favori okuma organizasyonu, `series_subscriptions` ise seriyi takip ve yeni bolum tercihi icindir; biri digerini otomatik zorunlu kilmaz. Seri sayfasi her iki durumu da D1'den server-render eder. Yalniz yayindaki seride bir bolum ilk kez `published` durumuna gectiginde e-postasi dogrulanmis ve bildirimi acik takipciler vendor-bagimsiz `NotificationDelivery` hattina verilir. Yerel outbox `new_episode` turunu 7 gun tutar; kullanici-seri-bolum dedupe anahtari tekrar yayinlama veya yeniden denemede kopya kayit olusturmaz. Bildirim fan-out hatasi bolum yayinini geri almaz, Studio'da gorunur uyari ve sayisal audit sonucu uretir; production saglayicisi ayni idempotency sozlesmesini korur.
