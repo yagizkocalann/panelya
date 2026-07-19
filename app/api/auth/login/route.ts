@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   if (!allowed) return errorRedirect(request, "/login", "Çok fazla giriş denemesi yapıldı. Biraz sonra yeniden dene.", returnTo);
   const user = await authenticate(email, password);
   if (!user) return errorRedirect(request, "/login", "E-posta veya şifre hatalı.", returnTo);
-  const session = await createSession(user.id, form.get("remember") === "yes", request.headers.get("user-agent"));
+  const session = await createSession(user.id, form.get("remember") === "yes", request);
   await writeAudit(user.id, "account.logged_in");
   const response = redirectTo(request, returnTo);
   setSessionCookie(response, request, session.rawToken, session.expiresAt);

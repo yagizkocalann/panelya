@@ -15,10 +15,19 @@ export const users = sqliteTable("users", {
 export const sessions = sqliteTable("sessions", {
   tokenHash: text("token_hash").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  scope: text("scope", { enum: ["public", "studio"] }).notNull().default("public"),
+  remembered: integer("remembered", { mode: "boolean" }).notNull().default(false),
   expiresAt: integer("expires_at").notNull(),
+  idleExpiresAt: integer("idle_expires_at").notNull(),
+  authenticatedAt: integer("authenticated_at").notNull(),
+  lastSeenAt: integer("last_seen_at").notNull(),
   createdAt: integer("created_at").notNull(),
   userAgent: text("user_agent"),
-});
+}, (table) => [
+  index("sessions_user_idx").on(table.userId),
+  index("sessions_expiry_idx").on(table.expiresAt),
+  index("sessions_idle_expiry_idx").on(table.idleExpiresAt),
+]);
 
 export const accountTokens = sqliteTable("account_tokens", {
   id: text("id").primaryKey(),

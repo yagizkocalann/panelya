@@ -63,7 +63,12 @@ async function ensureSchema(db: D1Database) {
     db.prepare(`CREATE TABLE IF NOT EXISTS sessions (
       token_hash TEXT PRIMARY KEY NOT NULL,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      scope TEXT NOT NULL DEFAULT 'public' CHECK(scope IN ('public','studio')),
+      remembered INTEGER NOT NULL DEFAULT 0 CHECK(remembered IN (0,1)),
       expires_at INTEGER NOT NULL,
+      idle_expires_at INTEGER NOT NULL,
+      authenticated_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL,
       user_agent TEXT
     )`),
@@ -305,6 +310,26 @@ async function ensureSchema(db: D1Database) {
     // Existing local accounts predate verification; preserve their QA access.
     await db.prepare("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL").run();
   }
+
+  const sessionColumns = await db.prepare("PRAGMA table_info(sessions)").all<{ name: string }>();
+  const sessionColumnNames = new Set(sessionColumns.results.map((column) => column.name));
+  const missingSessionColumns = [
+    ["scope", "ALTER TABLE sessions ADD COLUMN scope TEXT NOT NULL DEFAULT 'public' CHECK(scope IN ('public','studio'))"],
+    ["remembered", "ALTER TABLE sessions ADD COLUMN remembered INTEGER NOT NULL DEFAULT 0 CHECK(remembered IN (0,1))"],
+    ["idle_expires_at", "ALTER TABLE sessions ADD COLUMN idle_expires_at INTEGER NOT NULL DEFAULT 0"],
+    ["authenticated_at", "ALTER TABLE sessions ADD COLUMN authenticated_at INTEGER NOT NULL DEFAULT 0"],
+    ["last_seen_at", "ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER NOT NULL DEFAULT 0"],
+  ] as const;
+  for (const [name, statement] of missingSessionColumns) {
+    if (!sessionColumnNames.has(name)) await db.prepare(statement).run();
+  }
+  await db.batch([
+    db.prepare("UPDATE sessions SET remembered = CASE WHEN expires_at - created_at > 172800000 THEN 1 ELSE 0 END WHERE remembered = 0"),
+    db.prepare("UPDATE sessions SET authenticated_at = created_at WHERE authenticated_at = 0"),
+    db.prepare("UPDATE sessions SET last_seen_at = created_at WHERE last_seen_at = 0"),
+    db.prepare("UPDATE sessions SET idle_expires_at = MIN(expires_at, created_at + 7200000) WHERE idle_expires_at = 0"),
+    db.prepare("CREATE INDEX IF NOT EXISTS sessions_idle_expiry_idx ON sessions(idle_expires_at)"),
+  ]);
 
   const contentSeriesColumns = await db.prepare("PRAGMA table_info(content_series)").all<{ name: string }>();
   if (!contentSeriesColumns.results.some((column) => column.name === "search_text")) {

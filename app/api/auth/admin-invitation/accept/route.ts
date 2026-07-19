@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const accepted = await acceptAdminInvitation(token, displayName, password);
     if (!accepted) return errorRedirect(request, token, "Davet bağlantısı artık kullanılamıyor.");
     await writeAudit(accepted.user.id, "admin.invitation_accepted", { invitationId: accepted.invitationId, targetUserId: accepted.user.id, role: "admin" });
-    const session = await createSession(accepted.user.id, true, request.headers.get("user-agent"));
+    const session = await createSession(accepted.user.id, true, request);
     const response = NextResponse.redirect(new URL("/?invite=accepted", request.url), 303);
     setSessionCookie(response, request, session.rawToken, session.expiresAt);
     return response;

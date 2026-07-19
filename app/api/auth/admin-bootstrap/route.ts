@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const user = await createBootstrapAdmin(displayName, email, password);
     if (!user) return new Response("Not found", { status: 404 });
     await writeAudit(user.id, "admin.bootstrap_completed", { targetUserId: user.id, role: "admin" });
-    const session = await createSession(user.id, true, request.headers.get("user-agent"));
+    const session = await createSession(user.id, true, request);
     const response = NextResponse.redirect(new URL("/?bootstrap=completed", request.url), 303);
     setSessionCookie(response, request, session.rawToken, session.expiresAt);
     return response;

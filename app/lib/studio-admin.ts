@@ -26,11 +26,12 @@ type StudioUserRow = {
 
 export async function listStudioUsers() {
   const db = await getDatabase();
+  const now = Date.now();
   const rows = await db.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.email_verified_at, u.created_at,
-    (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?) AS session_count,
+    (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ? AND s.idle_expires_at > ?) AS session_count,
     (SELECT COUNT(*) FROM library_items l WHERE l.user_id = u.id) AS library_count,
     (SELECT COUNT(*) FROM reviews r WHERE r.user_id = u.id) AS review_count
-    FROM users u ORDER BY CASE u.role WHEN 'admin' THEN 0 ELSE 1 END, u.created_at DESC`).bind(Date.now()).all<StudioUserRow>();
+    FROM users u ORDER BY CASE u.role WHEN 'admin' THEN 0 ELSE 1 END, u.created_at DESC`).bind(now, now).all<StudioUserRow>();
   return rows.results.map((row): StudioUser => ({
     id: row.id,
     email: row.email,

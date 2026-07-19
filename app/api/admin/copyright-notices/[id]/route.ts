@@ -1,5 +1,5 @@
-import { assertSameOrigin, getCurrentUser } from "../../../../lib/auth";
-import { redirectTo } from "../../../../lib/auth-http";
+import { assertSameOrigin, getCurrentUser, hasRecentAuthentication } from "../../../../lib/auth";
+import { reauthenticationRedirect, redirectTo } from "../../../../lib/auth-http";
 import { COPYRIGHT_NOTICE_STATUSES, type CopyrightNoticeStatus } from "../../../../lib/copyright-notices";
 import { getDatabase, writeAudit } from "../../../../lib/database";
 import { consumeRateLimit, requestFingerprint } from "../../../../lib/rate-limit";
@@ -11,6 +11,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const actor = await getCurrentUser();
   if (!actor) return redirectTo(request, "/login?return_to=/messages");
   if (actor.role !== "admin") return new Response("Yetkisiz.", { status: 403 });
+  if (!(await hasRecentAuthentication())) return reauthenticationRedirect(request, "/messages#copyright-notices");
   const allowed = await consumeRateLimit("admin-copyright-update", await requestFingerprint(request, actor.id), 30, 60 * 60 * 1000);
   if (!allowed) return redirectTo(request, "/messages?copyright_error=İşlem+sınırı+aşıldı.#copyright-notices");
 

@@ -1,4 +1,5 @@
-import { assertSameOrigin, getCurrentUser } from "../../../../../lib/auth";
+import { assertSameOrigin, getCurrentUser, hasRecentAuthentication } from "../../../../../lib/auth";
+import { reauthenticationRedirect } from "../../../../../lib/auth-http";
 import { getDatabase, writeAudit } from "../../../../../lib/database";
 import { isStudioRequest } from "../../../../../lib/site-origins";
 
@@ -14,6 +15,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const actor = await getCurrentUser();
   if (!actor) return Response.redirect(new URL("/login?return_to=/users", request.url), 303);
   if (actor.role !== "admin") return new Response("Yetkisiz.", { status: 403 });
+  if (!(await hasRecentAuthentication())) return reauthenticationRedirect(request, "/users");
 
   const { id: targetUserId } = await params;
   if (targetUserId === actor.id) return redirectWith(request, "error", "Kendi rolünü bu ekrandan değiştiremezsin.");

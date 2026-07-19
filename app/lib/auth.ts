@@ -1,8 +1,16 @@
 import { cookies } from "next/headers";
 import { getDatabase, writeAudit } from "./database";
+import { currentRequestIsStudio } from "./server-site-origins";
+import { isStudioRequest } from "./site-origins";
 
 export const SESSION_COOKIE = "panelya_session";
 const PASSWORD_ITERATIONS = 180_000;
+export const PUBLIC_SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
+export const STUDIO_SESSION_IDLE_MS = 30 * 60 * 1000;
+export const RECENT_AUTHENTICATION_MS = 10 * 60 * 1000;
+const SESSION_ACTIVITY_WRITE_INTERVAL_MS = 5 * 60 * 1000;
+
+export type SessionScope = "public" | "studio";
 
 export type LocalUser = {
   id: string;
@@ -115,30 +123,114 @@ export async function authenticate(email: string, password: string) {
   return toUser(row);
 }
 
-export async function createSession(userId: string, remember: boolean, userAgent: string | null) {
+function idleDuration(scope: SessionScope) {
+  return scope === "studio" ? STUDIO_SESSION_IDLE_MS : PUBLIC_SESSION_IDLE_MS;
+}
+
+function scopeForRequest(request: Request): SessionScope {
+  return isStudioRequest(request) ? "studio" : "public";
+}
+
+async function scopeForCurrentRequest(): Promise<SessionScope> {
+  return await currentRequestIsStudio() ? "studio" : "public";
+}
+
+export async function createSession(userId: string, remember: boolean, request: Request) {
   const db = await getDatabase();
   const rawToken = createOpaqueToken();
   const tokenHash = await hashOpaqueToken(rawToken);
   const now = Date.now();
+  const scope = scopeForRequest(request);
   const expiresAt = now + (remember ? 30 : 1) * 24 * 60 * 60 * 1000;
-  await db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at, created_at, user_agent) VALUES (?, ?, ?, ?, ?)")
-    .bind(tokenHash, userId, expiresAt, now, userAgent?.slice(0, 300) ?? null).run();
+  const idleExpiresAt = Math.min(expiresAt, now + idleDuration(scope));
+  await db.prepare(`INSERT INTO sessions
+    (token_hash, user_id, scope, remembered, expires_at, idle_expires_at, authenticated_at, last_seen_at, created_at, user_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      tokenHash,
+      userId,
+      scope,
+      remember ? 1 : 0,
+      expiresAt,
+      idleExpiresAt,
+      now,
+      now,
+      now,
+      request.headers.get("user-agent")?.slice(0, 300) ?? null,
+    ).run();
   return { rawToken, expiresAt };
 }
 
-export async function getUserFromToken(rawToken: string | undefined) {
+type SessionUserRow = UserRow & {
+  token_hash: string;
+  expires_at: number;
+  idle_expires_at: number;
+  last_seen_at: number;
+};
+
+export async function getUserFromToken(rawToken: string | undefined, scope: SessionScope = "public") {
   if (!rawToken) return null;
   const db = await getDatabase();
-  const row = await db.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.email_verified_at, u.created_at
+  const tokenHash = await hashOpaqueToken(rawToken);
+  const row = await db.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.email_verified_at, u.created_at,
+      s.token_hash, s.expires_at, s.idle_expires_at, s.last_seen_at
     FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token_hash = ? AND s.expires_at > ?`)
-    .bind(await hashOpaqueToken(rawToken), Date.now()).first<UserRow>();
-  return row ? toUser(row) : null;
+    WHERE s.token_hash = ? AND s.scope = ?`).bind(tokenHash, scope).first<SessionUserRow>();
+  if (!row) return null;
+  const now = Date.now();
+  if (row.expires_at <= now || row.idle_expires_at <= now) {
+    await db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
+    return null;
+  }
+  if (now - row.last_seen_at >= SESSION_ACTIVITY_WRITE_INTERVAL_MS) {
+    await db.prepare("UPDATE sessions SET last_seen_at = ?, idle_expires_at = ? WHERE token_hash = ?")
+      .bind(now, Math.min(row.expires_at, now + idleDuration(scope)), tokenHash).run();
+  }
+  return toUser(row);
 }
 
 export async function getCurrentUser() {
   const cookieStore = await cookies();
-  return getUserFromToken(cookieStore.get(SESSION_COOKIE)?.value);
+  return getUserFromToken(cookieStore.get(SESSION_COOKIE)?.value, await scopeForCurrentRequest());
+}
+
+export async function hasRecentAuthentication() {
+  const cookieStore = await cookies();
+  const rawToken = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!rawToken) return false;
+  const db = await getDatabase();
+  const now = Date.now();
+  const row = await db.prepare(`SELECT authenticated_at FROM sessions
+    WHERE token_hash = ? AND scope = ? AND expires_at > ? AND idle_expires_at > ?`)
+    .bind(await hashOpaqueToken(rawToken), await scopeForCurrentRequest(), now, now).first<{ authenticated_at: number }>();
+  return Boolean(row && row.authenticated_at >= now - RECENT_AUTHENTICATION_MS);
+}
+
+export async function rotateCurrentSessionAfterReauthentication() {
+  const cookieStore = await cookies();
+  const rawToken = cookieStore.get(SESSION_COOKIE)?.value;
+  if (!rawToken) return null;
+  const db = await getDatabase();
+  const scope = await scopeForCurrentRequest();
+  const oldTokenHash = await hashOpaqueToken(rawToken);
+  const current = await db.prepare(`SELECT remembered FROM sessions
+    WHERE token_hash = ? AND scope = ?`).bind(oldTokenHash, scope).first<{ remembered: number }>();
+  if (!current) return null;
+  const now = Date.now();
+  const expiresAt = now + (current.remembered ? 30 : 1) * 24 * 60 * 60 * 1000;
+  const newRawToken = createOpaqueToken();
+  const newTokenHash = await hashOpaqueToken(newRawToken);
+  const rotated = await db.prepare(`UPDATE sessions SET token_hash = ?, expires_at = ?, idle_expires_at = ?,
+    authenticated_at = ?, last_seen_at = ? WHERE token_hash = ? AND scope = ?`).bind(
+      newTokenHash,
+      expiresAt,
+      Math.min(expiresAt, now + idleDuration(scope)),
+      now,
+      now,
+      oldTokenHash,
+      scope,
+    ).run();
+  if (Number(rotated.meta.changes ?? 0) !== 1) return null;
+  return { rawToken: newRawToken, expiresAt };
 }
 
 export async function deleteSession(rawToken: string | undefined) {
