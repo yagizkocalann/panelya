@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,10 +12,22 @@ import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'reader_providers.dart';
 
+/// Okuyucu içerik sütununun en fazla genişliği.
+///
+/// production-bible.md §1: "Okuyucu içeriği 690-800 px merkez kolonda,
+/// boşluksuz dikey akışta sunulur." Bu bir renk/spacing token'ı değil, ürün
+/// ilkesinden gelen bir düzen sınırıdır (bkz. discover/series ekranlarındaki
+/// oran sabitleri — 3/4, 4/5, 0.48 — için de aynı gerekçe). Telefon
+/// genişliklerinde (360-430 px) bu sınırın hiçbir etkisi yoktur; yalnız
+/// tablet/geniş ekranlarda içerik merkeze alınır.
+const double _kReaderMaxWidth = 760;
+
 /// Okuyucu ekranı (`/series/:slug/read/:episodeSlug`): kesintisiz dikey
-/// panel scroll'u (ADR-019 — video pager değil). Faz 1'de panel metni
-/// (scene/caption/dialogue) ve varsa panel görseli gösterilir; ilerleme
-/// göstergesi ve gelişmiş görsel dil Faz 2'nin işidir.
+/// panel scroll'u (ADR-019 — video pager değil). Panel görselleri
+/// boşluksuz art arda dizilir; metin (caption/dialogue) görselden ayrı,
+/// okunabilir bir katman olarak görselin hemen altında yer alır (ADR-016).
+/// Bölüm geçişleri (önceki/sonraki/seriye dönüş) hem üst chrome'da (AppBar)
+/// hem de bölüm sonunda (bkz. [_ReaderEndNav]) erişilebilirdir.
 class ReaderScreen extends ConsumerWidget {
   const ReaderScreen({
     super.key,
@@ -30,28 +43,223 @@ class ReaderScreen extends ConsumerWidget {
     final key = (seriesSlug: seriesSlug, episodeSlug: episodeSlug);
     final manifest = ref.watch(episodeManifestProvider(key));
 
+    return manifest.when(
+      loading: () => _ReaderChromeScaffold(
+        seriesSlug: seriesSlug,
+        body: const AppLoadingView(label: 'Bölüm yükleniyor'),
+      ),
+      error: (error, stackTrace) => _ReaderChromeScaffold(
+        seriesSlug: seriesSlug,
+        body: AppErrorView(
+          message: error is ApiException
+              ? describeApiException(error)
+              : 'Beklenmeyen bir hata oluştu.',
+          onRetry: () => ref.invalidate(episodeManifestProvider(key)),
+        ),
+      ),
+      data: (response) =>
+          _ReaderSuccessScaffold(seriesSlug: seriesSlug, response: response),
+    );
+  }
+}
+
+/// Yükleniyor/hata durumlarında kullanılan minimal chrome. Manifest henüz
+/// (veya hiç) gelmediği için önceki/sonraki bölüm bilgisi yoktur; ADR-010
+/// gereği olmayan bir aksiyon buton olarak gösterilmez, yalnız seriye dönüş
+/// sunulur (her zaman çalışan tek aksiyon).
+class _ReaderChromeScaffold extends StatelessWidget {
+  const _ReaderChromeScaffold({required this.seriesSlug, required this.body});
+
+  final String seriesSlug;
+  final Widget body;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
     return Scaffold(
+      backgroundColor: tokens.colors.background,
       appBar: AppBar(
-        title: manifest.asData != null
-            ? Text(manifest.asData!.value.episode.title)
-            : const Text('Bölüm'),
+        leading: _SeriesReturnButton(seriesSlug: seriesSlug),
+        title: const Text('Bölüm'),
+      ),
+      body: SafeArea(child: body),
+    );
+  }
+}
+
+class _SeriesReturnButton extends StatelessWidget {
+  const _SeriesReturnButton({required this.seriesSlug});
+
+  final String seriesSlug;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back_rounded),
+      tooltip: 'Seriye dön',
+      onPressed: () => context.go('/series/$seriesSlug'),
+    );
+  }
+}
+
+/// Bölüm manifesti başarıyla geldikten sonraki okuyucu kabuğu. Scroll
+/// konumunu izleyip ince ilerleme çizgisini besleyen [ScrollController] ve
+/// [ValueNotifier] burada (state'te) yaşar; bu yüzden `ConsumerStatefulWidget`
+/// olarak kurulur (AppBar'ın altındaki ilerleme çizgisi ve gövde scroll'u
+/// aynı controller'ı paylaşır).
+class _ReaderSuccessScaffold extends ConsumerStatefulWidget {
+  const _ReaderSuccessScaffold({
+    required this.seriesSlug,
+    required this.response,
+  });
+
+  final String seriesSlug;
+  final EpisodeManifestResponse response;
+
+  @override
+  ConsumerState<_ReaderSuccessScaffold> createState() =>
+      _ReaderSuccessScaffoldState();
+}
+
+class _ReaderSuccessScaffoldState
+    extends ConsumerState<_ReaderSuccessScaffold> {
+  final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<double> _progress = ValueNotifier<double>(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final maxExtent = position.maxScrollExtent;
+    final value = maxExtent <= 0
+        ? 0.0
+        : (position.pixels / maxExtent).clamp(0.0, 1.0);
+    _progress.value = value;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_handleScroll);
+    _scrollController.dispose();
+    _progress.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    final episode = widget.response.episode;
+    final navigation = widget.response.navigation;
+
+    return Scaffold(
+      backgroundColor: tokens.colors.background,
+      appBar: _ReaderAppBar(
+        seriesSlug: widget.seriesSlug,
+        episodeNumber: episode.number,
+        previous: navigation.previous,
+        next: navigation.next,
+        progress: _progress,
       ),
       body: SafeArea(
-        child: manifest.when(
-          loading: () => const AppLoadingView(label: 'Bölüm yükleniyor'),
-          error: (error, stackTrace) => AppErrorView(
-            message: error is ApiException
-                ? describeApiException(error)
-                : 'Beklenmeyen bir hata oluştu.',
-            onRetry: () => ref.invalidate(episodeManifestProvider(key)),
-          ),
-          data: (response) {
-            if (response.episode.panels.isEmpty) {
-              return const AppEmptyView(
+        child: episode.panels.isEmpty
+            ? const AppEmptyView(
                 message: 'Bu bölümde henüz gösterilecek panel yok.',
-              );
-            }
-            return _ReaderView(seriesSlug: seriesSlug, response: response);
+              )
+            : _ReaderPanelList(
+                seriesSlug: widget.seriesSlug,
+                seriesTitle: widget.response.series.title,
+                episode: episode,
+                navigation: navigation,
+                scrollController: _scrollController,
+              ),
+      ),
+    );
+  }
+}
+
+/// Üst chrome: sade bir AppBar (seriye dönüş + bölüm no'su) ve varsa
+/// önceki/sonraki bölüm ikon butonları — olmayan yön hiç render edilmez
+/// (ADR-010). Hemen altında ince, token renkli bir ilerleme çizgisi
+/// (bkz. [_ReaderProgressBar]) yer alır.
+class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _ReaderAppBar({
+    required this.seriesSlug,
+    required this.episodeNumber,
+    required this.previous,
+    required this.next,
+    required this.progress,
+  });
+
+  final String seriesSlug;
+  final int episodeNumber;
+  final EpisodeNavigationRef? previous;
+  final EpisodeNavigationRef? next;
+  final ValueListenable<double> progress;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 3);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      leading: _SeriesReturnButton(seriesSlug: seriesSlug),
+      title: Text('Bölüm $episodeNumber'),
+      actions: [
+        if (previous != null)
+          IconButton(
+            icon: const Icon(Icons.skip_previous_rounded),
+            tooltip: 'Önceki bölüm: Bölüm ${previous!.number}',
+            onPressed: () => context.go(
+              '/series/$seriesSlug/read/${previous!.slug}',
+            ),
+          ),
+        if (next != null)
+          IconButton(
+            icon: const Icon(Icons.skip_next_rounded),
+            tooltip: 'Sonraki bölüm: Bölüm ${next!.number}',
+            onPressed: () =>
+                context.go('/series/$seriesSlug/read/${next!.slug}'),
+          ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(3),
+        child: _ReaderProgressBar(progress: progress),
+      ),
+    );
+  }
+}
+
+/// Scroll konumuna bağlı ince ilerleme çizgisi. Salt dekoratif olduğu için
+/// (bkz. web tarafındaki `aria-hidden="true"` eşdeğeri) erişilebilirlik
+/// ağacından hariç tutulur; ekran okuyucu kullanıcıları için bilgi taşımaz.
+class _ReaderProgressBar extends StatelessWidget {
+  const _ReaderProgressBar({required this.progress});
+
+  final ValueListenable<double> progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    return ExcludeSemantics(
+      child: SizedBox(
+        height: 3,
+        child: ValueListenableBuilder<double>(
+          valueListenable: progress,
+          builder: (context, value, _) {
+            return Container(
+              color: tokens.colors.line,
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: value,
+                heightFactor: 1,
+                child: Container(color: tokens.colors.mint),
+              ),
+            );
           },
         ),
       ),
@@ -59,63 +267,64 @@ class ReaderScreen extends ConsumerWidget {
   }
 }
 
-class _ReaderView extends ConsumerWidget {
-  const _ReaderView({required this.seriesSlug, required this.response});
+/// Panel listesi: boşluksuz dikey akış (production-bible.md §1). Her öğe
+/// tam genişlik ve bitişiktir; aralarında `ListView.separated` gibi bir
+/// ayırıcı boşluk YOKTUR. `ListView.builder` görünür/ön-belleğe yakın
+/// öğeleri tembel biçimde inşa eder; bu, ilk panelin hemen, sonraki
+/// panellerin ise yalnız viewport'a yaklaşınca inşa edilip görseli talep
+/// etmesini doğal olarak sağlar (ayrı bir `precacheImage` çağrısı — ekstra
+/// bir ağ isteği riski taşıyacağı için — eklenmedi).
+class _ReaderPanelList extends ConsumerWidget {
+  const _ReaderPanelList({
+    required this.seriesSlug,
+    required this.seriesTitle,
+    required this.episode,
+    required this.navigation,
+    required this.scrollController,
+  });
 
   final String seriesSlug;
-  final EpisodeManifestResponse response;
+  final String seriesTitle;
+  final Episode episode;
+  final EpisodeNavigation navigation;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = context.tokens;
     final apiOrigin = ref.watch(appConfigProvider).apiOrigin;
-    final episode = response.episode;
     final panels = episode.panels;
-    // Üretilen DTO wire-faithful (düz/flattened olmayan) şekli izler: gezinme
-    // bilgisi `response.previous`/`response.next` yerine
-    // `response.navigation.previous`/`response.navigation.next` altındadır
-    // (bkz. docs/mobile-handoff.md Ortaklık kuralları #3 — geçici adapter
-    // kaldırıldı, tüketici kod artık gerçek JSON şeklini birebir izler).
-    final previous = response.navigation.previous;
-    final next = response.navigation.next;
 
-    return ListView.separated(
-      padding: EdgeInsets.symmetric(vertical: tokens.spacing.md),
-      itemCount: panels.length + 2,
-      separatorBuilder: (context, index) => SizedBox(height: tokens.spacing.md),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return _EpisodeNavLink(
-            label: previous == null
-                ? 'Bu, serinin ilk bölümü.'
-                : 'Önceki bölüm: Bölüm ${previous.number}',
-            onTap: previous == null
-                ? null
-                : () => context.pushReplacement(
-                    '/series/$seriesSlug/read/${previous.slug}',
-                  ),
-          );
-        }
-        if (index == panels.length + 1) {
-          return _EpisodeNavLink(
-            label: next == null
-                ? 'Bu, serinin şu ana kadarki son bölümü.'
-                : 'Sonraki bölüm: Bölüm ${next.number}',
-            onTap: next == null
-                ? null
-                : () => context.pushReplacement(
-                    '/series/$seriesSlug/read/${next.slug}',
-                  ),
-          );
-        }
-        return _PanelView(panel: panels[index - 1], apiOrigin: apiOrigin);
-      },
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kReaderMaxWidth),
+        child: ListView.builder(
+          controller: scrollController,
+          padding: EdgeInsets.zero,
+          itemCount: panels.length + 1,
+          itemBuilder: (context, index) {
+            if (index == panels.length) {
+              return _ReaderEndNav(
+                seriesSlug: seriesSlug,
+                seriesTitle: seriesTitle,
+                previous: navigation.previous,
+                next: navigation.next,
+              );
+            }
+            return _PanelBlock(panel: panels[index], apiOrigin: apiOrigin);
+          },
+        ),
+      ),
     );
   }
 }
 
-class _PanelView extends StatelessWidget {
-  const _PanelView({required this.panel, required this.apiOrigin});
+/// Tek bir panel: görsel + hemen altında (boşluksuz) ayrı bir metin katmanı
+/// (ADR-016 — metin görsele gömülmez). Görseli olmayan paneller (yalnız
+/// eksik/legacy veri için bir geri düşüş; production bölümlerinde her
+/// panelin görseli olur) yalnız sahne metniyle tam genişlik bir blok olarak
+/// gösterilir.
+class _PanelBlock extends StatelessWidget {
+  const _PanelBlock({required this.panel, required this.apiOrigin});
 
   final StoryPanel panel;
   final String apiOrigin;
@@ -124,67 +333,210 @@ class _PanelView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final image = panel.image;
-    final imageUrl = image == null ? null : resolveMediaUrl(apiOrigin, image.src);
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
-      child: Semantics(
-        label: image?.alt ?? panel.scene,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(tokens.radii.md),
-                child: AspectRatio(
-                  aspectRatio: image!.width / image.height,
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return Container(
-                        color: tokens.colors.surface2,
-                        alignment: Alignment.center,
-                        child: CircularProgressIndicator(color: tokens.colors.mint),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: tokens.colors.surface2,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.broken_image_outlined,
-                        color: tokens.colors.muted,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: EdgeInsets.all(tokens.spacing.lg),
-                decoration: BoxDecoration(
-                  color: tokens.colors.surface2,
-                  borderRadius: BorderRadius.circular(tokens.radii.md),
-                  border: Border.all(color: tokens.colors.line),
-                ),
-                child: Text(panel.scene, style: tokens.typography.bodyLarge),
-              ),
-            if (panel.caption != null) ...[
-              SizedBox(height: tokens.spacing.sm),
-              Text(
-                panel.caption!,
-                style: tokens.typography.bodySmall.copyWith(
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-            if (panel.dialogue != null) ...[
-              SizedBox(height: tokens.spacing.xs),
-              Text(panel.dialogue!, style: tokens.typography.bodyLarge),
-            ],
-          ],
+    if (image == null) {
+      return _TextLayer(
+        tokens: tokens,
+        semanticLabel: panel.scene,
+        sceneText: panel.scene,
+        caption: panel.caption,
+        dialogue: panel.dialogue,
+      );
+    }
+
+    final imageUrl = resolveMediaUrl(apiOrigin, image.src);
+    final semanticLabel = image.alt.isNotEmpty ? image.alt : panel.scene;
+    final hasText = panel.caption != null || panel.dialogue != null;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Semantics(
+          image: true,
+          label: semanticLabel,
+          child: AspectRatio(
+            aspectRatio: image.width / image.height,
+            child: _PanelImage(url: imageUrl),
+          ),
         ),
+        if (hasText)
+          _TextLayer(
+            tokens: tokens,
+            semanticLabel: null,
+            sceneText: null,
+            caption: panel.caption,
+            dialogue: panel.dialogue,
+          ),
+      ],
+    );
+  }
+}
+
+/// Panel görselinden ayrı, okunabilir metin katmanı (ADR-016). Görseli olan
+/// panellerde yalnız caption/dialogue gösterilir (sahne açıklaması yalnız
+/// erişilebilirlik etiketi olarak kalır — web tarafıyla aynı davranış,
+/// bkz. `app/[slug]/[episode]/ReaderExperience.tsx`); görseli olmayan geri
+/// düşüş durumunda sahne metni de görünür yazılır.
+class _TextLayer extends StatelessWidget {
+  const _TextLayer({
+    required this.tokens,
+    required this.semanticLabel,
+    required this.sceneText,
+    required this.caption,
+    required this.dialogue,
+  });
+
+  final AppTokens tokens;
+  final String? semanticLabel;
+  final String? sceneText;
+  final String? caption;
+  final String? dialogue;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      width: double.infinity,
+      color: tokens.colors.surface2,
+      padding: EdgeInsets.all(tokens.spacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (sceneText != null)
+            Text(sceneText!, style: tokens.typography.bodyLarge),
+          if (caption != null) ...[
+            if (sceneText != null) SizedBox(height: tokens.spacing.sm),
+            Text(
+              caption!,
+              style: tokens.typography.bodySmall.copyWith(
+                fontStyle: FontStyle.italic,
+                color: tokens.colors.muted,
+              ),
+            ),
+          ],
+          if (dialogue != null) ...[
+            if (sceneText != null || caption != null)
+              SizedBox(height: tokens.spacing.xs),
+            Text(dialogue!, style: tokens.typography.bodyLarge),
+          ],
+        ],
+      ),
+    );
+
+    if (semanticLabel == null) return content;
+    return Semantics(label: semanticLabel, child: content);
+  }
+}
+
+/// Panel görseli: yükleme/hata placeholder'ları ve bir yumuşak-geçiş (fade)
+/// içerir. `MediaQuery.disableAnimations` (azaltılmış hareket) açıkken hem
+/// yükleme göstergesi dönen bir spinner yerine statik bir simgeye döner hem
+/// de fade süresi sıfırlanır — bu ekrandaki tek otomatik animasyon burada
+/// devre dışı bırakılır.
+class _PanelImage extends StatelessWidget {
+  const _PanelImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded) return child;
+        return AnimatedOpacity(
+          opacity: frame == null ? 0 : 1,
+          duration: reduceMotion ? Duration.zero : tokens.durations.medium,
+          curve: Curves.easeOut,
+          child: child,
+        );
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: tokens.colors.surface2,
+          alignment: Alignment.center,
+          child: reduceMotion
+              ? Icon(Icons.image_outlined, color: tokens.colors.muted)
+              : CircularProgressIndicator(
+                  color: tokens.colors.mint,
+                  strokeWidth: 2,
+                ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: tokens.colors.surface2,
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: tokens.colors.muted,
+        ),
+      ),
+    );
+  }
+}
+
+/// Bölüm sonu gezinme bloğu: önceki bölüm / seri sayfası / sonraki bölüm.
+/// Üstteki [_ReaderAppBar] ile birlikte "hem üstte hem altta" ilkesini
+/// karşılar. Seriye dönüş her zaman çalışır; önceki/sonraki olmayan yönler
+/// buton olarak DEĞİL, bilgi metni olarak gösterilir (ADR-010).
+class _ReaderEndNav extends StatelessWidget {
+  const _ReaderEndNav({
+    required this.seriesSlug,
+    required this.seriesTitle,
+    required this.previous,
+    required this.next,
+  });
+
+  final String seriesSlug;
+  final String seriesTitle;
+  final EpisodeNavigationRef? previous;
+  final EpisodeNavigationRef? next;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    return Padding(
+      padding: EdgeInsets.all(tokens.spacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Bu bölüm burada bitti.',
+            textAlign: TextAlign.center,
+            style: tokens.typography.titleMedium,
+          ),
+          SizedBox(height: tokens.spacing.md),
+          _NavLink(
+            label: previous == null
+                ? 'Bu, serinin ilk bölümü.'
+                : 'Önceki bölüm: Bölüm ${previous!.number}',
+            onTap: previous == null
+                ? null
+                : () => context.go(
+                    '/series/$seriesSlug/read/${previous!.slug}',
+                  ),
+          ),
+          SizedBox(height: tokens.spacing.sm),
+          _NavLink(
+            label: '$seriesTitle seri sayfasına dön',
+            onTap: () => context.go('/series/$seriesSlug'),
+          ),
+          SizedBox(height: tokens.spacing.sm),
+          _NavLink(
+            label: next == null
+                ? 'Bu, serinin şu ana kadarki son bölümü.'
+                : 'Sonraki bölüm: Bölüm ${next!.number}',
+            onTap: next == null
+                ? null
+                : () =>
+                      context.go('/series/$seriesSlug/read/${next!.slug}'),
+          ),
+        ],
       ),
     );
   }
@@ -192,8 +544,8 @@ class _PanelView extends StatelessWidget {
 
 /// Bölüm geçiş bağlantısı. `onTap` `null` olduğunda (örn. serinin ilk/son
 /// bölümü) devre dışı bir buton yerine bilgi metni gösterilir (ADR-010).
-class _EpisodeNavLink extends StatelessWidget {
-  const _EpisodeNavLink({required this.label, required this.onTap});
+class _NavLink extends StatelessWidget {
+  const _NavLink({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback? onTap;
@@ -201,26 +553,23 @@ class _EpisodeNavLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    final content = Padding(
-      padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
-      child: Container(
-        width: double.infinity,
-        constraints: BoxConstraints(minHeight: tokens.sizes.minTouchTarget),
-        alignment: Alignment.center,
-        padding: EdgeInsets.symmetric(
-          vertical: tokens.spacing.sm,
-          horizontal: tokens.spacing.md,
-        ),
-        decoration: BoxDecoration(
-          color: onTap == null ? Colors.transparent : tokens.colors.surface3,
-          borderRadius: BorderRadius.circular(tokens.radii.pill),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: tokens.typography.bodyMedium.copyWith(
-            color: onTap == null ? tokens.colors.muted : tokens.colors.ink,
-          ),
+    final content = Container(
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: tokens.sizes.minTouchTarget),
+      alignment: Alignment.center,
+      padding: EdgeInsets.symmetric(
+        vertical: tokens.spacing.sm,
+        horizontal: tokens.spacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: onTap == null ? Colors.transparent : tokens.colors.surface3,
+        borderRadius: BorderRadius.circular(tokens.radii.pill),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        style: tokens.typography.bodyMedium.copyWith(
+          color: onTap == null ? tokens.colors.muted : tokens.colors.ink,
         ),
       ),
     );
