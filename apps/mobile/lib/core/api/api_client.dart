@@ -6,10 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
-import '../contracts/catalog_response.dart';
-import '../contracts/episode_manifest_response.dart';
-import '../contracts/schema_version.dart';
-import '../contracts/series_detail_response.dart';
+import '../contracts/generated/generated.dart';
 import 'api_exception.dart';
 
 /// Panelya web deployment'ının API sınırına konuşan tek merkezi HTTP
@@ -20,6 +17,12 @@ import 'api_exception.dart';
 /// yalnız Riverpod repository provider'ları üzerinden kullanılır (bkz.
 /// docs/mobile-handoff.md Ortaklık kuralları #5). Mobil istemci D1/R2'ye
 /// doğrudan bağlanmaz; yalnız bu sınıfın konuştuğu `/api/*` uçlarını kullanır.
+///
+/// Gövdeler `lib/core/contracts/generated/` altındaki, `packages/contracts/
+/// schema.json`'dan üretilen DTO'larla ayrıştırılır (bkz.
+/// docs/mobile-handoff.md Ortaklık kuralları #3 — geçici elle yazılmış
+/// adapter, ortak sözleşme kaynağı `main`'e gelip codegen kurulduktan sonra
+/// kaldırıldı).
 class PanelyaApiClient {
   PanelyaApiClient({
     required this.apiOrigin,
@@ -77,10 +80,12 @@ class PanelyaApiClient {
       try {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic>) {
-          errorCode = decoded['error'] as String?;
+          errorCode = ErrorResponse.fromJson(decoded).error;
         }
       } catch (_) {
-        // Hata gövdesi JSON değilse errorCode null kalır; statusCode yeterli.
+        // Hata gövdesi JSON değilse veya `ErrorResponse` şeklinde
+        // (`{"error": "..."}`) değilse errorCode null kalır; statusCode
+        // yeterli.
       }
       throw HttpStatusException(
         statusCode: response.statusCode,
@@ -100,13 +105,25 @@ class PanelyaApiClient {
       throw ParseException('Beklenmeyen JSON şekli: $path');
     }
 
+    // `schemaVersion` uyumsuzluğu, üretilen DTO'nun kendi `fromJson`'ı
+    // çağrılmadan ÖNCE burada kontrol edilir: üretilen `fromJson` uyumsuz
+    // bir sürüm için düz bir `FormatException` fırlatır (bkz.
+    // `lib/core/contracts/generated/*_response.dart`), bu da aşağıdaki genel
+    // parse-hatası kolundan ayırt edilemez. Erken, açık bir kontrolle
+    // [SchemaMismatchException] her zaman doğru şekilde yüzeye çıkar (bkz.
+    // PLAN madde 5 — schemaVersion uyumsuzluğunda açık hata).
+    final schemaVersion = decoded['schemaVersion'];
+    if (schemaVersion != kSchemaVersion) {
+      throw SchemaMismatchException(
+        '$path şu sürümü döndürdü: $schemaVersion, beklenen: $kSchemaVersion',
+      );
+    }
+
     try {
       return fromJson(decoded);
-    } on SchemaVersionMismatchException catch (cause) {
-      throw SchemaMismatchException(
-        '$path şu sürümü döndürdü: ${cause.actual}, beklenen: ${cause.expected}',
-      );
     } on TypeError catch (cause) {
+      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+    } on FormatException catch (cause) {
       throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
     }
   }

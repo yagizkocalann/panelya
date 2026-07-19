@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/api/provider_retry_policy.dart';
-import '../../../core/contracts/catalog_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../data/api_discover_repository.dart';
 import '../domain/discover_repository.dart';
 

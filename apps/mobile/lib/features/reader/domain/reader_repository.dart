@@ -1,4 +1,4 @@
-import '../../../core/contracts/episode_manifest_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 
 /// Okuyucu manifesti verisine erişim sözleşmesi.
 ///

@@ -4,9 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
-import 'package:panelya_mobile/core/contracts/episode_contract.dart';
-import 'package:panelya_mobile/core/contracts/series_contract.dart';
-import 'package:panelya_mobile/core/contracts/series_detail_response.dart';
+import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/series/domain/series_repository.dart';
 import 'package:panelya_mobile/features/series/presentation/series_providers.dart';
 import 'package:panelya_mobile/features/series/presentation/series_screen.dart';
@@ -20,11 +18,11 @@ class _FakeSeriesRepository implements SeriesRepository {
   Future<SeriesDetailResponse> fetchSeriesDetail(String slug) => _result(slug);
 }
 
-SeriesMetadataContract _metadata({
+SeriesMetadata _metadata({
   String slug = 'gece-vardiyasi',
   String status = 'Devam Ediyor',
 }) {
-  return SeriesMetadataContract(
+  return SeriesMetadata(
     slug: slug,
     title: 'Gece Vardiyası',
     eyebrow: 'Zamanı geri saran bir teslimat',
@@ -33,7 +31,7 @@ SeriesMetadataContract _metadata({
     longDescription: 'Ece için gece vardiyası uzun bir açıklamadır.',
     status: status,
     genres: const ['Gizem', 'Bilim Kurgu'],
-    tone: 'coral',
+    tone: PanelTone.coral,
     updatedAt: 'Bugün',
     rating: 4.9,
     followers: '12,8 B',
@@ -41,12 +39,12 @@ SeriesMetadataContract _metadata({
 }
 
 /// Sunucu bölümleri yeni-en eski sıralı döner (bkz.
-/// `core/contracts/series_detail_response.dart`): burada da aynı sırayla
-/// (bolum-3, bolum-2, bolum-1) kuruluyor ki "Okumaya başla"nın gerçekten en
-/// düşük `number`'a (bolum-1) gittiği, listenin ilk öğesine değil,
-/// doğrulanabilsin.
-List<EpisodeSummaryContract> _episodesNewestFirst() => const [
-  EpisodeSummaryContract(
+/// `lib/core/contracts/generated/series_detail_response.dart`): burada da
+/// aynı sırayla (bolum-3, bolum-2, bolum-1) kuruluyor ki "Okumaya başla"nın
+/// gerçekten en düşük `number`'a (bolum-1) gittiği, listenin ilk öğesine
+/// değil, doğrulanabilsin.
+List<EpisodeSummary> _episodesNewestFirst() => const [
+  EpisodeSummary(
     slug: 'bolum-3',
     number: 3,
     title: 'Kayıp Dakika',
@@ -54,7 +52,7 @@ List<EpisodeSummaryContract> _episodesNewestFirst() => const [
     readTime: '7 dk',
     panelCount: 2,
   ),
-  EpisodeSummaryContract(
+  EpisodeSummary(
     slug: 'bolum-2',
     number: 2,
     title: 'Yarınki Adres',
@@ -62,7 +60,7 @@ List<EpisodeSummaryContract> _episodesNewestFirst() => const [
     readTime: '8 dk',
     panelCount: 2,
   ),
-  EpisodeSummaryContract(
+  EpisodeSummary(
     slug: 'bolum-1',
     number: 1,
     title: 'Son Teslimat',

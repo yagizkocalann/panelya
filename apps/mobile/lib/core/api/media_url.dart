@@ -1,6 +1,7 @@
-/// `coverImage` (bkz. `core/contracts/series_contract.dart`) ve panel
-/// `image.src` (bkz. `core/contracts/story_panel.dart`) alanları bazen
-/// mutlak (`http(s)://...`) bazen web deployment'ına göre relative
+/// `coverImage` (bkz. üretilen `SeriesMetadata`/`SeriesSummary`, ikisi de
+/// `lib/core/contracts/generated/`) ve panel `image.src` (bkz. üretilen
+/// `StoryPanelImage`) alanları bazen mutlak (`http(s)://...`) bazen web
+/// deployment'ına göre relative
 /// (`/images/...`) gelir (kaynak: `app/data/catalog.ts`). Bu yardımcı,
 /// relative olanları merkezi `apiOrigin` ile birleştirir; zaten mutlak
 /// olanlara dokunmaz.

@@ -1,5 +1,5 @@
 import '../../../core/api/api_client.dart';
-import '../../../core/contracts/episode_manifest_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../domain/reader_repository.dart';
 
 class ApiReaderRepository implements ReaderRepository {

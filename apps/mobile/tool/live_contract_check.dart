@@ -1,9 +1,16 @@
-// Dev-only canlı sözleşme doğrulama scripti (Faz 2, Görev 1).
+// Dev-only canlı sözleşme doğrulama scripti (Faz 2, Görev 1; Görev 4 sonrası
+// güncellendi).
 //
-// Amaç: `apps/mobile/lib/core/contracts/` altındaki GEÇİCİ adapter
-// modellerinin, web tarafının canlı `/api/*` uçlarının BUGÜN döndürdüğü
-// gerçek JSON şekliyle hâlâ eşleştiğini doğrulamak. Katalogdaki tüm
-// serileri ve her serinin tüm bölüm manifestlerini gezer.
+// Amaç: `apps/mobile/lib/core/contracts/generated/` altındaki, `packages/
+// contracts/schema.json`'dan üretilen DTO'ların, web tarafının canlı
+// `/api/*` uçlarının BUGÜN döndürdüğü gerçek JSON şekliyle hâlâ
+// eşleştiğini doğrulamak. Katalogdaki tüm serileri ve her serinin tüm
+// bölüm manifestlerini gezer.
+//
+// Not: Geçici elle yazılmış adapter (`lib/core/contracts/*.dart`,
+// `generated/` hariç) ortak sözleşme kaynağı `main`'e gelip codegen
+// kurulduktan sonra kaldırıldı (bkz. docs/mobile-handoff.md Ortaklık
+// kuralları #3); bu script artık `generated/generated.dart`'ı kullanır.
 //
 // ÇALIŞTIRMA:
 //   Bu dosya `package:flutter/foundation.dart` (dolayısıyla `dart:ui`)
@@ -44,17 +51,14 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:panelya_mobile/core/config/app_config.dart';
-import 'package:panelya_mobile/core/contracts/catalog_response.dart';
-import 'package:panelya_mobile/core/contracts/episode_manifest_response.dart';
-import 'package:panelya_mobile/core/contracts/schema_version.dart';
-import 'package:panelya_mobile/core/contracts/series_detail_response.dart';
+import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 
 /// Bilinen kapalı kümeler (yalnız BİLGİLENDİRME amaçlı gözlem için;
-/// `StoryPanel.tone` sunucudan bilinmeyen bir değer gelirse sessizce
-/// `PanelTone.unknown` üretir ve istemci ÇÖKMEZ — bu tasarım gereği
-/// öyledir, bkz. `core/contracts/story_panel.dart`. Yine de raporda görünür
-/// olması için burada ayrı bir "gözlem" listesine yazılır, "uyuşmazlık"
-/// listesine değil).
+/// `StoryPanel.tone` sunucudan bilinmeyen bir değer gelirse LENIENT enum
+/// politikası gereği sessizce `PanelTone.unknown`'a düşer ve istemci
+/// ÇÖKMEZ — bkz. `tool/generate_contracts.dart` dosya başlığı, tasarım
+/// kararı #6. Yine de raporda görünür olması için burada ayrı bir "gözlem"
+/// listesine yazılır, "uyuşmazlık" listesine değil).
 const _knownPanelTones = {
   'coral',
   'mint',
@@ -650,12 +654,12 @@ Future<Map<String, dynamic>?> _getJson(
       );
       return null;
     }
-    if (decoded['schemaVersion'] != kSupportedSchemaVersion) {
+    if (decoded['schemaVersion'] != kSchemaVersion) {
       report.mismatches.add(
         Mismatch(
           endpoint: path,
           field: 'schemaVersion',
-          expected: kSupportedSchemaVersion,
+          expected: kSchemaVersion,
           actual: '${decoded['schemaVersion']}',
         ),
       );
@@ -685,8 +689,8 @@ void _printReportAndExit(LiveContractCheckReport report) {
 
   if (report.parseFailures.isEmpty) {
     stdout.writeln(
-      'Contract fromJson() ayrıştırması: tüm cevaplar mevcut '
-      'lib/core/contracts modelleriyle hatasız ayrıştırıldı.',
+      'Contract fromJson() ayrıştırması: tüm cevaplar '
+      'lib/core/contracts/generated/ DTO\'larıyla hatasız ayrıştırıldı.',
     );
   } else {
     stdout.writeln('Contract fromJson() ayrıştırma HATALARI:');

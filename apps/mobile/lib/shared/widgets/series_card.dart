@@ -1,28 +1,33 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
-import '../../core/contracts/series_contract.dart';
+import '../../core/contracts/generated/generated.dart';
 import 'cover_image.dart';
 
 /// Keşif ızgarasında bir seriyi özetleyen poster kart (Faz 2): 3:4 kapak
 /// oranı, başlık ve tür/durum bilgisiyle keskin bir bilgi hiyerarşisi
 /// kurar (bkz. production-bible.md §7 — "Kartlar keskin bilgi
 /// hiyerarşisine, posterler 3:4 orana sahiptir").
+///
+/// [series] artık `packages/contracts/schema.json`'dan üretilen,
+/// wire-faithful (düz/flattened) `SeriesSummary` DTO'sudur; alanlara
+/// doğrudan (`series.slug`), eski `series.metadata.slug` gibi bir sarmalayıcı
+/// üzerinden değil, erişilir (bkz. docs/mobile-handoff.md Ortaklık
+/// kuralları #3 — geçici adapter kaldırıldı).
 class SeriesCard extends StatelessWidget {
   const SeriesCard({super.key, required this.series, required this.onTap});
 
-  final SeriesSummaryContract series;
+  final SeriesSummary series;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    final metadata = series.metadata;
-    final primaryGenre = metadata.genres.isNotEmpty ? metadata.genres.first : null;
+    final primaryGenre = series.genres.isNotEmpty ? series.genres.first : null;
 
     return Semantics(
       button: true,
-      label: '${metadata.title}. ${metadata.eyebrow}. ${metadata.status}. '
+      label: '${series.title}. ${series.eyebrow}. ${series.status}. '
           '${series.episodeCount} bölüm.',
       child: InkWell(
         onTap: onTap,
@@ -40,12 +45,12 @@ class SeriesCard extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(tokens.radii.lg),
                       child: CoverImage(
-                        src: metadata.coverImage,
-                        position: metadata.coverPosition,
-                        semanticLabel: metadata.title,
+                        src: series.coverImage,
+                        position: series.coverPosition,
+                        semanticLabel: series.title,
                       ),
                     ),
-                    if (metadata.isNew == true)
+                    if (series.isNew == true)
                       Positioned(
                         top: tokens.spacing.sm,
                         right: tokens.spacing.sm,
@@ -64,7 +69,7 @@ class SeriesCard extends StatelessWidget {
                 ),
               SizedBox(height: tokens.spacing.xs),
               Text(
-                metadata.title,
+                series.title,
                 style: tokens.typography.titleMedium,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -74,7 +79,7 @@ class SeriesCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      metadata.status,
+                      series.status,
                       style: tokens.typography.bodySmall,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -83,7 +88,7 @@ class SeriesCard extends StatelessWidget {
                   Icon(Icons.star_rounded, size: 14, color: tokens.colors.mint),
                   SizedBox(width: tokens.spacing.xs / 2),
                   Text(
-                    metadata.rating.toStringAsFixed(1),
+                    series.rating.toStringAsFixed(1),
                     style: tokens.typography.bodySmall,
                   ),
                 ],

@@ -10,7 +10,9 @@ import '../../core/config/app_config.dart';
 /// yükleme/hata placeholder mantığını tekrar etmez.
 ///
 /// - `src` `null`/boş ise doğrudan placeholder gösterilir (kapağı olmayan
-///   seriler için; kaynak: `SeriesMetadataContract.coverImage` opsiyoneldir).
+///   seriler için; kaynak: üretilen `SeriesMetadata.coverImage`/
+///   `SeriesSummary.coverImage` opsiyoneldir, bkz.
+///   `lib/core/contracts/generated/`).
 /// - `src` relative ise (`app/data/catalog.ts`'teki gibi `/images/...`)
 ///   `resolveMediaUrl` ile `apiOrigin` ile birleştirilir.
 /// - `position` web tarafındaki CSS `background-position` (`"50% 96%"` gibi)

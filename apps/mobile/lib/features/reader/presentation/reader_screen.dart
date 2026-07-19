@@ -7,8 +7,7 @@ import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/api/media_url.dart';
 import '../../../core/config/app_config.dart';
-import '../../../core/contracts/episode_manifest_response.dart';
-import '../../../core/contracts/story_panel.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'reader_providers.dart';
 
@@ -72,6 +71,13 @@ class _ReaderView extends ConsumerWidget {
     final apiOrigin = ref.watch(appConfigProvider).apiOrigin;
     final episode = response.episode;
     final panels = episode.panels;
+    // Üretilen DTO wire-faithful (düz/flattened olmayan) şekli izler: gezinme
+    // bilgisi `response.previous`/`response.next` yerine
+    // `response.navigation.previous`/`response.navigation.next` altındadır
+    // (bkz. docs/mobile-handoff.md Ortaklık kuralları #3 — geçici adapter
+    // kaldırıldı, tüketici kod artık gerçek JSON şeklini birebir izler).
+    final previous = response.navigation.previous;
+    final next = response.navigation.next;
 
     return ListView.separated(
       padding: EdgeInsets.symmetric(vertical: tokens.spacing.md),
@@ -80,25 +86,25 @@ class _ReaderView extends ConsumerWidget {
       itemBuilder: (context, index) {
         if (index == 0) {
           return _EpisodeNavLink(
-            label: response.previous == null
+            label: previous == null
                 ? 'Bu, serinin ilk bölümü.'
-                : 'Önceki bölüm: Bölüm ${response.previous!.number}',
-            onTap: response.previous == null
+                : 'Önceki bölüm: Bölüm ${previous.number}',
+            onTap: previous == null
                 ? null
                 : () => context.pushReplacement(
-                    '/series/$seriesSlug/read/${response.previous!.slug}',
+                    '/series/$seriesSlug/read/${previous.slug}',
                   ),
           );
         }
         if (index == panels.length + 1) {
           return _EpisodeNavLink(
-            label: response.next == null
+            label: next == null
                 ? 'Bu, serinin şu ana kadarki son bölümü.'
-                : 'Sonraki bölüm: Bölüm ${response.next!.number}',
-            onTap: response.next == null
+                : 'Sonraki bölüm: Bölüm ${next.number}',
+            onTap: next == null
                 ? null
                 : () => context.pushReplacement(
-                    '/series/$seriesSlug/read/${response.next!.slug}',
+                    '/series/$seriesSlug/read/${next.slug}',
                   ),
           );
         }

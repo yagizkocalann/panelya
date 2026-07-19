@@ -1,5 +1,5 @@
 import '../../../core/api/api_client.dart';
-import '../../../core/contracts/catalog_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../domain/discover_repository.dart';
 
 /// [DiscoverRepository]'nin merkezi [PanelyaApiClient] üzerinden çalışan tek

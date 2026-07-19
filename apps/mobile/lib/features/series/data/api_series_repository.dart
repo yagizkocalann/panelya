@@ -1,5 +1,5 @@
 import '../../../core/api/api_client.dart';
-import '../../../core/contracts/series_detail_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../domain/series_repository.dart';
 
 class ApiSeriesRepository implements SeriesRepository {

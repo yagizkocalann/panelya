@@ -58,6 +58,23 @@
 //      `unevaluatedProperties:false` (allOf birleşimi) taşımayan bir nesne
 //      şeması -- 4. maddedeki alan paketi istisnası dışında -- ek alanlara
 //      açık kabul edilir ve REDDEDİLİR.
+//   6. ENUM POLİTİKASI = LENIENT (orkestratör kararı): Adlandırılmış her
+//      Dart enum'una örtük bir `unknown` fallback üyesi eklenir. `fromJson`
+//      tanınmayan bir string değeri için exception FIRLATMAZ, sessizce
+//      `unknown`'a düşer. Gerekçe: mobil istemci production'da web'den
+//      önce/sonra dağıtılabilir; sunucu ileride kapalı kümeye yeni bir
+//      değer eklerse (ör. yeni bir `PanelTone`), eski bir mobil sürüm
+//      tam bir cevabı parse edemeyip çökmek yerine bilinmeyen değeri
+//      zararsızca yutabilmelidir (bkz. eski elle yazılmış
+//      `lib/core/contracts/story_panel.dart`'ın izlediği aynı ilke).
+//      `toJson()` ise `unknown` için TANIMSIZDIR ve `UnsupportedError`
+//      fırlatır: ham sunucu string'i saklanmadığı için `unknown`'ı geri
+//      sunucuya güvenle serialize etmenin bir yolu yoktur; bu istemci
+//      hiçbir zaman `unknown` bir değeri sunucuya geri yazmaz (yalnız
+//      okur), bu yüzden pratikte tetiklenmez. Şemada zaten `"unknown"`
+//      adında bir değer TANIMLIYSA bu çakışma TAHMİN EDİLEREK
+//      çözülmez; generator REDDEDER ve \$defs/alan/önerilen tip
+//      üçlüsünü raporlar.
 
 import 'dart:convert';
 import 'dart:io';
@@ -127,6 +144,52 @@ bool _isValidDartIdentifier(String value) {
   if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(value)) return false;
   if (_dartReservedWords.contains(value)) return false;
   return true;
+}
+
+/// Bir şema enum değer listesinin geçerli, tahminsiz üretilebilir bir Dart
+/// enum'a çevrilip çevrilemeyeceğini doğrular. Hem "her değer geçerli bir
+/// Dart tanımlayıcısı mı" hem de LENIENT enum politikasının (bkz. dosya
+/// başlığı, tasarım kararı #6) örtük olarak eklediği `unknown` fallback
+/// üyesiyle bir isim çakışması olup olmadığını kontrol eder. Herhangi bir
+/// sorun bulunursa `_ambiguities`'e kaydeder ve `false` döner; üretim o
+/// yapı için durur (tahminle devam edilmez).
+bool _validateEnumValues({
+  required String defName,
+  required String field,
+  required List<dynamic> values,
+}) {
+  var ok = true;
+  for (final value in values) {
+    if (value is! String || !_isValidDartIdentifier(value)) {
+      _reportAmbiguity(
+        defName: defName,
+        field: field,
+        issue:
+            'enum değeri "$value" geçerli bir Dart tanımlayıcısı değil; '
+            'otomatik transliterasyon tahmin gerektirir',
+        suggestedType: 'enum $defName { /* elle isimlendirme */ }',
+      );
+      ok = false;
+      continue;
+    }
+    if (value == 'unknown') {
+      _reportAmbiguity(
+        defName: defName,
+        field: field,
+        issue:
+            'şema zaten "unknown" adında bir enum değeri tanımlıyor; bu, '
+            'LENIENT enum politikasının (bkz. dosya başlığı, tasarım '
+            'kararı #6) her üretilen enum\'a örtük olarak eklediği '
+            'ileri-uyumluluk fallback üyesiyle çakışıyor; otomatik yeniden '
+            'adlandırma TAHMİN gerektirir',
+        suggestedType:
+            'enum $defName { ..., <mevcut "unknown" değeri için elle '
+            'seçilmiş farklı bir Dart adı> }',
+      );
+      ok = false;
+    }
+  }
+  return ok;
 }
 
 /// `SeriesMetadataFields` -> `series_metadata_fields`.
@@ -271,18 +334,12 @@ class SchemaResolver {
         );
       }
       if (target['type'] == 'string' && target.containsKey('enum')) {
-        for (final value in (target['enum'] as List)) {
-          if (value is! String || !_isValidDartIdentifier(value)) {
-            _reportAmbiguity(
-              defName: refName,
-              field: '(enum değeri)',
-              issue:
-                  'enum değeri "$value" geçerli bir Dart tanımlayıcısı '
-                  'değil; otomatik transliterasyon tahmin gerektirir',
-              suggestedType: 'enum $refName { /* elle isimlendirme */ }',
-            );
-            return null;
-          }
+        if (!_validateEnumValues(
+          defName: refName,
+          field: '(enum değeri)',
+          values: target['enum'] as List,
+        )) {
+          return null;
         }
         return Resolved(FieldType.enumRef(refName), false);
       }
@@ -713,17 +770,37 @@ String _renderObjectClass(ObjectSpec spec, {List<String> extraImports = const []
   return buffer.toString();
 }
 
+/// LENIENT enum politikası (bkz. dosya başlığı, tasarım kararı #6): her
+/// üretilen enum'a örtük bir `unknown` fallback üyesi eklenir. `values`
+/// listesinde zaten `"unknown"` OLMADIĞI `_validateEnumValues` tarafından
+/// önceden garanti edilmiştir (aksi halde bu fonksiyon hiç çağrılmaz).
 String _renderEnumClass(String className, List<String> values) {
   final buffer = StringBuffer();
   buffer.write(_generatedHeader);
   buffer.writeln();
   buffer.writeln(
-    '/// Kaynak: `packages/contracts/schema.json` -> `\$defs/$className`.',
+    '/// Kaynak: `packages/contracts/schema.json` -> `\$defs/$className`.\n'
+    '///\n'
+    '/// LENIENT enum politikası: `unknown`, sunucudan gelen tanınmayan bir\n'
+    '/// değer için ileri-uyumluluk fallback\'idir (bkz.\n'
+    '/// `tool/generate_contracts.dart` dosya başlığı, tasarım kararı #6).\n'
+    '/// `fromJson` tanınmayan bir string için asla exception fırlatmaz.\n'
+    '/// `toJson()` ise `unknown` için TANIMSIZDIR (ham sunucu değeri elde\n'
+    '/// tutulmadığından geri serialize edilemez) ve `UnsupportedError`\n'
+    '/// fırlatır; bu istemci `unknown` bir değeri hiçbir zaman sunucuya\n'
+    '/// geri yazmaz (yalnız okur).',
   );
   buffer.writeln('enum $className {');
   for (final value in values) {
     buffer.writeln('  $value,');
   }
+  buffer.writeln();
+  buffer.writeln(
+    '  /// Sunucudan gelen, bu istemcinin bilmediği bir değer için '
+    'ileri-uyumluluk\n'
+    '  /// fallback değeri. `toJson()` bu değer için çağrılamaz.\n'
+    '  unknown,',
+  );
   buffer.writeln();
   buffer.writeln('  ;');
   buffer.writeln();
@@ -734,13 +811,21 @@ String _renderEnumClass(String className, List<String> values) {
     buffer.writeln('        return $className.$value;');
   }
   buffer.writeln('      default:');
-  buffer.writeln(
-    "        throw FormatException('Bilinmeyen $className değeri: \$value');",
-  );
+  buffer.writeln('        return $className.unknown;');
   buffer.writeln('    }');
   buffer.writeln('  }');
   buffer.writeln();
-  buffer.writeln('  String toJson() => name;');
+  buffer.writeln('  String toJson() {');
+  buffer.writeln('    if (this == $className.unknown) {');
+  buffer.writeln('      throw UnsupportedError(');
+  buffer.writeln(
+    "        '$className.unknown serialize edilemez "
+    "(ham sunucu değeri tutulmuyor).',",
+  );
+  buffer.writeln('      );');
+  buffer.writeln('    }');
+  buffer.writeln('    return name;');
+  buffer.writeln('  }');
   buffer.writeln('}');
   return buffer.toString();
 }
@@ -953,25 +1038,15 @@ void main(List<String> args) {
     }
 
     if (node['type'] == 'string' && node.containsKey('enum')) {
-      final values = (node['enum'] as List).cast<String>();
-      var ok = true;
-      for (final value in values) {
-        if (!_isValidDartIdentifier(value)) {
-          _reportAmbiguity(
-            defName: defName,
-            field: '(enum değeri)',
-            issue:
-                'enum değeri "$value" geçerli bir Dart tanımlayıcısı '
-                'değil; otomatik transliterasyon tahmin gerektirir',
-            suggestedType: 'enum $defName { /* elle isimlendirme */ }',
-          );
-          ok = false;
-        }
-      }
+      final ok = _validateEnumValues(
+        defName: defName,
+        field: '(enum değeri)',
+        values: node['enum'] as List,
+      );
       if (!ok) continue;
       outputs['${_toSnakeCase(defName)}.dart'] = _renderEnumClass(
         defName,
-        values,
+        (node['enum'] as List).cast<String>(),
       );
       continue;
     }

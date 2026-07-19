@@ -5,8 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
-import '../../../core/contracts/episode_contract.dart';
-import '../../../core/contracts/series_detail_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'series_providers.dart';
@@ -46,10 +45,11 @@ class SeriesScreen extends ConsumerWidget {
 
 /// Bölümler arasında görünen numaraya (sequence etiketine) göre en küçük
 /// olanı bulur. Sunucu bölümleri yeni-en eski sıralı döndürür (bkz.
-/// `core/contracts/series_detail_response.dart`), ama "Okumaya başla" ilk
-/// bölüme (en düşük numaraya) götürmelidir (bkz. PLAN Görev 3); bu yüzden
-/// sıralamaya güvenmek yerine açıkça en küçük `number`'ı arar.
-EpisodeSummaryContract firstEpisodeOf(List<EpisodeSummaryContract> episodes) {
+/// `lib/core/contracts/generated/series_detail_response.dart`), ama
+/// "Okumaya başla" ilk bölüme (en düşük numaraya) götürmelidir (bkz. PLAN
+/// Görev 3); bu yüzden sıralamaya güvenmek yerine açıkça en küçük
+/// `number`'ı arar.
+EpisodeSummary firstEpisodeOf(List<EpisodeSummary> episodes) {
   return episodes.reduce((a, b) => a.number <= b.number ? a : b);
 }
 
@@ -190,7 +190,7 @@ class _Tag extends StatelessWidget {
 class _EpisodeTile extends StatelessWidget {
   const _EpisodeTile({required this.episode, required this.onTap});
 
-  final EpisodeSummaryContract episode;
+  final EpisodeSummary episode;
   final VoidCallback onTap;
 
   @override

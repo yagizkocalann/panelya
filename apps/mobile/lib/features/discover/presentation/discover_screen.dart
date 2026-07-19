@@ -5,8 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
-import '../../../core/contracts/catalog_response.dart';
-import '../../../core/contracts/series_contract.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/series_card.dart';
 import '../../../shared/widgets/state_views.dart';
@@ -119,10 +118,10 @@ class _DiscoverContent extends ConsumerWidget {
                       (context, index) {
                         final series = filtered[index];
                         return SeriesCard(
-                          key: ValueKey('series-card-${series.metadata.slug}'),
+                          key: ValueKey('series-card-${series.slug}'),
                           series: series,
                           onTap: () =>
-                              context.push('/series/${series.metadata.slug}'),
+                              context.push('/series/${series.slug}'),
                         );
                       },
                       childCount: filtered.length,
@@ -141,12 +140,11 @@ class _DiscoverContent extends ConsumerWidget {
 class _FeaturedHero extends StatelessWidget {
   const _FeaturedHero({super.key, required this.series});
 
-  final SeriesSummaryContract series;
+  final SeriesSummary series;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    final metadata = series.metadata;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -163,9 +161,9 @@ class _FeaturedHero extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               CoverImage(
-                src: metadata.coverImage,
-                position: metadata.coverPosition,
-                semanticLabel: metadata.title,
+                src: series.coverImage,
+                position: series.coverPosition,
+                semanticLabel: series.title,
               ),
               DecoratedBox(
                 decoration: BoxDecoration(
@@ -186,7 +184,7 @@ class _FeaturedHero extends StatelessWidget {
                 bottom: tokens.spacing.md,
                 child: Semantics(
                   label:
-                      'Öne çıkan seri: ${metadata.title}. ${metadata.eyebrow}.',
+                      'Öne çıkan seri: ${series.title}. ${series.eyebrow}.',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -196,20 +194,20 @@ class _FeaturedHero extends StatelessWidget {
                         runSpacing: tokens.spacing.xs,
                         children: [
                           _Pill(text: 'Haftanın hikâyesi', tokens: tokens, highlight: true),
-                          _Pill(text: metadata.status, tokens: tokens),
+                          _Pill(text: series.status, tokens: tokens),
                           _Pill(text: '${series.episodeCount} bölüm', tokens: tokens),
                         ],
                       ),
                       SizedBox(height: tokens.spacing.sm),
                       Text(
-                        metadata.title,
+                        series.title,
                         style: tokens.typography.displayLarge,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: tokens.spacing.xs),
                       Text(
-                        metadata.description,
+                        series.description,
                         style: tokens.typography.bodyMedium.copyWith(
                           color: tokens.colors.ink,
                         ),
@@ -221,7 +219,7 @@ class _FeaturedHero extends StatelessWidget {
                         height: tokens.sizes.minTouchTarget,
                         child: FilledButton(
                           onPressed: () =>
-                              context.push('/series/${metadata.slug}'),
+                              context.push('/series/${series.slug}'),
                           child: const Text('Seriyi incele'),
                         ),
                       ),

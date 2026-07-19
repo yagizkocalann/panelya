@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/api/provider_retry_policy.dart';
-import '../../../core/contracts/series_detail_response.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../data/api_series_repository.dart';
 import '../domain/series_repository.dart';
 

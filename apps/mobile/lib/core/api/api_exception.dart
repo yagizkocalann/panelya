@@ -55,7 +55,9 @@ class ParseException extends ApiException {
 
 /// Sunucunun `schemaVersion` alanı bu istemcinin desteklediği sürümle
 /// eşleşmiyor. Sessizce yanlış alan okumak yerine açık bir hata olarak
-/// yüzeye çıkar (bkz. `core/contracts/schema_version.dart`).
+/// yüzeye çıkar (bkz. `core/api/api_client.dart` — `kSchemaVersion`
+/// karşılaştırması, ve üretilen `lib/core/contracts/generated/
+/// schema_version.dart`).
 class SchemaMismatchException extends ApiException {
   const SchemaMismatchException(super.message);
 }

@@ -3,10 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
-import 'package:panelya_mobile/core/contracts/catalog_response.dart';
-import 'package:panelya_mobile/core/contracts/episode_contract.dart';
-import 'package:panelya_mobile/core/contracts/series_contract.dart';
-import 'package:panelya_mobile/core/contracts/story_panel.dart';
+import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_screen.dart';
@@ -21,40 +18,41 @@ class _FakeDiscoverRepository implements DiscoverRepository {
 }
 
 CatalogResponse _catalogWith(
-  List<SeriesSummaryContract> series, {
+  List<SeriesSummary> series, {
   String? featuredSlug,
 }) {
   return CatalogResponse(
     schemaVersion: '1.0',
-    featuredSlug: featuredSlug ?? (series.isEmpty ? null : series.first.metadata.slug),
+    featuredSlug: featuredSlug ?? (series.isEmpty ? null : series.first.slug),
     series: series,
   );
 }
 
-SeriesSummaryContract _series(
+/// `SeriesSummary` üretilen (generated) DTO'sunun wire-faithful, düz
+/// (flattened) şeklini kullanır — eski `SeriesSummaryContract.metadata`
+/// sarmalayıcısı yoktur (bkz. docs/mobile-handoff.md Ortaklık kuralları #3).
+SeriesSummary _series(
   String slug,
   String title, {
   List<String> genres = const ['Gizem'],
   bool? isNew,
 }) {
-  return SeriesSummaryContract(
-    metadata: SeriesMetadataContract(
-      slug: slug,
-      title: title,
-      eyebrow: 'Eyebrow',
-      creator: 'Panelya Originals',
-      description: 'Description',
-      longDescription: 'Long description',
-      status: 'Devam Ediyor',
-      genres: genres,
-      tone: 'mint',
-      updatedAt: 'Bugün',
-      rating: 4.5,
-      followers: '1 B',
-      isNew: isNew,
-    ),
+  return SeriesSummary(
+    slug: slug,
+    title: title,
+    eyebrow: 'Eyebrow',
+    creator: 'Panelya Originals',
+    description: 'Description',
+    longDescription: 'Long description',
+    status: 'Devam Ediyor',
+    genres: genres,
+    tone: PanelTone.mint,
+    updatedAt: 'Bugün',
+    rating: 4.5,
+    followers: '1 B',
+    isNew: isNew,
     episodeCount: 1,
-    latestEpisode: const EpisodeContract(
+    latestEpisode: const Episode(
       slug: 'bolum-1',
       number: 1,
       title: 'Bölüm 1',
