@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SeriesCard } from "./components/SeriesCard";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
-import { AdTestSlot } from "./components/AdTestSlot";
+import { AdSlot } from "./components/AdSlot";
 import { listPublishedGenres, listPublishedSeries, searchPublishedSeries, type CatalogSearchResult } from "./lib/content-repository";
 
 export const metadata: Metadata = {
@@ -95,7 +95,7 @@ export default async function Home({ searchParams }: HomeProps) {
                 <div className="section-heading"><div><p className="section-kicker">Okuma akışı</p><h2 id="recent-title">Yeni bölüm eklenenler</h2><p>Hikâyeye kaldığın yerden değil, merak ettiğin yerden gir.</p></div><Link className="inline-link" href="/?view=catalog">Tüm kataloğu keşfet →</Link></div>
                 <div className="card-grid">{seriesCatalog.slice(0, 4).map((series, index) => <SeriesCard key={series.slug} series={series} badge={index === 0 ? "Yeni bölüm" : undefined} />)}</div>
               </section>
-              <AdTestSlot placement="home-feed-01" />
+              <AdSlot placement="home-feed-01" />
               <section className="manifesto-banner" aria-label="Panelya Originals">
                 <div><span className="manifesto-mark" aria-hidden="true">P</span><p className="section-kicker">Panelya Originals</p><h2>Burada hikâyeler<br />telefona göre doğar.</h2></div>
                 <p>Kaydırma ritmi, sessiz anlar ve bölüm sonu kancaları tek bir dikey tuval için tasarlanır. <Link className="inline-link" href="/production-journal">İlk özgün serimizin üretim günlüğünü oku →</Link></p>

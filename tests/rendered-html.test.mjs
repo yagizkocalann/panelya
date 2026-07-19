@@ -24,7 +24,11 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
   assert.match(html, /Yeni bölüm eklenenler/);
   assert.match(html, /href="\/gece-vardiyasi\/bolum-1"/);
   assert.match(html, /data-ad-test-slot="home-feed-01"/);
+  assert.doesNotMatch(html, /<script[^>]+securepubads\.g\.doubleclick\.net/i);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|OkuToon/i);
+
+  const remoteHtml = await (await request("/", "text/html", "https://panelya.example", { headers: { "x-forwarded-host": "panelya.example", "x-forwarded-proto": "https" } })).text();
+  assert.doesNotMatch(remoteHtml, /data-ad-test-slot="home-feed-01"/);
 });
 
 test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sınırını korur", async () => {
@@ -364,7 +368,7 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
 });
 
 test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşmesi kaynakta bulunur", async () => {
-  const [schema, hosting, authActions, authControls, studio, library, adSlot, adLab, footer, notifications, resetPage, accountPage, moderationPage, proxy] = await Promise.all([
+  const [schema, hosting, authActions, authControls, studio, library, adSlot, adBoundary, consentManager, consentState, adLab, footer, notifications, resetPage, accountPage, moderationPage, proxy] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/components/AuthActions.tsx", import.meta.url), "utf8"),
@@ -372,6 +376,9 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
     readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/library/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/AdTestSlot.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/AdSlot.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/ConsentManager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/ad-consent.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/ads/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/SiteFooter.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/notifications.ts", import.meta.url), "utf8"),
@@ -399,6 +406,11 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(library, /Okumaya devam et/);
   assert.match(adSlot, /securepubads\.g\.doubleclick\.net\/tag\/js\/gpt\.js/);
   assert.match(adSlot, /\/6355419\/Travel\/Europe\/France\/Paris/);
+  assert.match(adSlot, /consent !== "ads"/);
+  assert.match(adBoundary, /resolveAdRuntimeMode/);
+  assert.match(consentManager, /Yalnız gerekli/);
+  assert.match(consentManager, /Test reklamına izin ver/);
+  assert.match(consentState, /panelya-consent-v1/);
   assert.match(adLab, /Reklam Laboratuvarı/);
   assert.match(authControls, /aria-label="Hesap ekranını kapat"/);
   assert.doesNotMatch(studio, /disabled/);
@@ -407,6 +419,7 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(footer, /footer-category-grid/);
   assert.match(footer, /href="\/library"/);
   assert.match(footer, /href="\/account"/);
+  assert.match(footer, /ConsentSettingsButton/);
   assert.match(notifications, /interface NotificationDelivery/);
   assert.match(notifications, /deliveryFactories/);
   assert.match(notifications, /NotificationDeliveryUnavailableError/);

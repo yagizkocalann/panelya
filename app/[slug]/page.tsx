@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { ReadingProgressCard } from "./ReadingProgressCard";
-import { AdTestSlot } from "../components/AdTestSlot";
+import { AdSlot } from "../components/AdSlot";
 import { JsonLd } from "../components/JsonLd";
 import { getCurrentUser } from "../lib/auth";
 import { getSeriesCommunity } from "../lib/reviews";
@@ -131,7 +131,7 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
         </section>
 
         <ReadingProgressCard seriesSlug={series.slug} firstEpisodeSlug={first.slug} />
-        <div className="wrap series-ad"><AdTestSlot placement="series-detail-01" /></div>
+        <div className="wrap series-ad"><AdSlot placement="series-detail-01" /></div>
 
         <section className="episode-section wrap" aria-labelledby="episodes-title">
           <div className="section-heading"><div><p className="section-kicker">{series.episodes.length} durak</p><h2 id="episodes-title">Bölümler</h2></div><span className="sort-note">En yeni önce</span></div>
