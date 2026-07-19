@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
@@ -42,6 +43,24 @@ export const notificationOutbox = sqliteTable("notification_outbox", {
   createdAt: integer("created_at").notNull(),
   openedAt: integer("opened_at"),
 });
+
+export const adminInvitations = sqliteTable("admin_invitations", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  invitedByUserId: text("invited_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  status: text("status", { enum: ["pending", "accepted", "revoked"] }).notNull().default("pending"),
+  expiresAt: integer("expires_at").notNull(),
+  acceptedAt: integer("accepted_at"),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("admin_invitations_token_unique").on(table.tokenHash),
+  uniqueIndex("admin_invitations_pending_email_unique").on(table.email).where(sql`${table.status} = 'pending'`),
+  index("admin_invitations_email_status_idx").on(table.email, table.status, table.createdAt),
+  index("admin_invitations_expiry_idx").on(table.expiresAt),
+]);
 
 export const rateLimitBuckets = sqliteTable("rate_limit_buckets", {
   key: text("key").primaryKey(),

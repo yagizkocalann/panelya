@@ -20,7 +20,7 @@ function internalStudioPath(pathname: string) {
 }
 
 function isStudioSupportPath(pathname: string) {
-  return ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/account"].some(
+  return ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/accept-admin-invite", "/bootstrap-admin", "/account"].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   ) || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/account/") || pathname.startsWith("/api/admin/");
 }
@@ -50,6 +50,10 @@ export function proxy(request: NextRequest) {
   }
 
   if (url.pathname.startsWith("/api/admin/")) return new NextResponse("Not found", { status: 404 });
+
+  if (["/accept-admin-invite", "/bootstrap-admin"].includes(url.pathname)) {
+    return NextResponse.redirect(copySearch(url, new URL(url.pathname, studioSiteOrigin(request))));
+  }
 
   if (url.pathname.startsWith("/preview/") || url.pathname.startsWith("/api/preview/")) {
     const response = NextResponse.next();

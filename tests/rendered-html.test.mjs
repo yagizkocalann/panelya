@@ -226,6 +226,16 @@ test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async 
   assert.equal(publicDerivativeMutation.status, 404);
   const publicRoleMutation = await request("/api/admin/users/example/role", "text/html", "http://localhost", { method: "POST" });
   assert.equal(publicRoleMutation.status, 404);
+  const publicInvitationMutation = await request("/api/admin/invitations", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicInvitationMutation.status, 404);
+
+  for (const path of ["/accept-admin-invite", "/bootstrap-admin"]) {
+    const publicResponse = await request(path, "text/html", "http://localhost:3000");
+    assert.ok([307, 308].includes(publicResponse.status), `${path} Studio hostuna yönlenmeli`);
+    const studioResponse = await request(path, "text/html", "http://studio.localhost:3000");
+    assert.equal(studioResponse.status, 200, `${path} Studio hostunda açılmalı`);
+    assert.match(await studioResponse.text(), /noindex/);
+  }
 
   for (const path of ["/users", "/audit"]) {
     const response = await request(path, "text/html", "http://studio.localhost:3000");
@@ -259,6 +269,51 @@ test("Studio kullanıcı rolleri ve audit günlüğü güvenlik sınırlarını 
   assert.match(roleApi, /admin\.user_role_changed/);
   assert.match(proxy, /"users"/);
   assert.match(proxy, /"audit"/);
+});
+
+test("Studio yönetici daveti hashli, tek kullanımlık ve production kaydı yetkisiz başlatmaz", async () => {
+  const [schema, invitations, invitationApi, invitationUpdateApi, acceptApi, bootstrapApi, runtimeConfig, registerApi, auth, usersPage, outboxApi, proxy] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/admin-invitations.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/invitations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/invitations/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/admin-invitation/accept/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/admin-bootstrap/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/register/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/users/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/outbox/[id]/open/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /sqliteTable\("admin_invitations"/);
+  assert.match(schema, /admin_invitations_pending_email_unique/);
+  assert.match(invitations, /INVITATION_TTL_MS = 24 \* 60 \* 60 \* 1000/);
+  assert.match(invitations, /createOpaqueToken\(\)/);
+  assert.match(invitations, /hashOpaqueToken\(rawToken\)/);
+  assert.doesNotMatch(invitations, /rawToken[^\n]*INSERT|INSERT[^\n]*rawToken/);
+  assert.match(invitationApi, /isStudioRequest\(request\)/);
+  assert.match(invitationApi, /assertSameOrigin/);
+  assert.match(invitationApi, /admin\.invitation_created/);
+  assert.match(invitationUpdateApi, /admin\.invitation_resent/);
+  assert.match(invitationUpdateApi, /admin\.invitation_revoked/);
+  assert.match(invitationUpdateApi, /consumeRateLimit\("admin-invitation-update"/);
+  assert.match(acceptApi, /admin\.invitation_accepted/);
+  assert.match(runtimeConfig, /ADMIN_BOOTSTRAP_TOKEN/);
+  assert.match(runtimeConfig, /cloudflare:workers/);
+  assert.match(bootstrapApi, /expectedToken\.length < 32/);
+  assert.match(bootstrapApi, /hasAdminAccount\(\)/);
+  assert.match(bootstrapApi, /admin\.bootstrap_completed/);
+  assert.doesNotMatch(bootstrapApi, /console\.(log|info|debug)[\s\S]*Token/);
+  assert.doesNotMatch(`${invitationApi}\n${invitationUpdateApi}\n${acceptApi}`, /console\.error\([^\n]*,\s*error\)/);
+  assert.match(registerApi, /isLocalQaRequest\(request\)/);
+  assert.match(auth, /allowLocalFirstAdmin/);
+  assert.match(auth, /allowLocalFirstAdmin && Number\(count\?\.count/);
+  assert.match(usersPage, /action="\/api\/admin\/invitations"/);
+  assert.match(usersPage, /Bağlantıyı yenile/);
+  assert.match(usersPage, /Daveti iptal et/);
+  assert.match(outboxApi, /\/accept-admin-invite/);
+  assert.match(proxy, /"\/accept-admin-invite", "\/bootstrap-admin"/);
 });
 
 test("taslak önizleme süreli, kapsamlı ve public yayından ayrıdır", async () => {

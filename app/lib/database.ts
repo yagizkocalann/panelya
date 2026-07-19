@@ -42,6 +42,18 @@ async function ensureSchema(db: D1Database) {
       created_at INTEGER NOT NULL,
       opened_at INTEGER
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS admin_invitations (
+      id TEXT PRIMARY KEY NOT NULL,
+      email TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      invited_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','revoked')),
+      expires_at INTEGER NOT NULL,
+      accepted_at INTEGER,
+      revoked_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS rate_limit_buckets (
       key TEXT PRIMARY KEY NOT NULL,
       count INTEGER NOT NULL,
@@ -208,6 +220,9 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_user_idx ON account_tokens(user_id, purpose, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_expiry_idx ON account_tokens(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS outbox_created_idx ON notification_outbox(created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS admin_invitations_email_status_idx ON admin_invitations(email, status, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS admin_invitations_expiry_idx ON admin_invitations(expires_at)"),
+    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS admin_invitations_pending_email_unique ON admin_invitations(email) WHERE status = 'pending'"),
     db.prepare("CREATE INDEX IF NOT EXISTS reviews_series_idx ON reviews(series_slug, status, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS review_reports_status_idx ON review_reports(status, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS review_reports_review_idx ON review_reports(review_id, status)"),

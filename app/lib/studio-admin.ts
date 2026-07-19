@@ -73,7 +73,7 @@ function safeMetadata(raw: string | null) {
     const allowed = new Set([
       "seriesSlug", "episodeSlug", "publicationStatus", "mediaId", "kind", "mimeType", "byteSize", "width", "height",
       "jobs", "jobId", "panelId", "from", "to", "grantId", "expiresAt", "reviewId", "reason", "containsSpoiler",
-      "rating", "messageId", "role", "targetUserId", "previousRole", "newRole", "position", "reportId",
+      "rating", "messageId", "role", "targetUserId", "previousRole", "newRole", "position", "reportId", "invitationId",
     ]);
     return Object.fromEntries(Object.entries(parsed).filter(([key]) => allowed.has(key)));
   } catch {

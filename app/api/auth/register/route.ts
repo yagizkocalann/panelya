@@ -2,6 +2,7 @@ import { assertSameOrigin, createSession, createUser, safeReturnTo, validateRegi
 import { errorRedirect, redirectTo, setSessionCookie } from "../../../lib/auth-http";
 import { queueEmailVerification } from "../../../lib/account-flows";
 import { consumeRateLimit, requestFingerprint } from "../../../lib/rate-limit";
+import { isLocalQaRequest } from "../../../lib/site-origins";
 
 export async function POST(request: Request) {
   try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   if (password !== passwordConfirmation) return errorRedirect(request, "/register", "Şifreler eşleşmiyor.", returnTo);
   if (form.get("terms") !== "accepted") return errorRedirect(request, "/register", "Kullanım koşullarını kabul etmelisin.", returnTo);
   try {
-    const user = await createUser(displayName, email, password);
+    const user = await createUser(displayName, email, password, isLocalQaRequest(request));
     await queueEmailVerification(user.id, user.email, new URL(request.url).origin);
     const session = await createSession(user.id, true, request.headers.get("user-agent"));
     const response = redirectTo(request, returnTo);

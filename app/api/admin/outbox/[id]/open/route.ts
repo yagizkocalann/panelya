@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const row = await db.prepare("SELECT action_url FROM notification_outbox WHERE id = ?").bind(id).first<{ action_url: string | null }>();
   if (!row?.action_url) return redirectTo(request, "/outbox");
   const destination = new URL(row.action_url);
-  if (!isAllowedAccountActionOrigin(destination.origin, request) || !["/verify-email", "/reset-password"].includes(destination.pathname)) return new Response("Güvensiz yönlendirme.", { status: 400 });
+  if (!isAllowedAccountActionOrigin(destination.origin, request) || !["/verify-email", "/reset-password", "/accept-admin-invite"].includes(destination.pathname)) return new Response("Güvensiz yönlendirme.", { status: 400 });
   await db.prepare("UPDATE notification_outbox SET status = 'opened', opened_at = ? WHERE id = ?").bind(Date.now(), id).run();
   return NextResponse.redirect(destination, 303);
 }
