@@ -5,9 +5,12 @@ import { SiteHeader } from "../../../../../components/SiteHeader";
 import { getCurrentUser } from "../../../../../lib/auth";
 import { getStudioSeries } from "../../../../../lib/content-repository";
 import { listPreviewGrants } from "../../../../../lib/preview-tokens";
+import { assessEpisodePublishing } from "../../../../../lib/publishing-readiness";
 import { publicSiteUrlForCurrentRequest } from "../../../../../lib/server-site-origins";
+import { BulkPanelActions } from "../../../BulkPanelActions";
 import { EpisodeForm } from "../../../ContentForms";
 import { PreviewAccessPanel, PreviewCreateForm } from "../../../PreviewAccess";
+import { PublishingReadinessSummary } from "../../../PublishingReadiness";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +32,12 @@ export default async function EditEpisodePage({ params, searchParams }: { params
     {query.notifications === "failed" && <p className="form-message form-message--error" role="alert">Bölüm yayınlandı ancak bildirim fan-out’u başlatılamadı. Audit kaydını ve outbox adaptörünü kontrol et.</p>}
     {query.preview === "revoked" && <p className="form-message form-message--success" role="status">Önizleme bağlantısı iptal edildi.</p>}
     {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
+    <PublishingReadinessSummary readiness={assessEpisodePublishing({ title: episode.title, publishedAt: episode.publishedAt, readTime: episode.readTime, panels: episode.panels, seriesPublicationStatus: series.publicationStatus })} title="Bölüm yayın kontrolü" />
     <EpisodeForm series={series} episode={episode} />
     <section className="studio-section" aria-labelledby="panel-manager-title">
       <div className="section-heading"><div><p className="section-kicker">Panel manifesti</p><h2 id="panel-manager-title">Sıralama ve bağlantılar</h2></div><span className="sort-note">{episode.panels.length} panel</span></div>
       <p className="studio-inline-note">Sıralama bütün panellerde değiştirilebilir. Kaldırma yalnız Studio medya hattından yüklenen panellerde açılır; R2 kaynağı silinmez ve medya envanterinde kalır.</p>
+      {episode.panels.length > 1 && <BulkPanelActions panels={episode.panels.map((panel) => ({ id: panel.id, label: panel.caption || panel.dialogue || panel.scene || panel.id, removable: Boolean(panel.image?.src.startsWith("/api/media/")) }))} seriesSlug={series.slug} episodeSlug={episode.slug} returnTo={returnTo} />}
       <div className="panel-manager-list">
         {episode.panels.map((panel, index) => {
           const returnTo = `/content/${series.slug}/episodes/${episode.slug}`;

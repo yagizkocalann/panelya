@@ -33,6 +33,17 @@ Mobil istemci D1 veya R2'ye doğrudan bağlanmaz. Bütün veri erişimi web depl
 
 Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimlik sağlayıcısı değildir. Mobil branch bu cookie davranışını kalıcı sözleşme kabul etmemelidir. İlk mobil dikey dilimde public katalog/okuyucu önceliklidir; production auth adaptörü daha sonra web ve mobil için ortak bir sözleşmeyle seçilir.
 
+## Web → mobil entegrasyon kapıları
+
+Mobil taraf aşağıdaki iki ortak teslim `main` dalına girene kadar geçici adapter sınırını korur:
+
+| Teslim | Durum | Main'e giriş koşulu | Mobil tarafa bildirilecek çıktı |
+| --- | --- | --- | --- |
+| Responsive medya varyantları | BEKLİYOR | Public bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | Merge commit'i, değişen `$defs`/endpoint alanları, schema sürümü ve fixture adı |
+| Production auth/session | KARAR BEKLİYOR | Yönetilen kimlik sağlayıcısı ve mobil oturum stratejisi ADR ile seçilir; giriş, token yenileme, çıkış/iptal, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme yapılmaz. Güvenlik review'u ile web ve mobil contract testleri geçer. | Merge commit'i, auth ADR'si, endpoint/akış özeti, token saklama ve yenileme kuralları |
+
+Bir teslim yalnız pull request `main` dalına merge edildiğinde ve zorunlu CI kontrolleri geçtiğinde hazır sayılır. Web tarafı bu noktada mobil tarafa merge commit'ini ve yukarıdaki değişiklik özetini gönderir; mobil taraf `origin/main` aldıktan sonra codegen/adapter entegrasyonunu ayrı committe yapar.
+
 ## Yerel cihaz testi
 
 Simulator aynı Mac üzerinde çalışan web API'sine erişebilir. Fiziksel cihazda `localhost` Mac'i değil telefonu ifade eder; API origin'i Mac'in yerel ağ adresine veya güvenli bir geliştirme tüneline ayarlanmalıdır. Origin değeri kaynak koda gömülmez, mobil environment/config katmanından okunur.

@@ -3,8 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "../../../../../components/SiteHeader";
 import { getCurrentUser } from "../../../../../lib/auth";
 import { getStudioSeries } from "../../../../../lib/content-repository";
+import { assessEpisodePublishing } from "../../../../../lib/publishing-readiness";
 import { publicSiteUrlForCurrentRequest } from "../../../../../lib/server-site-origins";
 import { EpisodeForm } from "../../../ContentForms";
+import { PublishingReadinessSummary } from "../../../PublishingReadiness";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export default async function NewEpisodePage({ params, searchParams }: { params:
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
     <div className="studio-top"><div><p className="section-kicker">{series.title}</p><h1>Yeni bölüm oluştur</h1><p>Bölüm bilgisini ve ilk yerel anlatı panelini hazırla.</p></div><Link className="button button--ghost" href={`/content/${series.slug}`}>← Seriye dön</Link></div>
     {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
+    <PublishingReadinessSummary readiness={assessEpisodePublishing({ title: "", publishedAt: "", readTime: "", panels: [], seriesPublicationStatus: series.publicationStatus })} title="Yeni bölüm yayın kontrolü" />
     <EpisodeForm series={series} />
   </main></div>;
 }

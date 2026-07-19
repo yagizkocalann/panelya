@@ -90,6 +90,31 @@ test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => 
   assert.match(episodeHtml, /name="robots" content="noindex, follow"/i);
 });
 
+test("okuyucu uzun bölüm performansı ve hata dayanımı sözleşmesini korur", async () => {
+  const [reader, css] = await Promise.all([
+    readFile(new URL("../app/[slug]/[episode]/ReaderExperience.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(reader, /loading=\{priority \? "eager" : "lazy"\}/);
+  assert.match(reader, /fetchPriority=\{priority \? "high" : "auto"\}/);
+  assert.match(reader, /decoding="async"/);
+  assert.match(reader, /style=\{\{ aspectRatio: `\$\{image\.width\} \/ \$\{image\.height\}` \}\}/);
+  assert.match(reader, /onError=\{\(\) => setState\("error"\)\}/);
+  assert.match(reader, /element\?\.complete/);
+  assert.match(reader, /Panel görseli yüklenemedi/);
+  assert.match(reader, /localStorage\.getItem\(key\)/);
+  assert.match(reader, /window\.scrollTo\(\{ top: Math\.round\(total \* \(percent \/ 100\)\), behavior: "auto" \}\)/);
+  assert.match(reader, /restore\(\);\s*startTracking\(\)/);
+  assert.match(reader, /const restoreTimer = window\.setTimeout/);
+  assert.match(reader, /window\.requestAnimationFrame\(update\)/);
+  assert.doesNotMatch(reader, /document\.addEventListener\("visibilitychange", handleVisibility\);\s*scheduleUpdate\(\)/);
+  assert.match(reader, /window\.addEventListener\("pagehide", flush\)/);
+  assert.match(reader, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.match(css, /\.reader-panel-media[^}]*position:\s*relative[^}]*overflow:\s*hidden/);
+  assert.match(css, /@keyframes reader-image-loading/);
+  assert.match(css, /\.progress-promo \.inline-link[^}]*grid-column:\s*1 \/ -1[^}]*width:\s*100%/);
+});
+
 test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin politikasini kullanir", async () => {
   const jsonLdComponent = await readFile(new URL("../app/components/JsonLd.tsx", import.meta.url), "utf8");
   assert.match(jsonLdComponent, /JSON\.stringify\(data\)\.replace\(\/<\/g, "\\\\u003c"\)/);
@@ -232,6 +257,40 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
   assert.match(home, /href="\/about"/);
   assert.match(home, /href="\/contact"/);
   assert.match(home, /href="\/privacy"/);
+  assert.match(home, /Webtoon ritminde özgün hikâyeler keşfet/);
+  assert.match(home, /aria-label="Alt bilgi bağlantıları"/);
+});
+
+test("görünür public bağlantılar kırık route üretmez", async () => {
+  const pages = [
+    "/", "/?view=catalog", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
+    "/privacy", "/terms", "/copyright", "/copyright/report", "/login", "/register", "/forgot-password",
+    "/reset-password", "/verify-email", "/gece-vardiyasi", "/gece-vardiyasi/bolum-1",
+    "/gece-vardiyasi/bolum-2", "/gece-vardiyasi/bolum-3", "/bir-bilet-uzaginda", "/bir-bilet-uzaginda/bolum-1",
+    "/yarinki-ses", "/yarinki-ses/bolum-1", "/yankinin-bahcesi", "/yankinin-bahcesi/bolum-1", "/sifir-numara",
+    "/sifir-numara/bolum-1", "/kirmizi-hat", "/kirmizi-hat/bolum-1", "/iki-kisilik-gezegen",
+    "/iki-kisilik-gezegen/bolum-1", "/apartman-13", "/apartman-13/bolum-1",
+  ];
+  const links = new Set();
+
+  for (const path of pages) {
+    const response = await request(path);
+    assert.equal(response.status, 200, `${path} görünür sayfa olarak render edilmeli`);
+    const html = await response.text();
+    for (const match of html.matchAll(/<a\b[^>]*\bhref="([^"]+)"/gi)) {
+      const href = match[1].replaceAll("&amp;", "&");
+      if (href.startsWith("mailto:") || href.startsWith("#")) continue;
+      const url = new URL(href, "http://localhost");
+      if (url.origin !== "http://localhost") continue;
+      links.add(`${url.pathname}${url.search}`);
+    }
+  }
+
+  for (const path of links) {
+    const response = await request(path);
+    assert.ok(response.status < 400, `${path} bağlantısı kırık olmamalı; ${response.status} döndü`);
+    if (response.status >= 300) assert.ok(response.headers.get("location"), `${path} yönlendirmesi hedef içermeli`);
+  }
 });
 
 test("telif bildirimi genel iletisimden ayridir ve gizli durum erisimi korunur", async () => {
@@ -277,7 +336,10 @@ test("telif bildirimi genel iletisimden ayridir ve gizli durum erisimi korunur",
 });
 
 test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const [css, authActions] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/AuthActions.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(css, /@media \(max-width: 960px\)/);
   assert.match(css, /@media \(max-width: 720px\)/);
   assert.match(css, /@media \(max-width: 420px\)/);
@@ -287,6 +349,18 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
   assert.match(css, /\.reader-dock a, \.reader-dock > span[^}]*min-width:\s*44px[^}]*min-height:\s*44px/);
   assert.match(css, /\.genre-strip a, \.genre-pills a[^}]*min-height:\s*44px/);
   assert.match(css, /\.catalog-filter-form input, \.catalog-filter-form select[^}]*min-height:\s*48px/);
+  assert.match(css, /\.text-link[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(authActions, /library-nav-link/);
+  assert.match(css, /text-link:not\(\.library-nav-link\)/);
+  assert.match(css, /library-nav-link__label/);
+  assert.match(css, /\.studio-table a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.message-card header a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.admin-user-card__identity > a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.copyright-status-card a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.studio-inline-note a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--mint\)/);
+  assert.match(css, /\.skip-link:focus\s*\{[^}]*top:\s*16px/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation-duration:\s*\.01ms\s*!important[\s\S]*transition-duration:\s*\.01ms\s*!important/);
 });
 
 test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşmesi kaynakta bulunur", async () => {
@@ -329,6 +403,10 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(authControls, /aria-label="Hesap ekranını kapat"/);
   assert.doesNotMatch(studio, /disabled/);
   assert.doesNotMatch(footer, /<span>Hakkımızda|<span>İletişim|<span>Gizlilik/);
+  assert.match(footer, /listPublishedGenres/);
+  assert.match(footer, /footer-category-grid/);
+  assert.match(footer, /href="\/library"/);
+  assert.match(footer, /href="\/account"/);
   assert.match(notifications, /interface NotificationDelivery/);
   assert.match(notifications, /deliveryFactories/);
   assert.match(notifications, /NotificationDeliveryUnavailableError/);
@@ -763,6 +841,40 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(seriesApi, /writeAudit/);
   assert.match(episodeApi, /writeAudit/);
 });
+
+test("Studio yayın hazırlığı, açık yayın onayı ve toplu panel güvenlik sınırları korunur", async () => {
+  const [readiness, statusField, summary, bulkActions, seriesPage, episodePage, seriesApi, episodeApi, mediaApi, css] = await Promise.all([
+    readFile(new URL("../app/lib/publishing-readiness.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/PublicationStatusField.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/PublishingReadiness.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/BulkPanelActions.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/episodes/[episode]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/content/series/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/media/manage/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(readiness, /assessSeriesPublishing/);
+  assert.match(readiness, /assessEpisodePublishing/);
+  assert.match(readiness, /Panel erişilebilirliği/);
+  assert.match(summary, /Yayın isteği gönderildiğinde kritik kurallar sunucuda güncel veriyle tekrar kontrol edilir/);
+  assert.match(seriesPage, /PublishingReadinessSummary/);
+  assert.match(episodePage, /PublishingReadinessSummary/);
+  assert.match(statusField, /name="publish_confirmed"/);
+  assert.match(statusField, /required/);
+  assert.match(seriesApi, /assessSeriesPublishing/);
+  assert.match(seriesApi, /form\.get\("publish_confirmed"\) !== "yes"/);
+  assert.match(episodeApi, /assessEpisodePublishing/);
+  assert.match(episodeApi, /form\.get\("publish_confirmed"\) !== "yes"/);
+  assert.match(bulkActions, /panel_move_many/);
+  assert.match(bulkActions, /panel_remove_many/);
+  assert.match(mediaApi, /panels\.length - selectedPanels\.length < 1/);
+  assert.match(mediaApi, /form\.get\("bulk_confirmed"\) !== "yes"/);
+  assert.match(mediaApi, /media\.panels_unlinked/);
+  assert.match(css, /bulk-panel-actions__choices label[^}]*min-height:\s*48px/);
+});
+
 test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
   const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, redispatchApi, derivatives, dispatch, derivativeQueue, consumer, worker, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy, envExample] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -801,6 +913,10 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(validation, /image\/png/);
   assert.match(validation, /image\/webp/);
   assert.match(validation, /MAX_PIXELS/);
+  assert.match(validation, /function u24le/);
+  assert.match(validation, /type === "VP8 "[^\n]*u16\(bytes, 26, true\)[^\n]*u16\(bytes, 28, true\)/);
+  assert.match(validation, /type === "VP8L"[\s\S]*u16\(bytes, 21, true\)/);
+  assert.match(validation, /type === "VP8X"[^\n]*u24le\(bytes, 24\)[^\n]*u24le\(bytes, 27\)/);
   assert.match(validation, /inspectDerivative/);
   assert.match(storage, /interface MediaStorage/);
   assert.match(storage, /env\.MEDIA/);
@@ -841,6 +957,8 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(episodePage, /panel_remove/);
   assert.match(mediaManageApi, /media\.panel_reordered/);
   assert.match(mediaManageApi, /media\.panel_unlinked/);
+  assert.match(mediaManageApi, /media\.panels_unlinked/);
+  assert.match(mediaManageApi, /media\.panels_reordered/);
   assert.match(mediaManageApi, /media\.cover_restored/);
   assert.match(mediaManageApi, /isStudioRequest/);
   assert.match(proxy, /"media"/);

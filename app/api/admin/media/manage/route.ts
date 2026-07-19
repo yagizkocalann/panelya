@@ -49,13 +49,61 @@ export async function POST(request: Request) {
   }
 
   const episodeSlug = field(form, "episode_slug", 80);
-  const panelId = field(form, "panel_id", 140);
   const episode = series.episodes.find((item) => item.slug === episodeSlug);
   if (!episode) return redirectTo(request, withMessage(returnTo, "error", "Bölüm bulunamadı."));
-  const index = episode.panels.findIndex((panel) => panel.id === panelId);
+  const panels = [...episode.panels];
+  if (action === "panel_move_many" || action === "panel_move_many_down" || action === "panel_remove_many") {
+    const panelIds = Array.from(new Set(form.getAll("panel_ids").map((value) => String(value).trim()).filter((value) => value.length > 0 && value.length <= 140))).slice(0, 200);
+    if (!panelIds.length || panelIds.some((id) => !panels.some((panel) => panel.id === id))) {
+      return redirectTo(request, withMessage(returnTo, "error", "Toplu işlem seçimi geçersiz veya artık güncel değil."));
+    }
+    const selected = new Set(panelIds);
+    if (action === "panel_remove_many") {
+      if (form.get("bulk_confirmed") !== "yes") {
+        return redirectTo(request, withMessage(returnTo, "error", "Toplu bağlantı kaldırma işlemini açıkça onayla."));
+      }
+      const selectedPanels = panels.filter((panel) => selected.has(panel.id));
+      if (selectedPanels.some((panel) => !panel.image?.src.startsWith("/api/media/"))) {
+        return redirectTo(request, withMessage(returnTo, "error", "Yalnız Studio üzerinden yüklenen medya panelleri toplu kaldırılabilir."));
+      }
+      if (panels.length - selectedPanels.length < 1) {
+        return redirectTo(request, withMessage(returnTo, "error", "Bölümde en az bir panel kalmalıdır."));
+      }
+      const remainingPanels = panels.filter((panel) => !selected.has(panel.id));
+      await db.prepare("UPDATE content_episodes SET panels_json = ?, updated_at = ? WHERE series_slug = ? AND slug = ?")
+        .bind(JSON.stringify(remainingPanels), now, seriesSlug, episodeSlug).run();
+      await writeAudit(user.id, "media.panels_unlinked", { seriesSlug, episodeSlug, count: selectedPanels.length });
+      return redirectTo(request, withMessage(returnTo, "saved", "panels"));
+    }
+
+    const direction = action === "panel_move_many" ? "up" : "down";
+    let changed = false;
+    if (direction === "up") {
+      for (let index = 1; index < panels.length; index += 1) {
+        if (selected.has(panels[index].id) && !selected.has(panels[index - 1].id)) {
+          [panels[index - 1], panels[index]] = [panels[index], panels[index - 1]];
+          changed = true;
+        }
+      }
+    } else {
+      for (let index = panels.length - 2; index >= 0; index -= 1) {
+        if (selected.has(panels[index].id) && !selected.has(panels[index + 1].id)) {
+          [panels[index], panels[index + 1]] = [panels[index + 1], panels[index]];
+          changed = true;
+        }
+      }
+    }
+    if (!changed) return redirectTo(request, withMessage(returnTo, "error", `Seçili paneller ${direction === "up" ? "daha yukarı" : "daha aşağı"} taşınamaz.`));
+    await db.prepare("UPDATE content_episodes SET panels_json = ?, updated_at = ? WHERE series_slug = ? AND slug = ?")
+      .bind(JSON.stringify(panels), now, seriesSlug, episodeSlug).run();
+    await writeAudit(user.id, "media.panels_reordered", { seriesSlug, episodeSlug, count: panelIds.length, direction });
+    return redirectTo(request, withMessage(returnTo, "saved", "panels"));
+  }
+
+  const panelId = field(form, "panel_id", 140);
+  const index = panels.findIndex((panel) => panel.id === panelId);
   if (index < 0) return redirectTo(request, withMessage(returnTo, "error", "Panel artık bu bölümde değil."));
 
-  const panels = [...episode.panels];
   if (action === "panel_move") {
     const direction = field(form, "direction", 10);
     const target = direction === "up" ? index - 1 : direction === "down" ? index + 1 : -1;

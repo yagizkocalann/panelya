@@ -25,7 +25,7 @@ export function AuthActions({ compact = false, studioHref = "/studio" }: { compa
 
   if (session.status === "authenticated") {
     return <>
-      {!compact && <Link className="text-link" href="/library">Kütüphanem</Link>}
+      {!compact && <Link className="text-link library-nav-link" href="/library" aria-label="Kütüphanem"><span aria-hidden="true">▤</span><span className="library-nav-link__label">Kütüphanem</span></Link>}
       {session.user.role === "admin" && !compact && <Link className="text-link" href={studioHref}>Studio</Link>}
       <Link className="button button--ghost account-chip" href="/account">{session.user.displayName}</Link>
     </>;

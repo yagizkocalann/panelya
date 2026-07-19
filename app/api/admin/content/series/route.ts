@@ -2,6 +2,7 @@ import { assertSameOrigin, getCurrentUser } from "../../../../lib/auth";
 import { createContentSeries, getStudioSeries, updateContentSeries, type PublicationStatus, type SeriesInput } from "../../../../lib/content-repository";
 import { redirectTo } from "../../../../lib/auth-http";
 import { writeAudit } from "../../../../lib/database";
+import { assessSeriesPublishing } from "../../../../lib/publishing-readiness";
 import { isStudioRequest } from "../../../../lib/site-origins";
 
 const tones = new Set(["coral", "mint", "violet", "blue", "amber", "rose"]);
@@ -67,11 +68,17 @@ export async function POST(request: Request) {
       const current = await getStudioSeries(originalSlug);
       if (!current) return redirectTo(request, "/content?error=Seri%20bulunamadı.");
       input.slug = originalSlug;
-      if (input.publicationStatus === "published" && !current.episodes.some((episode) => episode.publicationStatus === "published")) {
-        return redirectTo(request, `/content/${originalSlug}?error=Seriyi%20yayınlamak%20için%20en%20az%20bir%20yayındaki%20bölüm%20gerekir.`);
+      if (input.publicationStatus === "published") {
+        const readiness = assessSeriesPublishing({ ...input, episodes: current.episodes });
+        if (!readiness.ready) {
+          return redirectTo(request, `/content/${originalSlug}?error=${encodeURIComponent(`Yayın engellendi: ${readiness.blocking.map((check) => check.label).join(", ")}.`)}`);
+        }
+        if (current.publicationStatus !== "published" && form.get("publish_confirmed") !== "yes") {
+          return redirectTo(request, `/content/${originalSlug}?error=${encodeURIComponent("Public yayın için doğrulama özetini onayla.")}`);
+        }
       }
       await updateContentSeries(originalSlug, input);
-      await writeAudit(user.id, "content.series_updated", { seriesSlug: originalSlug, publicationStatus: input.publicationStatus });
+      await writeAudit(user.id, "content.series_updated", { seriesSlug: originalSlug, publicationStatus: input.publicationStatus, previousStatus: current.publicationStatus });
     }
   } catch {
     const path = mode === "create" ? "/content/new" : `/content/${originalSlug}`;
