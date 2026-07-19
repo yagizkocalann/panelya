@@ -36,6 +36,39 @@ gorulmemesi kayip veri degildir; guncel mobil kod `origin/codex/mobile` uzerinde
 Claude mobil PR'ini hazirlayana kadar web Codex'i bu branch'i main'e tasimaya veya
 yeniden duzenlemeye calismaz.
 
+## Ayni bilgisayarda Claude ve Codex
+
+Claude mobil, Codex web tarafinda ayni anda calisacaksa ayni working tree'yi
+paylasmazlar. Bir ajanin `git switch`, build veya format islemi digerinin acik
+dosyalarini ve branch'ini degistirebilir. Mobil mevcut clone'da kalir; web icin ayri
+bir Git worktree veya ikinci clone kullanilir.
+
+Mobil klasorunde Claude once kendi calisma agacini koruyarak guncellenir:
+
+```bash
+git status --short --branch
+git fetch origin --prune
+git switch codex/mobile
+git merge origin/main
+git push origin codex/mobile
+```
+
+Ayni repository'den kardes web worktree'si olusturmak icin mobil klasorunun ust
+dizininde benzersiz bir is adi secilir:
+
+```bash
+git fetch origin --prune
+git worktree add ../panelya-web -b codex/web-<kisa-is-adi> origin/main
+cd ../panelya-web
+npm ci
+npm test
+```
+
+Claude yalniz mobil worktree'de, Codex yalniz web worktree'de calisir. Iki ajan ayni
+branch'i ayni anda checkout etmez; ortak contracts degisikligi yine ayri PR ile
+`main` uzerinden paylasilir. Worktree olusturmadan once hedef klasorun ve branch
+adinin bosta oldugu kontrol edilir; var olan klasor silinmez veya uzerine yazilmaz.
+
 ## Yeni bilgisayarda guvenli baslangic
 
 Temiz clone icin:
