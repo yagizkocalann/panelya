@@ -111,6 +111,24 @@ async function ensureSchema(db: D1Database) {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS copyright_notices (
+      id TEXT PRIMARY KEY NOT NULL,
+      reference_code TEXT NOT NULL UNIQUE,
+      access_token_hash TEXT NOT NULL UNIQUE,
+      claimant_name TEXT NOT NULL,
+      claimant_email TEXT NOT NULL,
+      claimant_role TEXT NOT NULL CHECK(claimant_role IN ('rights_holder','authorized_representative')),
+      work_description TEXT NOT NULL,
+      original_work_url TEXT,
+      content_url TEXT NOT NULL,
+      rights_explanation TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'submitted' CHECK(status IN ('submitted','under_review','needs_information','action_taken','rejected')),
+      public_response TEXT,
+      access_expires_at INTEGER NOT NULL,
+      resolved_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS reviews (
       id TEXT PRIMARY KEY NOT NULL,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -254,6 +272,8 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS library_user_idx ON library_items(user_id, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS progress_user_idx ON reading_progress(user_id, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS contact_status_idx ON contact_messages(status, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS copyright_notices_status_idx ON copyright_notices(status, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS copyright_notices_access_expiry_idx ON copyright_notices(access_expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_user_idx ON account_tokens(user_id, purpose, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_expiry_idx ON account_tokens(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS outbox_created_idx ON notification_outbox(created_at DESC)"),

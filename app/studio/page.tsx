@@ -30,7 +30,7 @@ export default async function StudioPage() {
         <article><span>İçerik</span><strong>Seri ve bölümler</strong><small>Mevcut katalog ve bölüm envanteri</small><Link className="button button--ghost" href="/content">Envanteri aç</Link></article>
         <article><span>Medya</span><strong>Kapak ve paneller</strong><small>Doğrulanan R2 görselleri ve içerik bağlantıları</small><Link className="button button--ghost" href="/media">Medyayı aç</Link></article>
         <article className="is-active"><span>Gelir</span><strong>Reklam Laboratuvarı</strong><small>Google GPT test ağı bağlı</small><Link className="button button--primary" href="/ads">Testleri aç</Link></article>
-        <article><span>Operasyon</span><strong>Mesaj kutusu</strong><small>İletişim, üretici ve telif başvuruları</small><Link className="button button--ghost" href="/messages">Mesajları aç</Link></article>
+        <article><span>Operasyon</span><strong>Mesaj ve hak talepleri</strong><small>İletişim mesajları ile izlenebilir telif bildirimleri</small><Link className="button button--ghost" href="/messages">Talepleri aç</Link></article>
         <article><span>Kimlik servisi</span><strong>Yerel e-posta kutusu</strong><small>Doğrulama ve şifre sıfırlama bildirimleri</small><Link className="button button--ghost" href="/outbox">E-postaları aç</Link></article>
         <article><span>Topluluk</span><strong>Moderasyon</strong><small>Puan, yorum ve okuyucu raporları</small><Link className="button button--ghost" href="/moderation">Kuyruğu aç</Link></article>
         <article><span>Erişim</span><strong>Kullanıcılar ve roller</strong><small>Hesap rolleri, doğrulama ve oturum özeti</small><Link className="button button--ghost" href="/users">Kullanıcıları aç</Link></article>

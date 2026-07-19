@@ -99,6 +99,13 @@
       "when": 1784470464350,
       "tag": "0013_parched_leech",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1784471881705,
+      "tag": "0014_watery_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

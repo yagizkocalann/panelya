@@ -121,4 +121,4 @@ D1 import dosyasi 5 GiB sinirini asarsa parcala. Virtual table eklenirse D1 expo
 - Production-disinda aylik tatbikat: yeni D1'e import + ayri R2 test kovasina restore + uygulama smoke.
 - Tatbikat sonucu `QA-OPS-02` olarak `docs/manual-qa-checklist.md` formatinda kaydedilir.
 
-Basari kosulu: verifier yesil, kanonik 22 D1 tablosu mevcut, manifestte eksik/fazla nesne yok, public katalog/seri/bolum API'leri calisiyor, Studio admin girisi yeni oturumla yapiliyor, eski oturum/token/preview/davetler kullanilamiyor ve rollback noktasi kayitli.
+Basari kosulu: verifier yesil, kanonik 23 D1 tablosu mevcut, manifestte eksik/fazla nesne yok, public katalog/seri/bolum API'leri calisiyor, Studio admin girisi yeni oturumla yapiliyor, eski oturum/token/preview/davetler kullanilamiyor ve rollback noktasi kayitli.

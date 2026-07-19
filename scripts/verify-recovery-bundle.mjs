@@ -16,6 +16,7 @@ export const REQUIRED_D1_TABLES = Object.freeze([
   "contact_messages",
   "content_episodes",
   "content_series",
+  "copyright_notices",
   "library_items",
   "media_assets",
   "media_derivative_jobs",

@@ -27,6 +27,7 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: yerel e-posta dogrulama, sifre sifirlama, oturum iptali, D1 outbox bildirim adaptoru ve hassas auth uclarinda sabit pencereli yerel rate limit.
 - Tamamlanan: seri bazli puan/yorum, spoiler gizleme, okuyucu raporlama ve Studio moderasyon kuyrugu.
 - Tamamlanan: tek seviyeli yorum yanitlari, idempotent yorum begenileri, iki yonlu gorunurluk/etkilesim siniri koyan kullanici engelleme ve Studio yanit moderasyonu.
+- Tamamlanan: genel iletisimden ayrilan telif bildirimi formu, D1 vaka kaydi, 90 gunluk hashli gizli durum baglantisi, Studio durum/public yanit yonetimi ve kisisel veri minimizasyonu.
 - Tamamlanan: Studio'da seri ve bolum CRUD, taslak/yayin/arsiv durumlari, one cikarma ve D1 tabanli public katalog yayini.
 - Tamamlanan: Studio R2 kapak/panel yukleme, JPEG/PNG/WebP dosya-imza-boyut-piksel dogrulamasi, D1 medya metadata'si ve yayin durumuna bagli public medya servisi.
 - Tamamlanan: Studio bolum ekraninda panel siralama, yalniz Studio yuklemesi olan panel baglantisini kaynak R2 nesnesini silmeden kaldirma ve medya ekraninda kapak gecmisinden geri yukleme; tum mutation'lar audit kaydi uretir.
@@ -43,7 +44,7 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: yayinlanmis katalog icin Turkce karakterleri normalize eden D1 `search_text` alani; baslik/uretici/tur aramasi, tur ve yayin durumu filtresi, guncelleme/puan/ad siralamasi ve slug ile birlikte kararli keyset cursor sayfalama. Mevcut `/api/catalog` JSON sozlesmesi degismemistir.
 - Siradaki: deployment ortaminda Queue producer/consumer, Images, rate-limit namespace ve dead-letter politikasini provision edip readiness + gercek servis smoke testlerini calistirmak; yonetilen kimlik/canli e-posta saglayicisi karari.
 - D1 tablolarina gecis hesap ve katalog verisi icin tamamlandi. Medya yerelde R2 binding emulasyonu kullanir; production bucket yasam dongusu ile Queue kaynagi deployment oncesi platform ayarlarinda provision edilir.
-- Telif bildirim sureci, analitik ve hata izleme.
+- Analitik ve hata izleme. Telif karsi bildirim, production saklama suresi ve resmi tebligat kanali hukuk incelemesiyle kesinlestirilecek.
 
 P2:
 
@@ -73,6 +74,7 @@ User 1---N Review N---1 Series
 Review 1---N ReviewReply
 Review N---N User (ReviewLike)
 User N---N User (UserBlock)
+CopyrightNotice (anonim basvuru sahibi, hashli durum erisimi, Studio vaka durumu)
 ```
 
 Episode sirasinda gorunen etiket ile dahili `sequence` ayridir; prolog/0/ara bolumleri destekler. Her EpisodeAsset `position`, `width`, `height`, `mimeType`, `storageKey` ve `blurData` tasir.
@@ -87,8 +89,11 @@ Episode sirasinda gorunen etiket ile dahili `sequence` ayridir; prolog/0/ara bol
 - `POST /api/account/sessions/*`: kullanicinin diger oturumlarini tekil veya toplu kapatma.
 - `GET/POST /api/library/*`, `POST /api/progress`: yetkili okuyucu durumu.
 - `POST /api/subscriptions/:slug`: seri takibini ve yeni bolum bildirim tercihini bagimsiz olarak degistiren, ayni-origin ve oturum korumali okuyucu mutation'i.
-- `POST /api/contact`: lokal iletisim, uretici ve telif mesaji kaydi.
+- `POST /api/contact`: lokal genel iletisim, uretici ve teknik mesaj kaydi.
+- `POST /api/copyright-notices`: public telif bildirimini rate-limit ve ayni-origin korumasiyla D1'e kaydeder; ham durum anahtari yalniz yonlendirme URL'sinde verilir.
+- `GET /copyright/status/:token`: yalniz hashli anahtari, 90 gunluk sureyi ve guncel vaka durumunu dogrulayan private/no-store basvuru gorunumu.
 - `POST /api/admin/messages/:id`: admin mesaj durumu guncelleme.
+- `POST /api/admin/copyright-notices/:id`: yalniz Studio admininin vaka durumunu ve basvuru sahibine gorunen yaniti guncellemesi.
 - `POST /api/reviews/:slug`: kullanicinin seri degerlendirmesini ekleme, guncelleme veya silme.
 - `POST /api/review-reports/:id`: yayindaki bir yorumu neden ve istege bagli aciklamayla raporlama.
 - `POST /api/review-replies/:id`: yayindaki yoruma tek seviyeli yanit ekleme veya kendi yanitini silme.
@@ -193,3 +198,4 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-032 / Okuyucu takibi ve yayin bildirimi: Kutuphane/favori okuma organizasyonu, `series_subscriptions` ise seriyi takip ve yeni bolum tercihi icindir; biri digerini otomatik zorunlu kilmaz. Seri sayfasi her iki durumu da D1'den server-render eder. Yalniz yayindaki seride bir bolum ilk kez `published` durumuna gectiginde e-postasi dogrulanmis ve bildirimi acik takipciler vendor-bagimsiz `NotificationDelivery` hattina verilir. Yerel outbox `new_episode` turunu 7 gun tutar; kullanici-seri-bolum dedupe anahtari tekrar yayinlama veya yeniden denemede kopya kayit olusturmaz. Bildirim fan-out hatasi bolum yayinini geri almaz, Studio'da gorunur uyari ve sayisal audit sonucu uretir; production saglayicisi ayni idempotency sozlesmesini korur.
 - ADR-033 / Katalog kesfi ve cursor: Web katalog kesfi yayinlanmis ve en az bir yayinlanmis bolumu olan D1 serilerini kullanir. Studio yazimlari ve mevcut kayit backfill'i, baslik/uretici/aciklama/turlerden Turkce karakterleri ASCII arama esdegerine katlayan `search_text` alanini tek kaynaktan uretir. Tur filtresi JSON1 ile tam deger, durum filtresi domain enum'u ile uygulanir; siralama `updated`/`rating`/`title` allowlist'inden secilir. Cursor surum, normalize filtre kapsami, siralama degeri ve slug ikilisini base64url zarfinda tasir; gecersiz, baska filtreye veya siralamaya ait cursor ilk sayfaya guvenli duser. Cursor guvenlik yetkisi degildir ve hassas veri tasimaz. Bu web dilimi `/api/catalog` cevap govdesini degistirmez; mobil arama endpoint'i gerektiginde JSON Schema/OpenAPI uzerinden ayri ortak PR ile tanimlanir.
 - ADR-034 / Topluluk etkilesim grafigi: Yanitlar yalniz bir ust yoruma baglanan tek seviyeli kayitlardir; sonsuz zincir olusturmaz. Yorum begenisi kullanici-yorum bilesik anahtariyla idempotenttir. Engelleme ozel bir hesap tercihidir: engelleyen ve engellenen birbirlerinin yorum/yanitlarini gormez ve birbirleriyle yanit/begeni etkilesimine giremez; bu tercih diger okuyuculara global moderasyon veya ban olarak yansitilmaz. Engellenen hesap listesi yalniz hesap sahibine aciktir ve engel geri alinabilir. Yanit yayini Studio admini tarafindan gizlenebilir/yeniden acilabilir; bu web dilimi mevcut mobil contracts/API cevaplarini degistirmez, mobil topluluk endpoint'leri ortak sozlesmede ayrica surumlenir.
+- ADR-035 / Telif bildirimi vaka siniri: Telif bildirimi genel iletisim mesajindan ayri, anonim basvuruya acik ve rate-limit korumali bir D1 kaydidir. Form tek Panelya URL'si, eser aciklamasi, istege bagli kaynak URL'si, hak dayanagi ve iki dogruluk beyani ister; dosya, kimlik belgesi veya ozel nitelikli veri istemez. Her kayit tahmin edilemez 256 bit durum anahtari alir, D1 yalniz SHA-256 ozetini tutar ve public durum gorunumu 90 gun sonra kapanir; vaka kaydi hukuki saklama politikasi kesinlesene kadar otomatik silinmez. Durum linki no-store/no-referrer/noindex'tir ve yalniz referans, durum, hedef URL, zamanlar ile adminin public yanitini gosterir. Studio status degisiklikleri audit kaydi uretir; serbest basvuru metni audit metadata'sina girmez. Basvuru otomatik kaldirma karari degildir. Karsi bildirim, resmi tebligat, SLA ve production saklama/silme sureleri canliya cikmadan hukuk danismaniyla belirlenir. Bu web akisi mobil contracts paketini degistirmez.

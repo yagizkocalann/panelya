@@ -61,7 +61,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(copySearch(url, new URL(url.pathname, studioSiteOrigin(request))));
   }
 
-  if (url.pathname.startsWith("/preview/") || url.pathname.startsWith("/api/preview/")) {
+  if (url.pathname.startsWith("/preview/") || url.pathname.startsWith("/api/preview/") || url.pathname.startsWith("/copyright/status/")) {
     const response = NextResponse.next();
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
     response.headers.set("Referrer-Policy", "no-referrer");
