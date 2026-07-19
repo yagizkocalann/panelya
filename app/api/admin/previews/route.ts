@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { assertSameOrigin, getCurrentUser } from "../../../lib/auth";
-import { redirectTo } from "../../../lib/auth-http";
+import { assertSameOrigin, getCurrentUser, hasRecentAuthentication } from "../../../lib/auth";
+import { reauthenticationRedirect, redirectTo } from "../../../lib/auth-http";
 import { getStudioSeries } from "../../../lib/content-repository";
 import { writeAudit } from "../../../lib/database";
 import { createPreviewGrant, revokePreviewGrant } from "../../../lib/preview-tokens";
@@ -30,6 +30,7 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const returnTo = safeReturnTo(form);
+  if (!(await hasRecentAuthentication())) return reauthenticationRedirect(request, returnTo);
   const seriesSlug = field(form, "series_slug", 80);
   const episodeSlug = field(form, "episode_slug", 80) || null;
   const series = seriesSlug ? await getStudioSeries(seriesSlug) : null;

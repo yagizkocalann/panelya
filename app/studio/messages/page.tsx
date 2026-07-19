@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/SiteHeader";
-import { getCurrentUser } from "../../lib/auth";
+import { RecentAuthenticationNotice, recentAuthenticationHref } from "../../components/RecentAuthenticationNotice";
+import { getCurrentUser, hasRecentAuthentication } from "../../lib/auth";
 import { listCopyrightNotices, type CopyrightNoticeStatus } from "../../lib/copyright-notices";
 import { getDatabase } from "../../lib/database";
 import { publicSiteUrlForCurrentRequest } from "../../lib/server-site-origins";
@@ -33,16 +34,18 @@ export default async function StudioMessagesPage({ searchParams }: { searchParam
   if (user.role !== "admin") redirect("/account?error=Studio%20yalnızca%20yönetici%20hesaplarına%20açık.");
   const query = await searchParams;
   const db = await getDatabase();
-  const [publicHome, publicReportUrl, notices, rows] = await Promise.all([
+  const [publicHome, publicReportUrl, notices, rows, recentlyAuthenticated] = await Promise.all([
     publicSiteUrlForCurrentRequest("/"),
     publicSiteUrlForCurrentRequest("/copyright/report"),
     listCopyrightNotices(),
     db.prepare("SELECT id, name, email, subject, message, status, created_at FROM contact_messages ORDER BY status ASC, created_at DESC").all<MessageRow>(),
+    hasRecentAuthentication(),
   ]);
   const formatter = new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Istanbul" });
 
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
     <div className="studio-top"><div><p className="section-kicker">Operasyon</p><h1>Mesaj ve hak talepleri</h1><p>Genel iletişim mesajlarını ve kayıtlı telif bildirimlerini aynı operasyon alanından yönet.</p></div><Link className="button button--ghost" href="/">← Studio</Link></div>
+    {!recentlyAuthenticated && <RecentAuthenticationNotice returnTo="/messages#copyright-notices" />}
 
     <section className="studio-section" id="copyright-notices" aria-labelledby="copyright-notices-title">
       <div className="section-heading"><div><p className="section-kicker">Hak talepleri</p><h2 id="copyright-notices-title">Telif bildirimleri</h2><p>Başvuru sahibi yalnız gizli durum bağlantısındaki durum ve public yanıt alanını görür.</p></div><span className="sort-note">{notices.length} kayıt</span></div>
@@ -51,11 +54,11 @@ export default async function StudioMessagesPage({ searchParams }: { searchParam
       <div className="copyright-admin-list">{notices.length ? notices.map((notice) => <article className="copyright-admin-card" key={notice.id}>
         <header><div><span className="pill pill--accent">{copyrightStatusLabels[notice.status]}</span><strong>{notice.referenceCode}</strong><span>{notice.claimantName} · {notice.claimantRole === "rights_holder" ? "Hak sahibi" : "Yetkili temsilci"}</span><a href={`mailto:${notice.claimantEmail}`}>{notice.claimantEmail}</a></div><time dateTime={new Date(notice.createdAt).toISOString()}>{formatter.format(notice.createdAt)}</time></header>
         <dl><div><dt>Korunan eser</dt><dd>{notice.workDescription}</dd></div><div><dt>İncelenecek içerik</dt><dd><a href={notice.contentUrl} target="_blank" rel="noreferrer">{notice.contentUrl}</a></dd></div>{notice.originalWorkUrl && <div><dt>Özgün eser / yetki kaynağı</dt><dd><a href={notice.originalWorkUrl} target="_blank" rel="noreferrer">{notice.originalWorkUrl}</a></dd></div>}<div><dt>Hak açıklaması</dt><dd>{notice.rightsExplanation}</dd></div></dl>
-        <form className="stack-form copyright-admin-form" action={`/api/admin/copyright-notices/${notice.id}`} method="post">
+        {recentlyAuthenticated ? <form className="stack-form copyright-admin-form" action={`/api/admin/copyright-notices/${notice.id}`} method="post">
           <label>Durum<select name="status" defaultValue={notice.status}>{Object.entries(copyrightStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label>Başvuru sahibine gösterilecek yanıt<textarea name="public_response" maxLength={1200} rows={4} defaultValue={notice.publicResponse ?? ""} /><small>Serbest iç not, parola, token veya başka bir başvurunun kişisel verisini yazma.</small></label>
           <button className="button button--primary" type="submit">Durumu güncelle</button>
-        </form>
+        </form> : <div className="stack-form copyright-admin-form"><p>Durum ve başvuru sahibine gösterilecek yanıtı değiştirmek için şifreni doğrula.</p><Link className="button button--primary" href={recentAuthenticationHref("/messages#copyright-notices")}>Şifreni doğrula</Link></div>}
       </article>) : <div className="empty-state"><strong>Henüz telif bildirimi yok.</strong><p>Public telif formundan gönderilen kayıtlar burada görünecek.</p><a className="button button--primary" href={publicReportUrl}>Test bildirimi gönder</a></div>}</div>
     </section>
 

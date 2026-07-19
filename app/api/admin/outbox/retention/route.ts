@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { assertSameOrigin, getCurrentUser } from "../../../../lib/auth";
-import { redirectTo } from "../../../../lib/auth-http";
+import { assertSameOrigin, getCurrentUser, hasRecentAuthentication } from "../../../../lib/auth";
+import { reauthenticationRedirect, redirectTo } from "../../../../lib/auth-http";
 import { writeAudit } from "../../../../lib/database";
 import { OUTBOX_RETENTION_POLICY_VERSION, purgeExpiredOutbox } from "../../../../lib/notification-outbox";
 import { consumeRateLimit, requestFingerprint } from "../../../../lib/rate-limit";
@@ -19,6 +19,7 @@ export async function POST(request: Request) {
   const actor = await getCurrentUser();
   if (!actor) return redirectTo(request, "/login?return_to=/outbox");
   if (actor.role !== "admin") return new Response("Yetkisiz.", { status: 403 });
+  if (!(await hasRecentAuthentication())) return reauthenticationRedirect(request, "/outbox");
   const allowed = await consumeRateLimit("admin-outbox-retention", await requestFingerprint(request, actor.id), 10, 60 * 60 * 1000);
   if (!allowed) return redirectWith(request, "error", "Çok fazla bakım işlemi yapıldı. Biraz sonra yeniden dene.");
   const form = await request.formData();

@@ -20,7 +20,7 @@ function internalStudioPath(pathname: string) {
 }
 
 function isStudioSupportPath(pathname: string) {
-  return ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/accept-admin-invite", "/bootstrap-admin", "/account"].some(
+  return ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/reauthenticate", "/accept-admin-invite", "/bootstrap-admin", "/account"].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   ) || pathname.startsWith("/api/auth/") || pathname.startsWith("/api/account/") || pathname.startsWith("/api/admin/");
 }

@@ -845,3 +845,57 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(mediaManageApi, /isStudioRequest/);
   assert.match(proxy, /"media"/);
 });
+
+test("oturum kapsami, idle timeout ve hassas Studio yeniden dogrulamasi sunucuda uygulanir", async () => {
+  const [schema, database, auth, authHttp, reauthPage, reauthApi, sessionsPage, proxy, migration, usersApi, invitationApi, retentionApi, copyrightApi, previewApi, manualQa, qaPage] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/auth-http.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/reauthenticate/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/auth/reauthenticate/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/sessions/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0015_warm_baron_zemo.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/users/[id]/role/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/invitations/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/outbox/retention/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/copyright-notices/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/previews/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/qa/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schema, /scope: text\("scope"/);
+  assert.match(schema, /idleExpiresAt: integer\("idle_expires_at"\)/);
+  assert.match(schema, /authenticatedAt: integer\("authenticated_at"\)/);
+  assert.match(database, /ALTER TABLE sessions ADD COLUMN scope/);
+  assert.match(database, /CREATE INDEX IF NOT EXISTS sessions_idle_expiry_idx/);
+  assert.match(auth, /PUBLIC_SESSION_IDLE_MS = 2 \* 60 \* 60 \* 1000/);
+  assert.match(auth, /STUDIO_SESSION_IDLE_MS = 30 \* 60 \* 1000/);
+  assert.match(auth, /RECENT_AUTHENTICATION_MS = 10 \* 60 \* 1000/);
+  assert.match(auth, /s\.scope = \?/);
+  assert.match(auth, /row\.expires_at <= now \|\| row\.idle_expires_at <= now/);
+  assert.match(auth, /DELETE FROM sessions WHERE token_hash = \?/);
+  assert.match(auth, /UPDATE sessions SET token_hash = \?/);
+  assert.match(authHttp, /reauthenticationRedirect/);
+  assert.match(reauthPage, /Şifreni yeniden doğrula/);
+  assert.match(reauthPage, /AuthPageControls/);
+  assert.match(reauthApi, /consumeRateLimit\("reauthenticate"/);
+  assert.match(reauthApi, /verifyPassword\(password, stored\.password_hash\)/);
+  assert.match(reauthApi, /account\.reauthenticated/);
+  assert.doesNotMatch(reauthApi, /writeAudit\([^\n]*(password|rawToken)/i);
+  assert.match(sessionsPage, /session\.scope === "studio"/);
+  assert.match(proxy, /"\/reauthenticate"/);
+  assert.match(migration, /UPDATE `sessions` SET `authenticated_at`/);
+  for (const route of [usersApi, invitationApi, retentionApi, copyrightApi, previewApi]) {
+    assert.match(route, /hasRecentAuthentication\(\)/);
+    assert.match(route, /reauthenticationRedirect/);
+  }
+  assert.match(manualQa, /QA-SEC-02/);
+  assert.match(qaPage, /QA-SEC-02/);
+
+  const response = await request("/reauthenticate?return_to=/users", "text/html", "http://studio.localhost:3000");
+  assert.equal(response.status, 307);
+  assert.match(response.headers.get("location") ?? "", /^http:\/\/studio\.localhost:3000\/login\?return_to=%2F(?:users|account)&notice=/);
+});

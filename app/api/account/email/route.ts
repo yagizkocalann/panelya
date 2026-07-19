@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return errorRedirect(request, "/account", "E-posta adresi güncellenemedi.");
   }
   await db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id).run();
-  const session = await createSession(user.id, true, request.headers.get("user-agent"));
+  const session = await createSession(user.id, true, request);
   await Promise.all([
     queueEmailVerification(user.id, email, new URL(request.url).origin),
     sendNotification({ userId: user.id, recipient: user.email, kind: "security_notice", subject: "Panelya e-posta adresin değişti", body: `Hesap e-posta adresi ${email} olarak değiştirildi.` }),

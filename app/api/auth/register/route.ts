@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   try {
     const user = await createUser(displayName, email, password, isLocalQaRequest(request));
     await queueEmailVerification(user.id, user.email, new URL(request.url).origin);
-    const session = await createSession(user.id, true, request.headers.get("user-agent"));
+    const session = await createSession(user.id, true, request);
     const response = redirectTo(request, returnTo);
     setSessionCookie(response, request, session.rawToken, session.expiresAt);
     return response;
