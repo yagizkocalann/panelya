@@ -13,6 +13,10 @@ import 'package:panelya_mobile/features/discover/presentation/discover_screen.da
 import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
 import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
+import 'package:panelya_mobile/shared/layout/content_max_width.dart';
+
+import '../../support/overflow_watcher.dart';
+import '../../support/viewports.dart';
 
 class _FakeDiscoverRepository implements DiscoverRepository {
   _FakeDiscoverRepository(this._result);
@@ -124,9 +128,7 @@ SeriesSummary _series(
       title: 'Bölüm 1',
       publishedAt: '18 Temmuz 2026',
       readTime: '5 dk',
-      panels: [
-        StoryPanel(id: 'panel-1', scene: 'Sahne', tone: PanelTone.mint),
-      ],
+      panels: [StoryPanel(id: 'panel-1', scene: 'Sahne', tone: PanelTone.mint)],
     ),
   );
 }
@@ -134,6 +136,7 @@ SeriesSummary _series(
 Widget _wrap(
   DiscoverRepository repository, {
   LocalReadingProgressRepository? progressRepository,
+  double? textScale,
 }) {
   return ProviderScope(
     overrides: [
@@ -144,6 +147,14 @@ Widget _wrap(
     ],
     child: MaterialApp(
       theme: buildAppTheme(),
+      builder: textScale == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
       home: const DiscoverScreen(),
     ),
   );
@@ -156,6 +167,7 @@ Widget _wrap(
 Widget _wrapWithRouter(
   DiscoverRepository repository, {
   LocalReadingProgressRepository? progressRepository,
+  double? textScale,
 }) {
   final router = GoRouter(
     initialLocation: '/',
@@ -179,7 +191,18 @@ Widget _wrapWithRouter(
         progressRepository ?? _FakeReadingProgressRepository(),
       ),
     ],
-    child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
+    child: MaterialApp.router(
+      theme: buildAppTheme(),
+      routerConfig: router,
+      builder: textScale == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+    ),
   );
 }
 
@@ -230,7 +253,11 @@ void main() {
     usePhoneViewport(tester);
     final repository = _FakeDiscoverRepository(
       () async => _catalogWith([
-        _series('gece-vardiyasi', 'Gece Vardiyası', genres: const ['Gizem', 'Dram']),
+        _series(
+          'gece-vardiyasi',
+          'Gece Vardiyası',
+          genres: const ['Gizem', 'Dram'],
+        ),
         _series('yarinki-ses', 'Yarınki Ses', genres: const ['Romantizm']),
       ]),
     );
@@ -242,11 +269,17 @@ void main() {
     // its own CTA, keyed separately from its (also present) grid card.
     expect(find.byKey(_heroFinder), findsOneWidget);
     expect(
-      find.descendant(of: find.byKey(_heroFinder), matching: find.text('Gece Vardiyası')),
+      find.descendant(
+        of: find.byKey(_heroFinder),
+        matching: find.text('Gece Vardiyası'),
+      ),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: find.byKey(_heroFinder), matching: find.text('Seriyi incele')),
+      find.descendant(
+        of: find.byKey(_heroFinder),
+        matching: find.text('Seriyi incele'),
+      ),
       findsOneWidget,
     );
 
@@ -413,7 +446,10 @@ void main() {
         );
 
         await tester.pumpWidget(
-          _wrap(repository, progressRepository: _FakeReadingProgressRepository()),
+          _wrap(
+            repository,
+            progressRepository: _FakeReadingProgressRepository(),
+          ),
         );
         await tester.pumpAndSettle();
 
@@ -503,4 +539,225 @@ void main() {
       expect(find.text('READER:gece-vardiyasi/bolum-2'), findsOneWidget);
     });
   });
+
+  group('ızgara kolon sayısı genişliğe göre uyarlanır (PLAN Görev A.1)', () {
+    test('telefon genişliğinde (360-430) 2 kolon korunur', () {
+      expect(discoverGridColumnsForWidth(360), 2);
+      expect(discoverGridColumnsForWidth(390), 2);
+      expect(discoverGridColumnsForWidth(430), 2);
+    });
+
+    test('~768 tablet dikeyde 3-4 kolon aralığındadır', () {
+      final columns = discoverGridColumnsForWidth(768);
+      expect(columns, inInclusiveRange(3, 4));
+    });
+
+    test('~1024 tablet yatayda 4-5 kolon aralığındadır', () {
+      final columns = discoverGridColumnsForWidth(1024);
+      expect(columns, inInclusiveRange(4, 5));
+    });
+
+    test('genişlik arttıkça kolon sayısı asla azalmaz (monoton)', () {
+      const widths = [360, 500, 600, 768, 900, 1024, 1200, 1440];
+      var previous = 0;
+      for (final width in widths) {
+        final columns = discoverGridColumnsForWidth(width.toDouble());
+        expect(columns, greaterThanOrEqualTo(previous));
+        previous = columns;
+      }
+    });
+
+    for (final entry in {
+      'telefon dikey (390x844)': phonePortrait,
+      'telefon yatay (844x390)': phoneLandscape,
+      'tablet dikey (768x1024)': tabletPortrait,
+      'tablet yatay (1024x768)': tabletLandscape,
+    }.entries) {
+      testWidgets(
+        '${entry.key}: ızgara + hero + devam şeridi taşmadan render edilir',
+        (tester) async {
+          useViewport(tester, entry.value);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
+
+          final repository = _FakeDiscoverRepository(
+            () async => _catalogWith([
+              _series(
+                'gece-vardiyasi',
+                'Gece Vardiyası: Kayıp Dakikanın İzinde',
+                genres: const ['Gizem', 'Dram', 'Bilim Kurgu'],
+              ),
+              _series(
+                'yarinki-ses',
+                'Yarınki Ses',
+                genres: const ['Romantizm'],
+              ),
+              _series('son-teslimat', 'Son Teslimat', genres: const ['Gizem']),
+              _series('kayip-adres', 'Kayıp Adres', genres: const ['Dram']),
+              _series(
+                'gece-yarisi',
+                'Gece Yarısı Vardiyası',
+                genres: const ['Aksiyon'],
+              ),
+            ]),
+          );
+          final progressRepository = _FakeReadingProgressRepository({
+            'gece-vardiyasi': ReadingProgress(
+              seriesSlug: 'gece-vardiyasi',
+              seriesTitle: 'Gece Vardiyası',
+              episodeSlug: 'bolum-2',
+              episodeNumber: 2,
+              updatedAt: DateTime(2026, 7, 18),
+              completed: false,
+            ),
+          });
+
+          await tester.pumpWidget(
+            _wrap(repository, progressRepository: progressRepository),
+          );
+          await tester.pumpAndSettle();
+
+          // Hero okuyucudakiyle tutarlı bir 760 px merkez sütunda kalır
+          // (bkz. PLAN Görev A.1); ilk sliver olduğu için viewport
+          // yüksekliğinden bağımsız her zaman mount edilir. "Okumaya devam
+          // et" şeridi AYNI `CenteredMaxWidth` sarmalayıcısını kullanır
+          // (bkz. `discover_screen.dart` ve ayrıca izole
+          // `content_max_width_test.dart`); kısa (yatay telefon) viewport'ta
+          // dev bir hero onu cache extent dışına itip hiç build
+          // ETTİRMEYEBİLİR — bu yüzden burada yalnız zaten mount edilmişse
+          // (best-effort) doğrulanır.
+          final heroFinder = find.byKey(_heroFinder);
+          final heroWidth = tester.getRect(heroFinder).width;
+          expect(heroWidth, lessThanOrEqualTo(kContentMaxWidth));
+
+          final stripFinder = find.byKey(
+            const ValueKey('continue-reading-strip'),
+          );
+          if (stripFinder.evaluate().isNotEmpty) {
+            final stripWidth = tester.getRect(stripFinder).width;
+            expect(stripWidth, lessThanOrEqualTo(kContentMaxWidth));
+          }
+
+          expect(
+            watcher.errors,
+            isEmpty,
+            reason: 'viewport=${entry.value}\n${watcher.describe()}',
+          );
+        },
+      );
+    }
+  });
+
+  group(
+    'büyük yazı tipinde taşma yok (PLAN Görev B.1 — textScaler 1.3/1.6/2.0)',
+    () {
+      /// `FlutterError.onError`'ı sarıp bir RenderFlex/RenderBox taşması
+      /// oluşup oluşmadığını yakalar (bkz. `OverflowWatcher` doc yorumu —
+      /// taşmalar normalde throw edilmez, yalnız raporlanır).
+      for (final scale in [1.3, 1.6, 2.0]) {
+        for (final entry in {
+          'telefon (390x844)': phonePortrait,
+          'tablet dikey (768x1024)': tabletPortrait,
+        }.entries) {
+          testWidgets('keşif ekranı (hero + devam şeridi + ızgara + tür filtresi) '
+              'scale=$scale, ${entry.key}', (tester) async {
+            useViewport(tester, entry.value);
+            final watcher = OverflowWatcher()..start();
+            addTearDown(watcher.stop);
+
+            final repository = _FakeDiscoverRepository(
+              () async => _catalogWith([
+                _series(
+                  'gece-vardiyasi',
+                  'Gece Vardiyası: Kayıp Dakikanın İzinde Bir Teslimat Hikâyesi',
+                  genres: const ['Gizem', 'Dram', 'Bilim Kurgu', 'Aksiyon'],
+                ),
+                _series(
+                  'yarinki-ses',
+                  'Yarınki Ses',
+                  genres: const ['Romantizm'],
+                ),
+                _series(
+                  'son-teslimat',
+                  'Son Teslimat',
+                  genres: const ['Gizem'],
+                ),
+              ]),
+            );
+            final progressRepository = _FakeReadingProgressRepository({
+              'gece-vardiyasi': ReadingProgress(
+                seriesSlug: 'gece-vardiyasi',
+                seriesTitle: 'Gece Vardiyası: Kayıp Dakikanın İzinde',
+                episodeSlug: 'bolum-2',
+                episodeNumber: 2,
+                updatedAt: DateTime(2026, 7, 18),
+                completed: false,
+              ),
+            });
+
+            await tester.pumpWidget(
+              _wrap(
+                repository,
+                progressRepository: progressRepository,
+                textScale: scale,
+              ),
+            );
+            await tester.pumpAndSettle();
+
+            expect(
+              watcher.errors,
+              isEmpty,
+              reason:
+                  'scale=$scale, viewport=${entry.value}\n${watcher.describe()}',
+            );
+          });
+        }
+
+        testWidgets('boş durum (katalogda hiç seri yok) scale=$scale', (
+          tester,
+        ) async {
+          useViewport(tester, phonePortrait);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
+
+          final repository = _FakeDiscoverRepository(
+            () async => _catalogWith(const []),
+          );
+
+          await tester.pumpWidget(_wrap(repository, textScale: scale));
+          await tester.pumpAndSettle();
+
+          expect(watcher.errors, isEmpty, reason: watcher.describe());
+        });
+
+        testWidgets('hata durumu (yeniden dene butonuyla) scale=$scale', (
+          tester,
+        ) async {
+          useViewport(tester, phonePortrait);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
+
+          final repository = _FakeDiscoverRepository(
+            () async => throw const NetworkException('bağlantı yok'),
+          );
+
+          await tester.pumpWidget(_wrap(repository, textScale: scale));
+          await tester.pumpAndSettle();
+
+          // Erişilebilirlik dokunma hedefi: hata durumundaki "Tekrar dene"
+          // butonu büyük yazı tipinde de en az 44 px yüksekliğinde kalır
+          // (bkz. PLAN Görev B.3 — sabit `SizedBox(height: 44)` yerine tema
+          // `minimumSize`'ı büyümeye izin verir, asla küçülmez).
+          final buttonFinder = find.ancestor(
+            of: find.text('Tekrar dene'),
+            matching: find.byType(FilledButton),
+          );
+          final buttonSize = tester.getSize(buttonFinder);
+          expect(buttonSize.height, greaterThanOrEqualTo(44));
+
+          expect(watcher.errors, isEmpty, reason: watcher.describe());
+        });
+      }
+    },
+  );
 }

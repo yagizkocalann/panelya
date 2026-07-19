@@ -8,11 +8,68 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../features/progress/domain/reading_progress.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
+import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/series_card.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'discover_filters.dart';
 import 'discover_providers.dart';
+
+/// Keşif ızgarasının kolon sayısını genişliğe göre hesaplar (bkz. PLAN
+/// Görev A.1): 360-430 telefon genişliğinde mevcut 2 kolon korunur;
+/// ~768dp tablet dikeyde 3, ~900dp'de 4, ~1024dp tablet yatayda (ve
+/// üzerinde) 5 kolona çıkar. Kart posterinin 3:4 oranı burada değil,
+/// [seriesCardMainAxisExtent] ile hücre YÜKSEKLİĞİ üzerinden korunur; bu
+/// fonksiyon yalnız kolon SAYISINI belirler.
+int discoverGridColumnsForWidth(double width) {
+  if (width >= 1024) return 5;
+  if (width >= 900) return 4;
+  if (width >= 600) return 3;
+  return 2;
+}
+
+/// Bir seri kartı hücresinin gerekli toplam yüksekliği: 3:4 poster (kolon
+/// genişliğinden türetilir, bkz. `SeriesCard`'taki `AspectRatio(3/4)`) +
+/// altındaki metin bloğu (tür etiketi + başlık [en fazla 2 satır] + durum/
+/// puan satırı).
+///
+/// `SliverGridDelegateWithFixedCrossAxisCount.childAspectRatio` SABİT bir
+/// oran uygular; büyük yazı tipinde (`textScaler`) metin satırları
+/// büyüdüğünde bu sabit oran hücreyi taşırırdı (RenderFlex overflow, bkz.
+/// PLAN Görev B.1). Onun yerine burada `mainAxisExtent`, metin bloğunun
+/// [MediaQuery.textScalerOf] ile ölçeklenen gerçek satır yüksekliklerinden
+/// hesaplanır — hücre her zaman içeriğe yetecek kadar (ve fazlasıyla emniyet
+/// payıyla) yüksek olur.
+double seriesCardMainAxisExtent(BuildContext context, double columnWidth) {
+  final tokens = context.tokens;
+  final textScaler = MediaQuery.textScalerOf(context);
+
+  double lineHeight(TextStyle style, {int lines = 1}) {
+    final fontSize = style.fontSize ?? 14;
+    final heightFactor = style.height ?? 1.2;
+    return textScaler.scale(fontSize) * heightFactor * lines;
+  }
+
+  // Poster (3:4 — height = width * 4/3).
+  final posterHeight = columnWidth * 4 / 3;
+
+  // Metin bloğu: `SeriesCard`'taki tam sırayla (bkz. o dosyadaki yorum) —
+  // tür etiketi HER ZAMAN bütçeye dahil edilir (yoksa boşluk artar, taşma
+  // olmaz); başlık en fazla 2 satır.
+  final textBlockHeight =
+      tokens.spacing.sm +
+      lineHeight(tokens.typography.bodySmall) +
+      tokens.spacing.xs +
+      lineHeight(tokens.typography.titleMedium, lines: 2) +
+      tokens.spacing.xs +
+      lineHeight(tokens.typography.bodySmall);
+
+  // Küçük bir emniyet payı (yazı tipi metrikleri satır yüksekliği
+  // çarpanından biraz farklı render edebilir).
+  const safetyMargin = 4.0;
+
+  return posterHeight + textBlockHeight + safetyMargin;
+}
 
 /// Keşif ekranı (`/`): `GET /api/catalog`'dan gelen öne çıkan seri, tür
 /// filtreleri ve seri kartları ızgarası (bkz. PLAN Görev 2 ve
@@ -82,6 +139,18 @@ class _DiscoverContent extends ConsumerWidget {
     // yok (ADR-010).
     final continueReading = ref.watch(mostRecentReadingProgressProvider);
 
+    // Tablet/geniş ekranda ızgara kolon sayısını genişliğe göre uyarlar
+    // (bkz. PLAN Görev A.1 — `discoverGridColumnsForWidth`). Hücre
+    // genişliği, `SliverPadding`'in yatay boşluğu ve kolonlar arası
+    // `crossAxisSpacing` düşüldükten sonra kalan alandan hesaplanır ki
+    // `seriesCardMainAxisExtent` doğru poster yüksekliğini türetebilsin.
+    final width = MediaQuery.sizeOf(context).width;
+    final columns = discoverGridColumnsForWidth(width);
+    final gridContentWidth = width - tokens.spacing.md * 2;
+    final columnWidth =
+        (gridContentWidth - (columns - 1) * tokens.spacing.md) / columns;
+    final mainAxisExtent = seriesCardMainAxisExtent(context, columnWidth);
+
     return RefreshIndicator(
       onRefresh: () => ref.refresh(catalogProvider.future),
       child: CustomScrollView(
@@ -89,18 +158,22 @@ class _DiscoverContent extends ConsumerWidget {
         slivers: [
           if (featured != null)
             SliverToBoxAdapter(
-              child: _FeaturedHero(
-                key: const ValueKey('featured-hero'),
-                series: featured,
+              child: CenteredMaxWidth(
+                child: _FeaturedHero(
+                  key: const ValueKey('featured-hero'),
+                  series: featured,
+                ),
               ),
             ),
           // Hero'nun ÜSTÜNDE değil altında, ızgaradan önce (bkz. PLAN
           // "keşif" maddesi).
           if (continueReading != null)
             SliverToBoxAdapter(
-              child: _ContinueReadingStrip(
-                key: const ValueKey('continue-reading-strip'),
-                progress: continueReading,
+              child: CenteredMaxWidth(
+                child: _ContinueReadingStrip(
+                  key: const ValueKey('continue-reading-strip'),
+                  progress: continueReading,
+                ),
               ),
             ),
           if (genres.isNotEmpty)
@@ -121,26 +194,23 @@ class _DiscoverContent extends ConsumerWidget {
                   )
                 : SliverGrid(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
+                      crossAxisCount: columns,
                       mainAxisSpacing: tokens.spacing.md,
                       crossAxisSpacing: tokens.spacing.md,
-                      // 3:4 poster + başlık/tür/durum metin bloğu için
-                      // yeterli yükseklik (bkz. `SeriesCard`); 0.6 gibi daha
-                      // sıkı bir oran metin bloğunda taşmaya yol açıyordu.
-                      childAspectRatio: 0.48,
+                      // Sabit `childAspectRatio` yerine metin ölçeğine
+                      // duyarlı `mainAxisExtent` (bkz.
+                      // `seriesCardMainAxisExtent` — büyük yazı tipinde
+                      // taşmayı önler, PLAN Görev B.1).
+                      mainAxisExtent: mainAxisExtent,
                     ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final series = filtered[index];
-                        return SeriesCard(
-                          key: ValueKey('series-card-${series.slug}'),
-                          series: series,
-                          onTap: () =>
-                              context.push('/series/${series.slug}'),
-                        );
-                      },
-                      childCount: filtered.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final series = filtered[index];
+                      return SeriesCard(
+                        key: ValueKey('series-card-${series.slug}'),
+                        series: series,
+                        onTap: () => context.push('/series/${series.slug}'),
+                      );
+                    }, childCount: filtered.length),
                   ),
           ),
         ],
@@ -199,8 +269,7 @@ class _FeaturedHero extends StatelessWidget {
                 right: tokens.spacing.md,
                 bottom: tokens.spacing.md,
                 child: Semantics(
-                  label:
-                      'Öne çıkan seri: ${series.title}. ${series.eyebrow}.',
+                  label: 'Öne çıkan seri: ${series.title}. ${series.eyebrow}.',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -209,9 +278,16 @@ class _FeaturedHero extends StatelessWidget {
                         spacing: tokens.spacing.xs,
                         runSpacing: tokens.spacing.xs,
                         children: [
-                          _Pill(text: 'Haftanın hikâyesi', tokens: tokens, highlight: true),
+                          _Pill(
+                            text: 'Haftanın hikâyesi',
+                            tokens: tokens,
+                            highlight: true,
+                          ),
                           _Pill(text: series.status, tokens: tokens),
-                          _Pill(text: '${series.episodeCount} bölüm', tokens: tokens),
+                          _Pill(
+                            text: '${series.episodeCount} bölüm',
+                            tokens: tokens,
+                          ),
                         ],
                       ),
                       SizedBox(height: tokens.spacing.sm),
@@ -231,13 +307,14 @@ class _FeaturedHero extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: tokens.spacing.md),
-                      SizedBox(
-                        height: tokens.sizes.minTouchTarget,
-                        child: FilledButton(
-                          onPressed: () =>
-                              context.push('/series/${series.slug}'),
-                          child: const Text('Seriyi incele'),
-                        ),
+                      // Sabit `SizedBox(height: minTouchTarget)` yerine
+                      // tema `FilledButtonThemeData.minimumSize` (44 px alt
+                      // sınır) uygulanır; büyük yazı tipinde buton
+                      // gerekirse büyür (bkz. PLAN Görev B.2 — buton
+                      // etiketi kırpılmaz).
+                      FilledButton(
+                        onPressed: () => context.push('/series/${series.slug}'),
+                        child: const Text('Seriyi incele'),
                       ),
                     ],
                   ),
@@ -335,7 +412,11 @@ class _ContinueReadingStrip extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.text, required this.tokens, this.highlight = false});
+  const _Pill({
+    required this.text,
+    required this.tokens,
+    this.highlight = false,
+  });
 
   final String text;
   final AppTokens tokens;
@@ -349,7 +430,9 @@ class _Pill extends StatelessWidget {
         vertical: tokens.spacing.xs / 2,
       ),
       decoration: BoxDecoration(
-        color: highlight ? tokens.colors.mint : tokens.colors.surface2.withValues(alpha: 0.85),
+        color: highlight
+            ? tokens.colors.mint
+            : tokens.colors.surface2.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(tokens.radii.pill),
         border: highlight ? null : Border.all(color: tokens.colors.line),
       ),
@@ -381,14 +464,16 @@ class _GenreFilterBar extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
         itemCount: genres.length + 1,
-        separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
+        separatorBuilder: (context, index) =>
+            SizedBox(width: tokens.spacing.sm),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _GenreChip(
               key: const ValueKey('genre-chip-all'),
               label: 'Tümü',
               isSelected: selected == null,
-              onTap: () => ref.read(selectedGenreProvider.notifier).state = null,
+              onTap: () =>
+                  ref.read(selectedGenreProvider.notifier).state = null,
             );
           }
           final genre = genres[index - 1];
@@ -445,7 +530,9 @@ class _GenreChip extends StatelessWidget {
             child: Text(
               label,
               style: tokens.typography.label.copyWith(
-                color: isSelected ? tokens.colors.background : tokens.colors.ink,
+                color: isSelected
+                    ? tokens.colors.background
+                    : tokens.colors.ink,
               ),
             ),
           ),

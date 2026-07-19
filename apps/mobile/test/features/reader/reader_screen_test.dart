@@ -13,6 +13,10 @@ import 'package:panelya_mobile/features/progress/presentation/reading_progress_p
 import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_providers.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_screen.dart';
+import 'package:panelya_mobile/shared/layout/content_max_width.dart';
+
+import '../../support/overflow_watcher.dart';
+import '../../support/viewports.dart';
 
 class _FakeReaderRepository implements ReaderRepository {
   _FakeReaderRepository(this._result);
@@ -157,8 +161,10 @@ Widget _wrap(
   required String seriesSlug,
   required String episodeSlug,
   bool reduceMotion = false,
+  double? textScale,
   LocalReadingProgressRepository? progressRepository,
 }) {
+  final needsBuilder = reduceMotion || textScale != null;
   return ProviderScope(
     overrides: [
       readerRepositoryProvider.overrideWithValue(repository),
@@ -168,11 +174,15 @@ Widget _wrap(
     ],
     child: MaterialApp(
       theme: buildAppTheme(),
-      builder: reduceMotion
-          ? (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(disableAnimations: true),
-              child: child!,
-            )
+      builder: needsBuilder
+          ? (context, child) {
+              var data = MediaQuery.of(context);
+              if (reduceMotion) data = data.copyWith(disableAnimations: true);
+              if (textScale != null) {
+                data = data.copyWith(textScaler: TextScaler.linear(textScale));
+              }
+              return MediaQuery(data: data, child: child!);
+            }
           : null,
       home: ReaderScreen(seriesSlug: seriesSlug, episodeSlug: episodeSlug),
     ),
@@ -194,9 +204,8 @@ Widget _wrapWithRouter(
     routes: [
       GoRoute(
         path: '/series/:slug',
-        builder: (context, state) => Scaffold(
-          body: Text('SERIES:${state.pathParameters['slug']}'),
-        ),
+        builder: (context, state) =>
+            Scaffold(body: Text('SERIES:${state.pathParameters['slug']}')),
       ),
       GoRoute(
         path: '/series/:slug/read/:episodeSlug',
@@ -304,64 +313,56 @@ void main() {
     expect(find.byTooltip('Seriye dön'), findsOneWidget);
   });
 
-  testWidgets(
-    'separates a panel image from its text layer (ADR-016): caption/'
-    'dialogue render outside the image semantics, scene stays label-only',
-    (tester) async {
-      usePhoneViewport(tester);
-      final repository = _FakeReaderRepository(
-        (seriesSlug, episodeSlug) async => _manifest(
-          episodeSlug: episodeSlug,
-          number: 1,
-          panels: const [_panelWithText],
-        ),
-      );
+  testWidgets('separates a panel image from its text layer (ADR-016): caption/'
+      'dialogue render outside the image semantics, scene stays label-only', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final repository = _FakeReaderRepository(
+      (seriesSlug, episodeSlug) async => _manifest(
+        episodeSlug: episodeSlug,
+        number: 1,
+        panels: const [_panelWithText],
+      ),
+    );
 
-      await tester.pumpWidget(
-        _wrap(
-          repository,
-          seriesSlug: 'gece-vardiyasi',
-          episodeSlug: 'bolum-1',
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _wrap(repository, seriesSlug: 'gece-vardiyasi', episodeSlug: 'bolum-1'),
+    );
+    await tester.pumpAndSettle();
 
-      // Metin katmanı görünür: caption ve dialogue ayrı Text widget'ları.
-      expect(
-        find.text('Gece geç saatte teslimat çağrısı gelir.'),
-        findsOneWidget,
-      );
-      expect(find.text('"Bu gece de mi?"'), findsOneWidget);
+    // Metin katmanı görünür: caption ve dialogue ayrı Text widget'ları.
+    expect(
+      find.text('Gece geç saatte teslimat çağrısı gelir.'),
+      findsOneWidget,
+    );
+    expect(find.text('"Bu gece de mi?"'), findsOneWidget);
 
-      // Sahne açıklaması yalnız erişilebilirlik etiketidir; görselin
-      // olduğu panellerde ayrıca görünür bir metin olarak basılmaz (web
-      // tarafıyla aynı davranış).
-      expect(
-        find.text('Ece pencereden dışarı bakıyor'),
-        findsNothing,
-      );
+    // Sahne açıklaması yalnız erişilebilirlik etiketidir; görselin
+    // olduğu panellerde ayrıca görünür bir metin olarak basılmaz (web
+    // tarafıyla aynı davranış).
+    expect(find.text('Ece pencereden dışarı bakıyor'), findsNothing);
 
-      // Görsel, `image: true` ve alt metniyle etiketlenmiş bir Semantics
-      // düğümü içinde; caption/dialogue o düğümün İÇİNDE DEĞİL, ayrı bir
-      // katmanda (ADR-016 — metin görselden ayrı bir katmandır).
-      final imageSemantics = find.byWidgetPredicate(
-        (widget) => widget is Semantics && widget.properties.image == true,
-      );
-      expect(imageSemantics, findsOneWidget);
-      final semanticsWidget = tester.widget<Semantics>(imageSemantics);
-      expect(
-        semanticsWidget.properties.label,
-        'Ece pencereden dışarı bakıyor, yağmurlu bir gece',
-      );
-      expect(
-        find.descendant(
-          of: imageSemantics,
-          matching: find.text('"Bu gece de mi?"'),
-        ),
-        findsNothing,
-      );
-    },
-  );
+    // Görsel, `image: true` ve alt metniyle etiketlenmiş bir Semantics
+    // düğümü içinde; caption/dialogue o düğümün İÇİNDE DEĞİL, ayrı bir
+    // katmanda (ADR-016 — metin görselden ayrı bir katmandır).
+    final imageSemantics = find.byWidgetPredicate(
+      (widget) => widget is Semantics && widget.properties.image == true,
+    );
+    expect(imageSemantics, findsOneWidget);
+    final semanticsWidget = tester.widget<Semantics>(imageSemantics);
+    expect(
+      semanticsWidget.properties.label,
+      'Ece pencereden dışarı bakıyor, yağmurlu bir gece',
+    );
+    expect(
+      find.descendant(
+        of: imageSemantics,
+        matching: find.text('"Bu gece de mi?"'),
+      ),
+      findsNothing,
+    );
+  });
 
   testWidgets(
     'renders the no-image fallback with visible scene text (legacy panel '
@@ -377,11 +378,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _wrap(
-          repository,
-          seriesSlug: 'gece-vardiyasi',
-          episodeSlug: 'bolum-1',
-        ),
+        _wrap(repository, seriesSlug: 'gece-vardiyasi', episodeSlug: 'bolum-1'),
       );
       await tester.pumpAndSettle();
 
@@ -403,44 +400,39 @@ void main() {
     },
   );
 
-  testWidgets(
-    'renders the no-image fallback with the flat surface2 background '
-    'when the panel tone is PanelTone.unknown (no gradient mapping)',
-    (tester) async {
-      usePhoneViewport(tester);
-      final repository = _FakeReaderRepository(
-        (seriesSlug, episodeSlug) async => _manifest(
-          episodeSlug: episodeSlug,
-          number: 1,
-          panels: const [_panelWithoutImageUnknownTone],
-        ),
-      );
+  testWidgets('renders the no-image fallback with the flat surface2 background '
+      'when the panel tone is PanelTone.unknown (no gradient mapping)', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final repository = _FakeReaderRepository(
+      (seriesSlug, episodeSlug) async => _manifest(
+        episodeSlug: episodeSlug,
+        number: 1,
+        panels: const [_panelWithoutImageUnknownTone],
+      ),
+    );
 
-      await tester.pumpWidget(
-        _wrap(
-          repository,
-          seriesSlug: 'gece-vardiyasi',
-          episodeSlug: 'bolum-1',
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _wrap(repository, seriesSlug: 'gece-vardiyasi', episodeSlug: 'bolum-1'),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Bilinmeyen ton'), findsOneWidget);
+    expect(find.text('Bilinmeyen ton'), findsOneWidget);
 
-      final container = tester.widget<Container>(
-        find
-            .ancestor(
-              of: find.text('Bilinmeyen ton'),
-              matching: find.byType(Container),
-            )
-            .first,
-      );
-      final decoration = container.decoration as BoxDecoration;
-      final tokens = AppTokens.dark;
-      expect(decoration.gradient, isNull);
-      expect(decoration.color, tokens.colors.surface2);
-    },
-  );
+    final container = tester.widget<Container>(
+      find
+          .ancestor(
+            of: find.text('Bilinmeyen ton'),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final decoration = container.decoration as BoxDecoration;
+    final tokens = AppTokens.dark;
+    expect(decoration.gradient, isNull);
+    expect(decoration.color, tokens.colors.surface2);
+  });
 
   testWidgets(
     'first episode: previous is not shown as a button, only as info text, '
@@ -456,11 +448,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _wrap(
-          repository,
-          seriesSlug: 'gece-vardiyasi',
-          episodeSlug: 'bolum-1',
-        ),
+        _wrap(repository, seriesSlug: 'gece-vardiyasi', episodeSlug: 'bolum-1'),
       );
       await tester.pumpAndSettle();
 
@@ -480,66 +468,65 @@ void main() {
     },
   );
 
-  testWidgets(
-    'tapping the previous/next icons in the app bar navigates with '
-    'go_router, and the icon set updates to match the new episode',
-    (tester) async {
-      usePhoneViewport(tester);
-      final repository = _FakeReaderRepository((seriesSlug, episodeSlug) async {
-        switch (episodeSlug) {
-          case 'bolum-1':
-            return _manifest(
-              episodeSlug: 'bolum-1',
-              number: 1,
-              next: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
-            );
-          case 'bolum-2':
-            return _manifest(
-              episodeSlug: 'bolum-2',
-              number: 2,
-              previous: const EpisodeNavigationRef(slug: 'bolum-1', number: 1),
-              next: const EpisodeNavigationRef(slug: 'bolum-3', number: 3),
-            );
-          case 'bolum-3':
-            return _manifest(
-              episodeSlug: 'bolum-3',
-              number: 3,
-              previous: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
-            );
-          default:
-            throw StateError('Beklenmeyen bölüm: $episodeSlug');
-        }
-      });
+  testWidgets('tapping the previous/next icons in the app bar navigates with '
+      'go_router, and the icon set updates to match the new episode', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final repository = _FakeReaderRepository((seriesSlug, episodeSlug) async {
+      switch (episodeSlug) {
+        case 'bolum-1':
+          return _manifest(
+            episodeSlug: 'bolum-1',
+            number: 1,
+            next: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
+          );
+        case 'bolum-2':
+          return _manifest(
+            episodeSlug: 'bolum-2',
+            number: 2,
+            previous: const EpisodeNavigationRef(slug: 'bolum-1', number: 1),
+            next: const EpisodeNavigationRef(slug: 'bolum-3', number: 3),
+          );
+        case 'bolum-3':
+          return _manifest(
+            episodeSlug: 'bolum-3',
+            number: 3,
+            previous: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
+          );
+        default:
+          throw StateError('Beklenmeyen bölüm: $episodeSlug');
+      }
+    });
 
-      await tester.pumpWidget(
-        _wrapWithRouter(
-          repository,
-          seriesSlug: 'gece-vardiyasi',
-          episodeSlug: 'bolum-2',
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      _wrapWithRouter(
+        repository,
+        seriesSlug: 'gece-vardiyasi',
+        episodeSlug: 'bolum-2',
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Bölüm 2'), findsOneWidget);
+    expect(find.text('Bölüm 2'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Sonraki bölüm: Bölüm 3'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Sonraki bölüm: Bölüm 3'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Bölüm 3'), findsOneWidget);
-      // Serinin son bölümünde sonraki ikonu artık yok.
-      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
+    expect(find.text('Bölüm 3'), findsOneWidget);
+    // Serinin son bölümünde sonraki ikonu artık yok.
+    expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
 
-      await tester.tap(find.byTooltip('Önceki bölüm: Bölüm 2'));
-      await tester.pumpAndSettle();
-      expect(find.text('Bölüm 2'), findsOneWidget);
+    await tester.tap(find.byTooltip('Önceki bölüm: Bölüm 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bölüm 2'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Önceki bölüm: Bölüm 1'));
-      await tester.pumpAndSettle();
-      expect(find.text('Bölüm 1'), findsOneWidget);
-      // Serinin ilk bölümünde önceki ikonu artık yok.
-      expect(find.byIcon(Icons.skip_previous_rounded), findsNothing);
-    },
-  );
+    await tester.tap(find.byTooltip('Önceki bölüm: Bölüm 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bölüm 1'), findsOneWidget);
+    // Serinin ilk bölümünde önceki ikonu artık yok.
+    expect(find.byIcon(Icons.skip_previous_rounded), findsNothing);
+  });
 
   testWidgets(
     'tapping "seriye dön" (app bar leading) navigates to the series screen '
@@ -677,11 +664,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _wrap(
-          repository,
-          seriesSlug: 'gece-vardiyasi',
-          episodeSlug: 'bolum-1',
-        ),
+        _wrap(repository, seriesSlug: 'gece-vardiyasi', episodeSlug: 'bolum-1'),
       );
       await tester.pump();
 
@@ -792,72 +775,214 @@ void main() {
       },
     );
 
-    testWidgets(
-      'scrolling to the end of the last episode (no next) marks the '
-      'progress record completed, still pointing at that episode',
-      (tester) async {
-        usePhoneViewport(tester);
-        final repository = _FakeReaderRepository(
-          (seriesSlug, episodeSlug) async => _manifest(
-            episodeSlug: 'bolum-3',
-            number: 3,
-            panels: tallPanels(4),
-          ),
-        );
-        final progressRepository = _FakeReadingProgressRepository();
+    testWidgets('scrolling to the end of the last episode (no next) marks the '
+        'progress record completed, still pointing at that episode', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeReaderRepository(
+        (seriesSlug, episodeSlug) async =>
+            _manifest(episodeSlug: 'bolum-3', number: 3, panels: tallPanels(4)),
+      );
+      final progressRepository = _FakeReadingProgressRepository();
 
-        await tester.pumpWidget(
-          _wrap(
-            repository,
-            seriesSlug: 'gece-vardiyasi',
-            episodeSlug: 'bolum-3',
-            progressRepository: progressRepository,
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _wrap(
+          repository,
+          seriesSlug: 'gece-vardiyasi',
+          episodeSlug: 'bolum-3',
+          progressRepository: progressRepository,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.fling(
-          find.byType(Scrollable).first,
-          const Offset(0, -20000),
-          3000,
-        );
-        await tester.pumpAndSettle();
+      await tester.fling(
+        find.byType(Scrollable).first,
+        const Offset(0, -20000),
+        3000,
+      );
+      await tester.pumpAndSettle();
 
-        final stored = progressRepository.findBySeries('gece-vardiyasi');
-        expect(stored!.episodeSlug, 'bolum-3');
-        expect(stored.episodeNumber, 3);
-        expect(stored.completed, isTrue);
-      },
-    );
+      final stored = progressRepository.findBySeries('gece-vardiyasi');
+      expect(stored!.episodeSlug, 'bolum-3');
+      expect(stored.episodeNumber, 3);
+      expect(stored.completed, isTrue);
+    });
 
-    testWidgets(
-      'a short episode that already fits the viewport (no scrolling '
-      'needed) is recorded as completed without any user scroll',
-      (tester) async {
-        usePhoneViewport(tester);
-        final repository = _FakeReaderRepository(
-          (seriesSlug, episodeSlug) async => _manifest(
-            episodeSlug: 'bolum-1',
-            number: 1,
-            panels: const [_panelWithoutImage],
-          ),
-        );
-        final progressRepository = _FakeReadingProgressRepository();
+    testWidgets('a short episode that already fits the viewport (no scrolling '
+        'needed) is recorded as completed without any user scroll', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeReaderRepository(
+        (seriesSlug, episodeSlug) async => _manifest(
+          episodeSlug: 'bolum-1',
+          number: 1,
+          panels: const [_panelWithoutImage],
+        ),
+      );
+      final progressRepository = _FakeReadingProgressRepository();
 
-        await tester.pumpWidget(
-          _wrap(
-            repository,
-            seriesSlug: 'gece-vardiyasi',
-            episodeSlug: 'bolum-1',
-            progressRepository: progressRepository,
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _wrap(
+          repository,
+          seriesSlug: 'gece-vardiyasi',
+          episodeSlug: 'bolum-1',
+          progressRepository: progressRepository,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(progressRepository.completedCalls, hasLength(1));
-        final stored = progressRepository.findBySeries('gece-vardiyasi');
-        expect(stored!.completed, isTrue);
-      },
-    );
+      expect(progressRepository.completedCalls, hasLength(1));
+      final stored = progressRepository.findBySeries('gece-vardiyasi');
+      expect(stored!.completed, isTrue);
+    });
   });
+
+  group('geniş ekranda/yatay yönelimde taşma yok (PLAN Görev A.3/A.4)', () {
+    for (final entry in {
+      'telefon yatay (844x390)': phoneLandscape,
+      'tablet dikey (768x1024)': tabletPortrait,
+      'tablet yatay (1024x768)': tabletLandscape,
+    }.entries) {
+      testWidgets(entry.key, (tester) async {
+        useViewport(tester, entry.value);
+        final watcher = OverflowWatcher()..start();
+        addTearDown(watcher.stop);
+
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) async => _manifest(
+            episodeSlug: episodeSlug,
+            number: 1,
+            panels: const [_panelWithText, _panelWithoutImage],
+            next: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
+          ),
+        );
+
+        await tester.pumpWidget(
+          _wrap(
+            repository,
+            seriesSlug: 'gece-vardiyasi',
+            episodeSlug: 'bolum-1',
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Okuyucu içeriği 760 px merkez sütunda kalır (bkz. PLAN Görev
+        // A.3 — mevcut davranış, `CenteredMaxWidth` ile paylaşılan sabite
+        // taşındı); geniş ekranlarda tam genişliğe yayılmaz.
+        final listBox = tester.getRect(find.byType(ListView));
+        expect(listBox.width, lessThanOrEqualTo(kContentMaxWidth));
+
+        expect(watcher.errors, isEmpty, reason: watcher.describe());
+      });
+    }
+  });
+
+  group(
+    'büyük yazı tipinde taşma yok (PLAN Görev B.1 — textScaler 1.3/1.6/2.0)',
+    () {
+      for (final scale in [1.3, 1.6, 2.0]) {
+        for (final entry in {
+          'telefon (390x844)': phonePortrait,
+          'tablet dikey (768x1024)': tabletPortrait,
+        }.entries) {
+          testWidgets('paneller (görsel + metin katmanı) + bölüm sonu gezinme '
+              'scale=$scale, ${entry.key}', (tester) async {
+            useViewport(tester, entry.value);
+            final watcher = OverflowWatcher()..start();
+            addTearDown(watcher.stop);
+
+            final repository = _FakeReaderRepository(
+              (seriesSlug, episodeSlug) async => _manifest(
+                episodeSlug: episodeSlug,
+                number: 1,
+                title: 'Kayıp Dakikanın İzinde Uzun Bir Bölüm Başlığı Burada',
+                panels: const [
+                  _panelWithText,
+                  _panelWithoutImage,
+                  _panelWithoutImageUnknownTone,
+                ],
+                previous: const EpisodeNavigationRef(
+                  slug: 'bolum-0',
+                  number: 0,
+                ),
+                next: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
+              ),
+            );
+
+            await tester.pumpWidget(
+              _wrap(
+                repository,
+                seriesSlug: 'gece-vardiyasi',
+                episodeSlug: 'bolum-1',
+                textScale: scale,
+              ),
+            );
+            await tester.pumpAndSettle();
+
+            await _revealText(tester, 'Bu bölüm burada bitti.');
+
+            expect(
+              watcher.errors,
+              isEmpty,
+              reason:
+                  'scale=$scale, viewport=${entry.value}\n${watcher.describe()}',
+            );
+          });
+        }
+
+        testWidgets('boş bölüm (panel yok) scale=$scale', (tester) async {
+          useViewport(tester, phonePortrait);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
+
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async => _manifest(
+              episodeSlug: episodeSlug,
+              number: 1,
+              panels: const [],
+            ),
+          );
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              textScale: scale,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(watcher.errors, isEmpty, reason: watcher.describe());
+        });
+
+        testWidgets('hata durumu (yeniden dene butonuyla) scale=$scale', (
+          tester,
+        ) async {
+          useViewport(tester, phonePortrait);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
+
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async =>
+                throw const NetworkException('bağlantı yok'),
+          );
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              textScale: scale,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(watcher.errors, isEmpty, reason: watcher.describe());
+        });
+      }
+    },
+  );
 }

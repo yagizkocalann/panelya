@@ -66,12 +66,13 @@ class AppErrorView extends StatelessWidget {
             ),
             if (onRetry != null) ...[
               SizedBox(height: tokens.spacing.lg),
-              SizedBox(
-                height: tokens.sizes.minTouchTarget,
-                child: FilledButton(
-                  onPressed: onRetry,
-                  child: const Text('Tekrar dene'),
-                ),
+              // Sabit `SizedBox(height: minTouchTarget)` yerine tema
+              // `FilledButtonThemeData.minimumSize` (44 px alt sınır)
+              // uygulanır; büyük yazı tipinde buton gerekirse büyür (bkz.
+              // PLAN Görev B.2 — buton etiketi kırpılmaz).
+              FilledButton(
+                onPressed: onRetry,
+                child: const Text('Tekrar dene'),
               ),
             ],
           ],

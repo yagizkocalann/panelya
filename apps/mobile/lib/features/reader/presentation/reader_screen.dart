@@ -11,18 +11,9 @@ import '../../../core/api/media_url.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
+import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'reader_providers.dart';
-
-/// Okuyucu içerik sütununun en fazla genişliği.
-///
-/// production-bible.md §1: "Okuyucu içeriği 690-800 px merkez kolonda,
-/// boşluksuz dikey akışta sunulur." Bu bir renk/spacing token'ı değil, ürün
-/// ilkesinden gelen bir düzen sınırıdır (bkz. discover/series ekranlarındaki
-/// oran sabitleri — 3/4, 4/5, 0.48 — için de aynı gerekçe). Telefon
-/// genişliklerinde (360-430 px) bu sınırın hiçbir etkisi yoktur; yalnız
-/// tablet/geniş ekranlarda içerik merkeze alınır.
-const double _kReaderMaxWidth = 760;
 
 /// Okuyucu ekranı (`/series/:slug/read/:episodeSlug`): kesintisiz dikey
 /// panel scroll'u (ADR-019 — video pager değil). Panel görselleri
@@ -295,9 +286,8 @@ class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             icon: const Icon(Icons.skip_previous_rounded),
             tooltip: 'Önceki bölüm: Bölüm ${previous!.number}',
-            onPressed: () => context.go(
-              '/series/$seriesSlug/read/${previous!.slug}',
-            ),
+            onPressed: () =>
+                context.go('/series/$seriesSlug/read/${previous!.slug}'),
           ),
         if (next != null)
           IconButton(
@@ -375,25 +365,22 @@ class _ReaderPanelList extends ConsumerWidget {
     final apiOrigin = ref.watch(appConfigProvider).apiOrigin;
     final panels = episode.panels;
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _kReaderMaxWidth),
-        child: ListView.builder(
-          controller: scrollController,
-          padding: EdgeInsets.zero,
-          itemCount: panels.length + 1,
-          itemBuilder: (context, index) {
-            if (index == panels.length) {
-              return _ReaderEndNav(
-                seriesSlug: seriesSlug,
-                seriesTitle: seriesTitle,
-                previous: navigation.previous,
-                next: navigation.next,
-              );
-            }
-            return _PanelBlock(panel: panels[index], apiOrigin: apiOrigin);
-          },
-        ),
+    return CenteredMaxWidth(
+      child: ListView.builder(
+        controller: scrollController,
+        padding: EdgeInsets.zero,
+        itemCount: panels.length + 1,
+        itemBuilder: (context, index) {
+          if (index == panels.length) {
+            return _ReaderEndNav(
+              seriesSlug: seriesSlug,
+              seriesTitle: seriesTitle,
+              previous: navigation.previous,
+              next: navigation.next,
+            );
+          }
+          return _PanelBlock(panel: panels[index], apiOrigin: apiOrigin);
+        },
       ),
     );
   }
@@ -566,10 +553,7 @@ class _PanelImage extends StatelessWidget {
       errorBuilder: (context, error, stackTrace) => Container(
         color: tokens.colors.surface2,
         alignment: Alignment.center,
-        child: Icon(
-          Icons.broken_image_outlined,
-          color: tokens.colors.muted,
-        ),
+        child: Icon(Icons.broken_image_outlined, color: tokens.colors.muted),
       ),
     );
   }
@@ -612,9 +596,8 @@ class _ReaderEndNav extends StatelessWidget {
                 : 'Önceki bölüm: Bölüm ${previous!.number}',
             onTap: previous == null
                 ? null
-                : () => context.go(
-                    '/series/$seriesSlug/read/${previous!.slug}',
-                  ),
+                : () =>
+                      context.go('/series/$seriesSlug/read/${previous!.slug}'),
           ),
           SizedBox(height: tokens.spacing.sm),
           _NavLink(
@@ -628,8 +611,7 @@ class _ReaderEndNav extends StatelessWidget {
                 : 'Sonraki bölüm: Bölüm ${next!.number}',
             onTap: next == null
                 ? null
-                : () =>
-                      context.go('/series/$seriesSlug/read/${next!.slug}'),
+                : () => context.go('/series/$seriesSlug/read/${next!.slug}'),
           ),
         ],
       ),

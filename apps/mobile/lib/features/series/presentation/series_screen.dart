@@ -8,6 +8,7 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../features/progress/domain/reading_progress.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
+import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'series_providers.dart';
@@ -25,9 +26,7 @@ class SeriesScreen extends ConsumerWidget {
     final detail = ref.watch(seriesDetailProvider(slug));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(detail.asData?.value.series.title ?? 'Seri'),
-      ),
+      appBar: AppBar(title: Text(detail.asData?.value.series.title ?? 'Seri')),
       body: SafeArea(
         child: detail.when(
           loading: () => const AppLoadingView(label: 'Seri yükleniyor'),
@@ -79,94 +78,131 @@ class _SeriesDetailView extends ConsumerWidget {
     // mevcut "Okumaya başla" davranışı değişmeden kalır.
     final progress = ref.watch(readingProgressForSeriesProvider(seriesSlug));
 
-    return ListView(
-      padding: EdgeInsets.all(tokens.spacing.md),
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(tokens.radii.lg),
-          child: AspectRatio(
-            aspectRatio: 3 / 4,
-            child: CoverImage(
-              src: metadata.coverImage,
-              position: metadata.coverPosition,
-              semanticLabel: metadata.title,
-              tone: metadata.tone,
+    // Geniş ekranlarda (tablet) içerik okuyucudakiyle tutarlı bir merkez
+    // sütunda sınırlanır; kapak görseli tam ekran genişliğine (ve onunla
+    // birlikte 3:4 oranla devasa bir yüksekliğe) büyümez (bkz. PLAN Görev
+    // A.2). Telefon genişliklerinde etkisi yoktur.
+    return CenteredMaxWidth(
+      child: ListView(
+        padding: EdgeInsets.all(tokens.spacing.md),
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(tokens.radii.lg),
+            child: AspectRatio(
+              aspectRatio: 3 / 4,
+              child: CoverImage(
+                src: metadata.coverImage,
+                position: metadata.coverPosition,
+                semanticLabel: metadata.title,
+                tone: metadata.tone,
+              ),
             ),
           ),
-        ),
-        SizedBox(height: tokens.spacing.md),
-        Text(
-          metadata.eyebrow,
-          style: tokens.typography.bodySmall.copyWith(color: tokens.colors.mint),
-        ),
-        SizedBox(height: tokens.spacing.xs),
-        Text(metadata.title, style: tokens.typography.displayLarge),
-        SizedBox(height: tokens.spacing.xs),
-        Semantics(
-          label: 'Yaratıcı: ${metadata.creator}',
-          child: Text(
-            metadata.creator,
-            style: tokens.typography.bodyMedium,
+          SizedBox(height: tokens.spacing.md),
+          Text(
+            metadata.eyebrow,
+            style: tokens.typography.bodySmall.copyWith(
+              color: tokens.colors.mint,
+            ),
           ),
-        ),
-        SizedBox(height: tokens.spacing.sm),
-        Semantics(
-          label:
-              '${metadata.rating.toStringAsFixed(1)} üzerinden puan, '
-              '${metadata.followers} takipçi, ${episodes.length} bölüm.',
-          child: Wrap(
-            spacing: tokens.spacing.md,
+          SizedBox(height: tokens.spacing.xs),
+          Text(metadata.title, style: tokens.typography.displayLarge),
+          SizedBox(height: tokens.spacing.xs),
+          Semantics(
+            label: 'Yaratıcı: ${metadata.creator}',
+            child: Text(metadata.creator, style: tokens.typography.bodyMedium),
+          ),
+          SizedBox(height: tokens.spacing.sm),
+          Semantics(
+            label:
+                '${metadata.rating.toStringAsFixed(1)} üzerinden puan, '
+                '${metadata.followers} takipçi, ${episodes.length} bölüm.',
+            child: Wrap(
+              spacing: tokens.spacing.md,
+              runSpacing: tokens.spacing.xs,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // `mainAxisSize.min` bu Row'un yalnız gerektiği kadar yer
+                // kaplamasını sağlar, ama büyük yazı tipinde (`textScaler`)
+                // metin `Wrap`'ın verdiği sınırlı genişliği aşabilir; bu bir
+                // `Flexible` olmadan RenderFlex taşmasına yol açıyordu (bkz.
+                // PLAN Görev B.1/B.2 — metin KIRPILIR, bilgi tam
+                // kaybolmaz).
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.star_rounded,
+                      size: 16,
+                      color: tokens.colors.mint,
+                    ),
+                    SizedBox(width: tokens.spacing.xs / 2),
+                    Flexible(
+                      child: Text(
+                        metadata.rating.toStringAsFixed(1),
+                        style: tokens.typography.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_alt_outlined,
+                      size: 16,
+                      color: tokens.colors.muted,
+                    ),
+                    SizedBox(width: tokens.spacing.xs / 2),
+                    Flexible(
+                      child: Text(
+                        '${metadata.followers} takipçi',
+                        style: tokens.typography.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${episodes.length} bölüm',
+                  style: tokens.typography.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: tokens.spacing.md),
+          Wrap(
+            spacing: tokens.spacing.xs,
             runSpacing: tokens.spacing.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.star_rounded, size: 16, color: tokens.colors.mint),
-                  SizedBox(width: tokens.spacing.xs / 2),
-                  Text(metadata.rating.toStringAsFixed(1), style: tokens.typography.bodyMedium),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.people_alt_outlined, size: 16, color: tokens.colors.muted),
-                  SizedBox(width: tokens.spacing.xs / 2),
-                  Text('${metadata.followers} takipçi', style: tokens.typography.bodyMedium),
-                ],
-              ),
-              Text('${episodes.length} bölüm', style: tokens.typography.bodyMedium),
+              _Tag(text: metadata.status),
+              for (final genre in metadata.genres) _Tag(text: genre),
             ],
           ),
-        ),
-        SizedBox(height: tokens.spacing.md),
-        Wrap(
-          spacing: tokens.spacing.xs,
-          runSpacing: tokens.spacing.xs,
-          children: [
-            _Tag(text: metadata.status),
-            for (final genre in metadata.genres) _Tag(text: genre),
-          ],
-        ),
-        SizedBox(height: tokens.spacing.md),
-        Text(metadata.longDescription, style: tokens.typography.bodyLarge),
-        SizedBox(height: tokens.spacing.lg),
-        _StartReadingActions(
-          seriesSlug: seriesSlug,
-          firstEpisode: firstEpisode,
-          progress: progress,
-        ),
-        SizedBox(height: tokens.spacing.lg),
-        Text('Bölümler', style: tokens.typography.titleMedium),
-        SizedBox(height: tokens.spacing.sm),
-        for (final episode in episodes)
-          _EpisodeTile(
-            episode: episode,
-            onTap: () => context.push(
-              '/series/$seriesSlug/read/${episode.slug}',
-            ),
+          SizedBox(height: tokens.spacing.md),
+          Text(metadata.longDescription, style: tokens.typography.bodyLarge),
+          SizedBox(height: tokens.spacing.lg),
+          _StartReadingActions(
+            seriesSlug: seriesSlug,
+            firstEpisode: firstEpisode,
+            progress: progress,
           ),
-      ],
+          SizedBox(height: tokens.spacing.lg),
+          Text('Bölümler', style: tokens.typography.titleMedium),
+          SizedBox(height: tokens.spacing.sm),
+          for (final episode in episodes)
+            _EpisodeTile(
+              episode: episode,
+              onTap: () =>
+                  context.push('/series/$seriesSlug/read/${episode.slug}'),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -195,14 +231,15 @@ class _StartReadingActions extends StatelessWidget {
     final tokens = context.tokens;
 
     if (progress == null) {
-      return SizedBox(
-        height: tokens.sizes.minTouchTarget,
-        child: FilledButton(
-          onPressed: () => context.push(
-            '/series/$seriesSlug/read/${firstEpisode.slug}',
-          ),
-          child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
-        ),
+      // Sabit `SizedBox(height: minTouchTarget)` yerine YALNIZ tema
+      // düzeyindeki `FilledButtonThemeData.minimumSize` (bkz. theme.dart)
+      // 44 px alt sınırı sağlar; büyük yazı tipinde (`textScaler`) buton
+      // gerektiğinde 44 px'in ÜZERİNE büyüyebilir — aksi halde etiket
+      // kırpılır/taşardı (bkz. PLAN Görev B.2 — "buton etiketi kırpılmaz").
+      return FilledButton(
+        onPressed: () =>
+            context.push('/series/$seriesSlug/read/${firstEpisode.slug}'),
+        child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
       );
     }
 
@@ -213,27 +250,21 @@ class _StartReadingActions extends StatelessWidget {
     // oluşturup ekran okuyucuda yinelemeye yol açardı. Bu iki aksiyon zaten
     // ayrı `SizedBox`/buton olduğundan ayrı ayrı erişilebilirler.
     final continueLabel = 'Devam et: Bölüm ${progress!.episodeNumber}';
+    // Bkz. yukarıdaki not: sabit yükseklikli `SizedBox` yerine butonlar
+    // tema `minimumSize`'ından (44 px alt sınır) büyüyebilir bırakılır.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: tokens.sizes.minTouchTarget,
-          child: FilledButton(
-            onPressed: () => context.push(
-              '/series/$seriesSlug/read/${progress!.episodeSlug}',
-            ),
-            child: Text(continueLabel),
-          ),
+        FilledButton(
+          onPressed: () =>
+              context.push('/series/$seriesSlug/read/${progress!.episodeSlug}'),
+          child: Text(continueLabel),
         ),
         SizedBox(height: tokens.spacing.sm),
-        SizedBox(
-          height: tokens.sizes.minTouchTarget,
-          child: OutlinedButton(
-            onPressed: () => context.push(
-              '/series/$seriesSlug/read/${firstEpisode.slug}',
-            ),
-            child: const Text('Baştan başla'),
-          ),
+        OutlinedButton(
+          onPressed: () =>
+              context.push('/series/$seriesSlug/read/${firstEpisode.slug}'),
+          child: const Text('Baştan başla'),
         ),
       ],
     );
@@ -249,7 +280,10 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: tokens.spacing.sm, vertical: tokens.spacing.xs / 2),
+      padding: EdgeInsets.symmetric(
+        horizontal: tokens.spacing.sm,
+        vertical: tokens.spacing.xs / 2,
+      ),
       decoration: BoxDecoration(
         color: tokens.colors.surface3,
         borderRadius: BorderRadius.circular(tokens.radii.pill),
@@ -270,7 +304,8 @@ class _EpisodeTile extends StatelessWidget {
     final tokens = context.tokens;
     return Semantics(
       button: true,
-      label: 'Bölüm ${episode.number}: ${episode.title}. ${episode.publishedAt}. ${episode.readTime}.',
+      label:
+          'Bölüm ${episode.number}: ${episode.title}. ${episode.publishedAt}. ${episode.readTime}.',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(tokens.radii.md),
@@ -336,9 +371,17 @@ class _SequenceBadge extends StatelessWidget {
         color: tokens.colors.surface3,
         borderRadius: BorderRadius.circular(tokens.radii.md),
       ),
-      child: Text(
-        '$number',
-        style: tokens.typography.titleMedium.copyWith(color: tokens.colors.mint),
+      // Sabit boyutlu (44x44'lük) bir kutu; büyük yazı tipinde numara
+      // metni kutudan taşmasın diye `FittedBox` ile gerekirse küçültülür
+      // (bkz. PLAN Görev B.2 — bilgi kaybı yok, yalnız görsel ölçek).
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          '$number',
+          style: tokens.typography.titleMedium.copyWith(
+            color: tokens.colors.mint,
+          ),
+        ),
       ),
     );
   }

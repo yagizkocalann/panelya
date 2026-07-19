@@ -11,6 +11,10 @@ import 'package:panelya_mobile/features/progress/presentation/reading_progress_p
 import 'package:panelya_mobile/features/series/domain/series_repository.dart';
 import 'package:panelya_mobile/features/series/presentation/series_providers.dart';
 import 'package:panelya_mobile/features/series/presentation/series_screen.dart';
+import 'package:panelya_mobile/shared/layout/content_max_width.dart';
+
+import '../../support/overflow_watcher.dart';
+import '../../support/viewports.dart';
 
 class _FakeSeriesRepository implements SeriesRepository {
   _FakeSeriesRepository(this._result);
@@ -82,14 +86,16 @@ class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
 SeriesMetadata _metadata({
   String slug = 'gece-vardiyasi',
   String status = 'Devam Ediyor',
+  String title = 'Gece Vardiyası',
+  String longDescription = 'Ece için gece vardiyası uzun bir açıklamadır.',
 }) {
   return SeriesMetadata(
     slug: slug,
-    title: 'Gece Vardiyası',
+    title: title,
     eyebrow: 'Zamanı geri saran bir teslimat',
     creator: 'Panelya Originals',
     description: 'Description',
-    longDescription: 'Ece için gece vardiyası uzun bir açıklamadır.',
+    longDescription: longDescription,
     status: status,
     genres: const ['Gizem', 'Bilim Kurgu'],
     tone: PanelTone.coral,
@@ -135,6 +141,7 @@ Widget _wrap(
   SeriesRepository repository, {
   required String slug,
   LocalReadingProgressRepository? progressRepository,
+  double? textScale,
 }) {
   return ProviderScope(
     overrides: [
@@ -145,6 +152,14 @@ Widget _wrap(
     ],
     child: MaterialApp(
       theme: buildAppTheme(),
+      builder: textScale == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
       home: SeriesScreen(slug: slug),
     ),
   );
@@ -266,29 +281,30 @@ void main() {
     await _revealText(tester, 'Son Teslimat');
   });
 
-  testWidgets('"Okumaya başla" navigates to the first episode, not the latest', (
-    tester,
-  ) async {
-    usePhoneViewport(tester);
-    final repository = _FakeSeriesRepository(
-      (slug) async => SeriesDetailResponse(
-        schemaVersion: '1.0',
-        series: _metadata(),
-        episodes: _episodesNewestFirst(),
-      ),
-    );
+  testWidgets(
+    '"Okumaya başla" navigates to the first episode, not the latest',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeSeriesRepository(
+        (slug) async => SeriesDetailResponse(
+          schemaVersion: '1.0',
+          series: _metadata(),
+          episodes: _episodesNewestFirst(),
+        ),
+      );
 
-    await tester.pumpWidget(
-      _wrapWithRouter(repository, slug: 'gece-vardiyasi'),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _wrapWithRouter(repository, slug: 'gece-vardiyasi'),
+      );
+      await tester.pumpAndSettle();
 
-    await _revealText(tester, 'Okumaya başla · Bölüm 1');
-    await tester.tap(find.text('Okumaya başla · Bölüm 1'));
-    await tester.pumpAndSettle();
+      await _revealText(tester, 'Okumaya başla · Bölüm 1');
+      await tester.tap(find.text('Okumaya başla · Bölüm 1'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('READER:gece-vardiyasi/bolum-1'), findsOneWidget);
-  });
+      expect(find.text('READER:gece-vardiyasi/bolum-1'), findsOneWidget);
+    },
+  );
 
   testWidgets('tapping an episode tile navigates to that specific episode', (
     tester,
@@ -369,33 +385,30 @@ void main() {
   });
 
   group('cihaz-yerel "kaldığın yerden devam et" kaydı', () {
-    testWidgets(
-      'with no local progress record, shows only "Okumaya başla" (no '
-      '"Devam et"/"Baştan başla" pair)',
-      (tester) async {
-        usePhoneViewport(tester);
-        final repository = _FakeSeriesRepository(
-          (slug) async => SeriesDetailResponse(
-            schemaVersion: '1.0',
-            series: _metadata(),
-            episodes: _episodesNewestFirst(),
-          ),
-        );
+    testWidgets('with no local progress record, shows only "Okumaya başla" (no '
+        '"Devam et"/"Baştan başla" pair)', (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeSeriesRepository(
+        (slug) async => SeriesDetailResponse(
+          schemaVersion: '1.0',
+          series: _metadata(),
+          episodes: _episodesNewestFirst(),
+        ),
+      );
 
-        await tester.pumpWidget(
-          _wrap(
-            repository,
-            slug: 'gece-vardiyasi',
-            progressRepository: _FakeReadingProgressRepository(),
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        _wrap(
+          repository,
+          slug: 'gece-vardiyasi',
+          progressRepository: _FakeReadingProgressRepository(),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        await _revealText(tester, 'Okumaya başla · Bölüm 1');
-        expect(find.textContaining('Devam et:'), findsNothing);
-        expect(find.text('Baştan başla'), findsNothing);
-      },
-    );
+      await _revealText(tester, 'Okumaya başla · Bölüm 1');
+      expect(find.textContaining('Devam et:'), findsNothing);
+      expect(find.text('Baştan başla'), findsNothing);
+    });
 
     testWidgets(
       'with a local progress record, shows "Devam et: Bölüm N" as the '
@@ -443,11 +456,57 @@ void main() {
       },
     );
 
-    testWidgets(
-      '"Baştan başla" always navigates to the first episode (lowest '
-      'number), even when the continue target is a later episode',
-      (tester) async {
-        usePhoneViewport(tester);
+    testWidgets('"Baştan başla" always navigates to the first episode (lowest '
+        'number), even when the continue target is a later episode', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeSeriesRepository(
+        (slug) async => SeriesDetailResponse(
+          schemaVersion: '1.0',
+          series: _metadata(),
+          episodes: _episodesNewestFirst(),
+        ),
+      );
+      final progressRepository = _FakeReadingProgressRepository({
+        'gece-vardiyasi': ReadingProgress(
+          seriesSlug: 'gece-vardiyasi',
+          seriesTitle: 'Gece Vardiyası',
+          episodeSlug: 'bolum-3',
+          episodeNumber: 3,
+          updatedAt: DateTime(2026, 7, 18),
+          completed: true,
+        ),
+      });
+
+      await tester.pumpWidget(
+        _wrapWithRouter(
+          repository,
+          slug: 'gece-vardiyasi',
+          progressRepository: progressRepository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _revealText(tester, 'Baştan başla');
+      await tester.tap(find.text('Baştan başla'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('READER:gece-vardiyasi/bolum-1'), findsOneWidget);
+    });
+  });
+
+  group('geniş ekranda/yatay yönelimde taşma yok (PLAN Görev A.2/A.4)', () {
+    for (final entry in {
+      'telefon yatay (844x390)': phoneLandscape,
+      'tablet dikey (768x1024)': tabletPortrait,
+      'tablet yatay (1024x768)': tabletLandscape,
+    }.entries) {
+      testWidgets(entry.key, (tester) async {
+        useViewport(tester, entry.value);
+        final watcher = OverflowWatcher()..start();
+        addTearDown(watcher.stop);
+
         final repository = _FakeSeriesRepository(
           (slug) async => SeriesDetailResponse(
             schemaVersion: '1.0',
@@ -455,32 +514,181 @@ void main() {
             episodes: _episodesNewestFirst(),
           ),
         );
-        final progressRepository = _FakeReadingProgressRepository({
-          'gece-vardiyasi': ReadingProgress(
-            seriesSlug: 'gece-vardiyasi',
-            seriesTitle: 'Gece Vardiyası',
-            episodeSlug: 'bolum-3',
-            episodeNumber: 3,
-            updatedAt: DateTime(2026, 7, 18),
-            completed: true,
-          ),
+
+        await tester.pumpWidget(_wrap(repository, slug: 'gece-vardiyasi'));
+        await tester.pumpAndSettle();
+
+        // İçerik (kapak dahil) okuyucudakiyle tutarlı bir 760 px merkez
+        // sütunda kalır; kapak tam ekran genişliğine (ve onunla 3:4 oranla
+        // devasa bir yüksekliğe) büyümez (bkz. PLAN Görev A.2).
+        final listBox = tester.getRect(find.byType(ListView));
+        expect(listBox.width, lessThanOrEqualTo(kContentMaxWidth));
+
+        expect(watcher.errors, isEmpty, reason: watcher.describe());
+      });
+    }
+  });
+
+  group(
+    'büyük yazı tipinde taşma yok (PLAN Görev B.1 — textScaler 1.3/1.6/2.0)',
+    () {
+      for (final scale in [1.3, 1.6, 2.0]) {
+        for (final entry in {
+          'telefon (390x844)': phonePortrait,
+          'tablet dikey (768x1024)': tabletPortrait,
+        }.entries) {
+          testWidgets(
+            'kapak + meta veri + bölüm listesi ("Devam et" ikili aksiyonuyla) '
+            'scale=$scale, ${entry.key}',
+            (tester) async {
+              useViewport(tester, entry.value);
+              final watcher = OverflowWatcher()..start();
+              addTearDown(watcher.stop);
+
+              final repository = _FakeSeriesRepository(
+                (slug) async => SeriesDetailResponse(
+                  schemaVersion: '1.0',
+                  series: _metadata(
+                    title:
+                        'Gece Vardiyası: Kayıp Dakikanın İzinde Uzun Bir Başlık',
+                    longDescription:
+                        'Ece için gece vardiyası, zamanı geri saran bir '
+                        'teslimatla başlayan, hiç beklenmedik biçimde uzayan '
+                        've her bölümde biraz daha karanlığa gömülen uzun bir '
+                        'açıklamadır.',
+                  ),
+                  episodes: _episodesNewestFirst(),
+                ),
+              );
+              final progressRepository = _FakeReadingProgressRepository({
+                'gece-vardiyasi': ReadingProgress(
+                  seriesSlug: 'gece-vardiyasi',
+                  seriesTitle: 'Gece Vardiyası',
+                  episodeSlug: 'bolum-2',
+                  episodeNumber: 2,
+                  updatedAt: DateTime(2026, 7, 18),
+                  completed: false,
+                ),
+              });
+
+              await tester.pumpWidget(
+                _wrap(
+                  repository,
+                  slug: 'gece-vardiyasi',
+                  progressRepository: progressRepository,
+                  textScale: scale,
+                ),
+              );
+              await tester.pumpAndSettle();
+
+              expect(
+                watcher.errors,
+                isEmpty,
+                reason:
+                    'scale=$scale, viewport=${entry.value}\n${watcher.describe()}',
+              );
+
+              // Dokunma hedefleri büyük yazıda da >= 44 px kalmalı (bkz.
+              // PLAN Görev B.3). Sliver tabanlı `ListView` viewport dışı
+              // öğeleri hiç mount etmez (bkz. dosya başındaki
+              // `usePhoneViewport` doc yorumu); kontrolden önce görünür
+              // hale getirilir.
+              await _revealText(tester, 'Devam et: Bölüm 2');
+              final continueButton = find.ancestor(
+                of: find.textContaining('Devam et'),
+                matching: find.byType(FilledButton),
+              );
+              expect(
+                tester.getSize(continueButton).height,
+                greaterThanOrEqualTo(44),
+              );
+              await _revealText(tester, 'Baştan başla');
+              final restartButton = find.ancestor(
+                of: find.text('Baştan başla'),
+                matching: find.byType(OutlinedButton),
+              );
+              expect(
+                tester.getSize(restartButton).height,
+                greaterThanOrEqualTo(44),
+              );
+            },
+          );
+        }
+
+        testWidgets(
+          'yalnız "Okumaya başla" aksiyonu (kayıt yok) scale=$scale',
+          (tester) async {
+            useViewport(tester, phonePortrait);
+            final watcher = OverflowWatcher()..start();
+            addTearDown(watcher.stop);
+
+            final repository = _FakeSeriesRepository(
+              (slug) async => SeriesDetailResponse(
+                schemaVersion: '1.0',
+                series: _metadata(),
+                episodes: _episodesNewestFirst(),
+              ),
+            );
+
+            await tester.pumpWidget(
+              _wrap(repository, slug: 'gece-vardiyasi', textScale: scale),
+            );
+            await tester.pumpAndSettle();
+
+            await _revealText(tester, 'Okumaya başla · Bölüm 1');
+            final startButton = find.ancestor(
+              of: find.textContaining('Okumaya başla'),
+              matching: find.byType(FilledButton),
+            );
+            expect(
+              tester.getSize(startButton).height,
+              greaterThanOrEqualTo(44),
+            );
+
+            expect(watcher.errors, isEmpty, reason: watcher.describe());
+          },
+        );
+
+        testWidgets('boş durum (bölüm yok) scale=$scale', (tester) async {
+          useViewport(tester, phonePortrait);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
+
+          final repository = _FakeSeriesRepository(
+            (slug) async => SeriesDetailResponse(
+              schemaVersion: '1.0',
+              series: _metadata(),
+              episodes: const [],
+            ),
+          );
+
+          await tester.pumpWidget(
+            _wrap(repository, slug: 'gece-vardiyasi', textScale: scale),
+          );
+          await tester.pumpAndSettle();
+
+          expect(watcher.errors, isEmpty, reason: watcher.describe());
         });
 
-        await tester.pumpWidget(
-          _wrapWithRouter(
-            repository,
-            slug: 'gece-vardiyasi',
-            progressRepository: progressRepository,
-          ),
-        );
-        await tester.pumpAndSettle();
+        testWidgets('hata durumu (yeniden dene butonuyla) scale=$scale', (
+          tester,
+        ) async {
+          useViewport(tester, phonePortrait);
+          final watcher = OverflowWatcher()..start();
+          addTearDown(watcher.stop);
 
-        await _revealText(tester, 'Baştan başla');
-        await tester.tap(find.text('Baştan başla'));
-        await tester.pumpAndSettle();
+          final repository = _FakeSeriesRepository(
+            (slug) async => throw const NetworkException('bağlantı yok'),
+          );
 
-        expect(find.text('READER:gece-vardiyasi/bolum-1'), findsOneWidget);
-      },
-    );
-  });
+          await tester.pumpWidget(
+            _wrap(repository, slug: 'gece-vardiyasi', textScale: scale),
+          );
+          await tester.pumpAndSettle();
+
+          expect(watcher.errors, isEmpty, reason: watcher.describe());
+        });
+      }
+    },
+  );
 }
