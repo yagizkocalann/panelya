@@ -72,6 +72,6 @@ GitHub Actions `Quality / Web quality` işi, `main` hedefli pull request'lerde v
 
 Temiz clone build'inin yerelle aynı davranması için `.openai/hosting.json` repoda tutulur; dosya yalnız `DB` ve `MEDIA` mantıksal binding adlarını taşır. Ortam değerleri ve secret'lar bu dosyaya yazılmaz; `.env*` veya hosted runtime ayarlarında kalır.
 
-Repository private ve mevcut GitHub planı zorunlu branch protection/ruleset desteklemediği sürece yeşil `Web quality` sonucu merge için manuel ama zorunlu ekip kuralıdır. Plan desteği geldiğinde aynı check `main` için required status check yapılır; workflow adı değiştirilmez.
+Public repository'de `main` branch protection, `Web quality` ve `Mobile quality` kontrollerini required status check olarak zorunlu kılar. Pull request ve güncel branch olmadan main'e merge yapılmaz; force-push ve branch silme kapalıdır.
 
-Flutter uygulaması `main`e alınana kadar web workflow'u mobil SDK kurmaz. `apps/mobile` implementasyonunu taşıyan PR, kendi ayrı mobil kalite işini de birlikte getirir: sabitlenmiş Flutter sürümü, `flutter pub get`, `flutter analyze` ve `flutter test`. Mobil ekip web workflow dosyasını paralel branch'te değiştirmez; ortak CI değişiklikleri küçük PR ile `main` üzerinden paylaşılır.
+`Mobile quality` işi her PR'da görünür fakat yalnız `apps/mobile`, `packages/contracts` veya kalite workflow'u değiştiğinde ve mobil uygulama ref içinde mevcutsa Flutter SDK kurar. Mobil branch'teki `.metadata` revision'ıyla eşleşen Flutter `3.44.6 stable` kullanılır; kilitli `pub get`, `flutter analyze` ve `flutter test` otomatik çalışır. Bu nedenle mobil ekibin ayrıca workflow yazması veya hatırlatma beklemesi gerekmez. Flutter sürüm yükseltmesi mobil metadata ve CI pin'ini aynı PR'da değiştirir.

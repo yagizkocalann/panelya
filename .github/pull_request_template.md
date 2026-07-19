@@ -18,6 +18,7 @@
 
 - [ ] Mobil istemciyi veya `packages/contracts` sozlesmesini etkilemiyor.
 - [ ] Etkiliyorsa breaking/non-breaking durumu ve Flutter gecis plani aciklandi.
+- [ ] Mobil/sozlesme degisikliginde `Mobile quality` sonucu basarili.
 
 ## Kalan risk veya varsayim
 
