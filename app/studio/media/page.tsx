@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getCurrentUser } from "../../lib/auth";
 import { listStudioSeries } from "../../lib/content-repository";
+import { getMediaDerivativeDispatchInfo } from "../../lib/media/derivative-dispatch";
 import { listDerivativeJobs, listVariantCounts } from "../../lib/media/derivatives";
 import { listMediaAssets } from "../../lib/media/repository";
 import { publicSiteUrlForCurrentRequest } from "../../lib/server-site-origins";
@@ -12,11 +13,11 @@ import { DerivativeQueue } from "./DerivativeQueue";
 export const dynamic = "force-dynamic";
 function formatBytes(value: number) { return value < 1024 * 1024 ? `${Math.ceil(value / 1024)} KB` : `${(value / (1024 * 1024)).toFixed(1)} MB`; }
 
-export default async function StudioMediaPage({ searchParams }: { searchParams: Promise<{ error?: string; uploaded?: string; restored?: string }> }) {
+export default async function StudioMediaPage({ searchParams }: { searchParams: Promise<{ error?: string; uploaded?: string; restored?: string; dispatch_sent?: string; dispatch_failed?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?return_to=/media");
   if (user.role !== "admin") redirect("/account?error=Studio%20yalnızca%20yönetici%20hesaplarına%20açık.");
-  const [series, assets, derivativeJobs, variantCounts, publicHome, query] = await Promise.all([listStudioSeries(), listMediaAssets(), listDerivativeJobs(), listVariantCounts(), publicSiteUrlForCurrentRequest("/"), searchParams]);
+  const [series, assets, derivativeJobs, variantCounts, dispatchInfo, publicHome, query] = await Promise.all([listStudioSeries(), listMediaAssets(), listDerivativeJobs(), listVariantCounts(), getMediaDerivativeDispatchInfo(), publicSiteUrlForCurrentRequest("/"), searchParams]);
   const uploaded = query.uploaded ? assets.find((asset) => asset.id === query.uploaded) : undefined;
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
     <div className="studio-top"><div><p className="section-kicker">Medya</p><h1>Kapak ve paneller</h1><p>Özgün görselleri doğrula, R2 depolamaya yükle ve ilgili seri ya da bölüme bağla.</p></div><div className="studio-top__actions"><Link className="button button--ghost" href="/">← Studio</Link><Link className="button button--ghost" href="/content">İçeriğe git</Link></div></div>
@@ -24,6 +25,7 @@ export default async function StudioMediaPage({ searchParams }: { searchParams: 
     {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
     {uploaded && <p className="form-message form-message--success" role="status">{uploaded.kind === "cover" ? "Kapak" : "Panel"} yüklendi ve ilgili içeriğe bağlandı.</p>}
     {query.restored && <p className="form-message form-message--success" role="status">Seçilen kapak geçmişten geri yüklendi.</p>}
+    {query.dispatch_sent && <p className={query.dispatch_failed && query.dispatch_failed !== "0" ? "form-message form-message--error" : "form-message form-message--success"} role="status">Üretim kuyruğuna {query.dispatch_sent} iş teslim edildi{query.dispatch_failed && query.dispatch_failed !== "0" ? `; ${query.dispatch_failed} iş teslim edilemedi.` : "."}</p>}
     <section className="studio-editor" aria-labelledby="media-upload-title"><div className="studio-editor__section"><header><div><p className="section-kicker">R2 medya nesnesi</p><h2 id="media-upload-title">Yeni dosya yükle</h2></div><span>Admin işlemi</span></header>
       {!series.length ? <p className="studio-inline-note">Önce bir seri oluşturmalısın. <Link href="/content/new">Yeni seri oluştur →</Link></p> : <form className="studio-form-grid" action="/api/admin/media" method="post" encType="multipart/form-data">
         <label>Varlık türü<select name="kind" defaultValue="cover"><option value="cover">Seri kapağı</option><option value="panel">Bölüm paneli</option></select><small>Panel seçildiğinde aşağıdaki bölüm zorunludur.</small></label>
@@ -34,7 +36,7 @@ export default async function StudioMediaPage({ searchParams }: { searchParams: 
       </form>}
     </div></section>
     <section className="studio-section" aria-labelledby="derivative-queue-title"><div className="section-heading"><div><p className="section-kicker">Responsive medya</p><h2 id="derivative-queue-title">Türetme kuyruğu</h2></div><span className="sort-note">{derivativeJobs.filter((job) => job.status === "queued" || job.status === "failed").length} bekleyen</span></div>
-      <DerivativeQueue jobs={derivativeJobs} />
+      <DerivativeQueue jobs={derivativeJobs} dispatchInfo={dispatchInfo} />
     </section>
     <section className="studio-section" aria-labelledby="media-library-title"><div className="section-heading"><div><p className="section-kicker">Envanter</p><h2 id="media-library-title">Yüklenen dosyalar</h2></div><span className="sort-note">{assets.length} varlık</span></div>
       {assets.length ? <div className="media-library">{assets.map((asset) => {

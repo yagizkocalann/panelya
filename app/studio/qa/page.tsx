@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const priorityChecks = [
   { id: "QA-ADM-01", title: "Yönetici davetini kabul etme", path: "/users → /outbox", result: "Yeni test yöneticisi oluşmalı, Studio oturumu açılmalı ve davet kabul edildi görünmeli." },
   { id: "QA-STU-06", title: "Outbox saklama ve temizleme", path: "/outbox", result: "Yalnız süresi dolan sentetik kayıtlar temizlenmeli; aktif bağlantılar kalmalı ve audit yazılmalı." },
+  { id: "QA-MED-02", title: "Production responsive kuyruk teslimi", path: "/media + Queue test ortamı", result: "İş worker'a teslim edilmeli; eksik binding başarılı görünmemeli ve yeniden gönderme kopya varyant oluşturmamalı." },
   { id: "QA-RESP-01", title: "Responsive genel tur", path: "Public + Studio", result: "1440, 1024, 768, 390 ve 360 px'te taşma, kırpılma veya 44 px altı dokunma hedefi olmamalı." },
 ] as const;
 

@@ -212,6 +212,11 @@ export const mediaDerivativeJobs = sqliteTable("media_derivative_jobs", {
   status: text("status", { enum: ["queued", "processing", "completed", "failed"] }).notNull().default("queued"),
   attempts: integer("attempts").notNull().default(0),
   error: text("error"),
+  dispatchMode: text("dispatch_mode", { enum: ["local_browser", "cloudflare_queue"] }).notNull().default("local_browser"),
+  dispatchStatus: text("dispatch_status", { enum: ["local", "pending", "sent", "failed"] }).notNull().default("local"),
+  dispatchAttempts: integer("dispatch_attempts").notNull().default(0),
+  dispatchError: text("dispatch_error"),
+  dispatchedAt: integer("dispatched_at"),
   createdAt: integer("created_at").notNull(),
   startedAt: integer("started_at"),
   completedAt: integer("completed_at"),
@@ -219,6 +224,7 @@ export const mediaDerivativeJobs = sqliteTable("media_derivative_jobs", {
 }, (table) => [
   uniqueIndex("media_derivative_jobs_target_unique").on(table.assetId, table.targetWidth, table.format),
   index("media_derivative_jobs_status_idx").on(table.status, table.createdAt),
+  index("media_derivative_jobs_dispatch_idx").on(table.dispatchStatus, table.createdAt),
 ]);
 
 export const previewTokens = sqliteTable("preview_tokens", {

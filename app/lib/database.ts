@@ -196,6 +196,11 @@ async function ensureSchema(db: D1Database) {
       status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','completed','failed')),
       attempts INTEGER NOT NULL DEFAULT 0,
       error TEXT,
+      dispatch_mode TEXT NOT NULL DEFAULT 'local_browser' CHECK(dispatch_mode IN ('local_browser','cloudflare_queue')),
+      dispatch_status TEXT NOT NULL DEFAULT 'local' CHECK(dispatch_status IN ('local','pending','sent','failed')),
+      dispatch_attempts INTEGER NOT NULL DEFAULT 0,
+      dispatch_error TEXT,
+      dispatched_at INTEGER,
       created_at INTEGER NOT NULL,
       started_at INTEGER,
       completed_at INTEGER,
@@ -241,6 +246,20 @@ async function ensureSchema(db: D1Database) {
     // Existing local accounts predate verification; preserve their QA access.
     await db.prepare("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL").run();
   }
+
+  const derivativeColumns = await db.prepare("PRAGMA table_info(media_derivative_jobs)").all<{ name: string }>();
+  const derivativeColumnNames = new Set(derivativeColumns.results.map((column) => column.name));
+  const missingDerivativeColumns = [
+    ["dispatch_mode", "ALTER TABLE media_derivative_jobs ADD COLUMN dispatch_mode TEXT NOT NULL DEFAULT 'local_browser' CHECK(dispatch_mode IN ('local_browser','cloudflare_queue'))"],
+    ["dispatch_status", "ALTER TABLE media_derivative_jobs ADD COLUMN dispatch_status TEXT NOT NULL DEFAULT 'local' CHECK(dispatch_status IN ('local','pending','sent','failed'))"],
+    ["dispatch_attempts", "ALTER TABLE media_derivative_jobs ADD COLUMN dispatch_attempts INTEGER NOT NULL DEFAULT 0"],
+    ["dispatch_error", "ALTER TABLE media_derivative_jobs ADD COLUMN dispatch_error TEXT"],
+    ["dispatched_at", "ALTER TABLE media_derivative_jobs ADD COLUMN dispatched_at INTEGER"],
+  ] as const;
+  for (const [name, statement] of missingDerivativeColumns) {
+    if (!derivativeColumnNames.has(name)) await db.prepare(statement).run();
+  }
+  await db.prepare("CREATE INDEX IF NOT EXISTS media_derivative_jobs_dispatch_idx ON media_derivative_jobs(dispatch_status, created_at)").run();
 }
 
 export async function writeAudit(userId: string | null, action: string, metadata?: Record<string, unknown>) {
