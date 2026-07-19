@@ -70,6 +70,8 @@ npm run build
 
 GitHub Actions `Quality / Web quality` işi, `main` hedefli pull request'lerde ve `main`/`codex/web` push'larında `.nvmrc` içindeki Node sürümüyle `npm ci`, lint, build ve test zincirini çalıştırır. `npm test` build adımını zaten kapsadığı için workflow bunu ikinci kez çalıştırmaz. Eski commit için devam eden iş, aynı PR'a yeni commit geldiğinde iptal edilir.
 
+Temiz clone build'inin yerelle aynı davranması için `.openai/hosting.json` repoda tutulur; dosya yalnız `DB` ve `MEDIA` mantıksal binding adlarını taşır. Ortam değerleri ve secret'lar bu dosyaya yazılmaz; `.env*` veya hosted runtime ayarlarında kalır.
+
 Repository private ve mevcut GitHub planı zorunlu branch protection/ruleset desteklemediği sürece yeşil `Web quality` sonucu merge için manuel ama zorunlu ekip kuralıdır. Plan desteği geldiğinde aynı check `main` için required status check yapılır; workflow adı değiştirilmez.
 
 Flutter uygulaması `main`e alınana kadar web workflow'u mobil SDK kurmaz. `apps/mobile` implementasyonunu taşıyan PR, kendi ayrı mobil kalite işini de birlikte getirir: sabitlenmiş Flutter sürümü, `flutter pub get`, `flutter analyze` ve `flutter test`. Mobil ekip web workflow dosyasını paralel branch'te değiştirmez; ortak CI değişiklikleri küçük PR ile `main` üzerinden paylaşılır.

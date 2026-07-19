@@ -43,7 +43,6 @@ next-env.d.ts
 /outputs/
 /work/
 /.tools/
-/.openai/hosting.json
 
 # generated build output
 /build-output/
