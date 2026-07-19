@@ -876,7 +876,7 @@ test("Studio yayın hazırlığı, açık yayın onayı ve toplu panel güvenlik
 });
 
 test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
-  const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, redispatchApi, derivatives, dispatch, derivativeQueue, consumer, worker, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy, envExample] = await Promise.all([
+  const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, redispatchApi, derivatives, dispatch, derivativeQueue, consumer, worker, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy, envExample, contentRepository] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8"),
@@ -897,6 +897,7 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
     readFile(new URL("../app/[slug]/[episode]/ReaderExperience.tsx", import.meta.url), "utf8"),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
   ]);
   assert.equal(JSON.parse(hosting).r2, "MEDIA");
   assert.match(schema, /sqliteTable\("media_assets"/);
@@ -917,6 +918,9 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(validation, /type === "VP8 "[^\n]*u16\(bytes, 26, true\)[^\n]*u16\(bytes, 28, true\)/);
   assert.match(validation, /type === "VP8L"[\s\S]*u16\(bytes, 21, true\)/);
   assert.match(validation, /type === "VP8X"[^\n]*u24le\(bytes, 24\)[^\n]*u24le\(bytes, 27\)/);
+  assert.match(contentRepository, /SELECT asset_id, mime_type, width, height FROM media_variants/);
+  assert.match(contentRepository, /src: `\$\{source\}\?width=\$\{Number\(row\.width\)\}`/);
+  assert.match(contentRepository, /attachPublicMediaVariants/);
   assert.match(validation, /inspectDerivative/);
   assert.match(storage, /interface MediaStorage/);
   assert.match(storage, /env\.MEDIA/);

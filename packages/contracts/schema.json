@@ -12,6 +12,21 @@
       "type": "string",
       "enum": ["coral", "mint", "violet", "blue", "amber", "rose"]
     },
+    "PublicMediaVariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "width", "height", "mimeType"],
+      "properties": {
+        "src": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Public media URL for an available derivative; clients must not construct storage keys."
+        },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "mimeType": { "type": "string", "const": "image/webp" }
+      }
+    },
     "StoryPanelImage": {
       "type": "object",
       "additionalProperties": false,
@@ -20,7 +35,12 @@
         "src": { "type": "string", "minLength": 1 },
         "alt": { "type": "string", "minLength": 1 },
         "width": { "type": "integer", "minimum": 1 },
-        "height": { "type": "integer", "minimum": 1 }
+        "height": { "type": "integer", "minimum": 1 },
+        "variants": {
+          "type": "array",
+          "description": "Ready responsive derivatives sorted by ascending width. The source URL remains the fallback.",
+          "items": { "$ref": "#/$defs/PublicMediaVariant" }
+        }
       }
     },
     "StoryPanel": {
@@ -122,6 +142,11 @@
         },
         "isNew": { "type": "boolean" },
         "coverImage": { "type": "string", "minLength": 1 },
+        "coverImageVariants": {
+          "type": "array",
+          "description": "Ready responsive cover derivatives sorted by ascending width.",
+          "items": { "$ref": "#/$defs/PublicMediaVariant" }
+        },
         "coverPosition": { "type": "string", "minLength": 1 }
       }
     },

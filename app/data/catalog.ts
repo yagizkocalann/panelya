@@ -1,5 +1,12 @@
 export type PanelTone = "coral" | "mint" | "violet" | "blue" | "amber" | "rose";
 
+export type PublicMediaVariant = {
+  src: string;
+  width: number;
+  height: number;
+  mimeType: "image/webp";
+};
+
 export type StoryPanel = {
   id: string;
   scene: string;
@@ -12,6 +19,7 @@ export type StoryPanel = {
     alt: string;
     width: number;
     height: number;
+    variants?: PublicMediaVariant[];
   };
 };
 
@@ -39,6 +47,7 @@ export type Series = {
   followers: string;
   isNew?: boolean;
   coverImage?: string;
+  coverImageVariants?: PublicMediaVariant[];
   coverPosition?: string;
   episodes: Episode[];
 };
