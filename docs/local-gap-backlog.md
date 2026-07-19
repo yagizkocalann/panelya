@@ -15,7 +15,7 @@
 1. Tamamlandi: seri sayfasinda kutuphane/favori butonlarinin aktif durumunu sunucudan gostermek.
 2. Yorum yanitlari, begeni ve kullanici engelleme tercihleri.
 3. Tamamlandi: kutuphaneden bagimsiz seri takibi, yeni bolum bildirim tercihi, ilk yayin gecisinde dogrulanmis takipcilere idempotent yerel outbox fan-out'u. Kalan dis is: canli e-posta/push adapter'i.
-4. D1 tabanli arama, siralama, filtreleme ve cursor pagination.
+4. Tamamlandi: normalize D1 katalog aramasi, tur/durum filtresi, guncelleme/puan/ad siralamasi ve kararli keyset cursor pagination. Mobil API arama sozlesmesi gerekirse ortak contracts PR'i olarak ayrica ele alinacak.
 
 ## P1 - Hesap ve guvenlik
 

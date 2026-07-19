@@ -139,6 +139,7 @@ async function ensureSchema(db: D1Database) {
       title TEXT NOT NULL,
       eyebrow TEXT NOT NULL,
       creator TEXT NOT NULL,
+      search_text TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL,
       long_description TEXT NOT NULL,
       story_status TEXT NOT NULL DEFAULT 'ongoing' CHECK(story_status IN ('ongoing','completed')),
@@ -242,6 +243,9 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS review_reports_status_idx ON review_reports(status, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS review_reports_review_idx ON review_reports(review_id, status)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_series_publication_idx ON content_series(publication_status, is_featured DESC, updated_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS content_series_discovery_updated_idx ON content_series(publication_status, story_status, updated_at DESC, slug)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS content_series_discovery_rating_idx ON content_series(publication_status, story_status, rating DESC, slug)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS content_series_discovery_title_idx ON content_series(publication_status, story_status, title COLLATE NOCASE, slug)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_episodes_series_idx ON content_episodes(series_slug, publication_status, number DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS media_assets_series_idx ON media_assets(series_slug, episode_slug, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS media_variants_asset_idx ON media_variants(asset_id, width)"),
@@ -255,6 +259,11 @@ async function ensureSchema(db: D1Database) {
     await db.prepare("ALTER TABLE users ADD COLUMN email_verified_at INTEGER").run();
     // Existing local accounts predate verification; preserve their QA access.
     await db.prepare("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL").run();
+  }
+
+  const contentSeriesColumns = await db.prepare("PRAGMA table_info(content_series)").all<{ name: string }>();
+  if (!contentSeriesColumns.results.some((column) => column.name === "search_text")) {
+    await db.prepare("ALTER TABLE content_series ADD COLUMN search_text TEXT NOT NULL DEFAULT ''").run();
   }
 
   const outboxDefinition = await db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notification_outbox'").first<{ sql: string }>();
