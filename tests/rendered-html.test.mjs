@@ -199,9 +199,13 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.doesNotMatch(studio, /disabled/);
   assert.doesNotMatch(footer, /<span>Hakkımızda|<span>İletişim|<span>Gizlilik/);
   assert.match(notifications, /interface NotificationDelivery/);
+  assert.match(notifications, /deliveryFactories/);
+  assert.match(notifications, /NotificationDeliveryUnavailableError/);
   assert.match(resetPage, /same-origin/);
   assert.match(accountPage, /\/account\/sessions/);
   assert.match(studio, /href="\/moderation"/);
+  assert.match(studio, /href="\/qa"/);
+  assert.match(studio, /Manuel QA kuyruğu/);
   assert.match(moderationPage, /Yorumu gizle ve çöz/);
   assert.doesNotMatch(moderationPage, /disabled/);
   assert.match(proxy, /isStudioRequest/);
@@ -228,6 +232,8 @@ test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async 
   assert.equal(publicRoleMutation.status, 404);
   const publicInvitationMutation = await request("/api/admin/invitations", "text/html", "http://localhost", { method: "POST" });
   assert.equal(publicInvitationMutation.status, 404);
+  const publicOutboxRetention = await request("/api/admin/outbox/retention", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicOutboxRetention.status, 404);
 
   for (const path of ["/accept-admin-invite", "/bootstrap-admin"]) {
     const publicResponse = await request(path, "text/html", "http://localhost:3000");
@@ -237,7 +243,7 @@ test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async 
     assert.match(await studioResponse.text(), /noindex/);
   }
 
-  for (const path of ["/users", "/audit"]) {
+  for (const path of ["/users", "/audit", "/qa"]) {
     const response = await request(path, "text/html", "http://studio.localhost:3000");
     assert.ok([307, 308].includes(response.status), `${path} girişe yönlenmeli`);
   }
@@ -314,6 +320,57 @@ test("Studio yönetici daveti hashli, tek kullanımlık ve production kaydı yet
   assert.match(usersPage, /Daveti iptal et/);
   assert.match(outboxApi, /\/accept-admin-invite/);
   assert.match(proxy, /"\/accept-admin-invite", "\/bootstrap-admin"/);
+});
+
+test("bildirim adaptörü ve outbox saklama politikası fail-closed yönetim sınırını korur", async () => {
+  const [notifications, runtimeConfig, retention, retentionApi, outboxPage, outboxOpenApi, auditRepository, auditPage, agents, manualQa, qaPage, proxy] = await Promise.all([
+    readFile(new URL("../app/lib/notifications.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/notification-outbox.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/outbox/retention/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/outbox/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/outbox/[id]/open/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/studio-admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/audit/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../AGENTS.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/qa/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeConfig, /NOTIFICATION_DELIVERY_MODE/);
+  assert.match(runtimeConfig, /local_outbox/);
+  assert.match(notifications, /Record<NotificationDeliveryMode, DeliveryFactory>/);
+  assert.match(notifications, /if \(!factory\) throw new NotificationDeliveryUnavailableError/);
+  assert.match(retention, /OUTBOX_RETENTION_POLICY_VERSION = 1/);
+  assert.match(retention, /queuedPasswordReset: 1 \* DAY_MS/);
+  assert.match(retention, /queuedVerification: 2 \* DAY_MS/);
+  assert.match(retention, /queuedAdminInvitation: 2 \* DAY_MS/);
+  assert.match(retention, /queuedSecurityNotice: 30 \* DAY_MS/);
+  assert.match(retention, /DELETE FROM notification_outbox WHERE/);
+  assert.match(retentionApi, /isStudioRequest\(request\)/);
+  assert.match(retentionApi, /assertSameOrigin/);
+  assert.match(retentionApi, /consumeRateLimit\("admin-outbox-retention"/);
+  assert.match(retentionApi, /admin\.notification_outbox_purged/);
+  assert.doesNotMatch(retentionApi, /console\.error\([^\n]*,\s*error\)/);
+  assert.match(outboxOpenApi, /isStudioRequest\(request\)/);
+  assert.match(outboxPage, /action="\/api\/admin\/outbox\/retention"/);
+  assert.match(outboxPage, /Süresi dolanları temizle/);
+  assert.doesNotMatch(outboxPage, /disabled/);
+  assert.match(auditRepository, /"deletedCount", "policyVersion"/);
+  assert.match(auditPage, /admin\.notification_outbox_purged/);
+  assert.match(agents, /docs\/manual-qa-checklist\.md/);
+  assert.match(manualQa, /QA-ADM-01/);
+  assert.match(manualQa, /QA-STU-06/);
+  assert.match(qaPage, /docs\/manual-qa-checklist\.md/);
+  assert.match(qaPage, /QA-ADM-01/);
+  assert.match(proxy, /"qa"/);
+
+  const unauthenticatedStudioMutation = await request("/api/admin/outbox/retention", "text/html", "http://studio.localhost:3000", {
+    method: "POST",
+    headers: { origin: "http://studio.localhost:3000" },
+  });
+  assert.equal(unauthenticatedStudioMutation.status, 303);
+  assert.equal(unauthenticatedStudioMutation.headers.get("location"), "http://studio.localhost:3000/login?return_to=/outbox");
 });
 
 test("taslak önizleme süreli, kapsamlı ve public yayından ayrıdır", async () => {

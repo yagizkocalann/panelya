@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { assertSameOrigin, getCurrentUser } from "../../../../../lib/auth";
 import { redirectTo } from "../../../../../lib/auth-http";
 import { getDatabase } from "../../../../../lib/database";
-import { isAllowedAccountActionOrigin } from "../../../../../lib/site-origins";
+import { isAllowedAccountActionOrigin, isStudioRequest } from "../../../../../lib/site-origins";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isStudioRequest(request)) return new Response("Not found", { status: 404 });
   try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }
   const user = await getCurrentUser();
   if (!user) return redirectTo(request, "/login?return_to=/outbox");
