@@ -25,3 +25,9 @@ export type MediaDerivativeDispatchMode = "local_browser" | "cloudflare_queue";
 export async function mediaDerivativeDispatchMode(): Promise<MediaDerivativeDispatchMode | string> {
   return (await runtimeValue("MEDIA_DERIVATIVE_DISPATCH_MODE")).trim().toLowerCase() || "local_browser";
 }
+
+export type RateLimitMode = "d1_strict" | "cloudflare_hybrid";
+
+export async function rateLimitMode(): Promise<RateLimitMode | string> {
+  return (await runtimeValue("RATE_LIMIT_MODE")).trim().toLowerCase() || "d1_strict";
+}

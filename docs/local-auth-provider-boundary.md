@@ -7,7 +7,7 @@
 - Sifre sifirlama baglantisi: 30 dakika, tek kullanim; basarida tum oturumlar kapanir.
 - Mevcut sifreyle e-posta degistirme; yeni adres yeniden dogrulanir ve eski adrese guvenlik bildirimi duser.
 - Aktif oturum listesi, tek oturum ve diger tum oturumlari kapatma.
-- Hassas isteklerde yerel D1 sabit-pencere rate limit.
+- Hassas isteklerde eszamanli talepleri atomik sayan D1 kesin kota; production icin opsiyonel Cloudflare edge ani trafik kalkani.
 - Studio `/studio/outbox`, gercek e-posta yerine kullanilan admin-only yerel kutu.
 
 ## Saglayici baglanirken degisecek katman
@@ -18,7 +18,7 @@
 
 1. Uygulama-ici yerel auth yerine yonetilen identity saglayicisi veya sertlestirilmis auth servisi secimi.
 2. PBKDF2 parametreleri ve parola gecis stratejisi icin guvenlik incelemesi; gerekirse Argon2id saglayan servis/runtime.
-3. D1 sabit-pencere limitini edge/WAF veya dagitik rate-limit katmanina tasima.
+3. Tamamlandi: D1 kesin kotayi atomiklestirme ve production'da Cloudflare Rate Limiting binding'ini ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter. Binding/namespace deployment ortaminda ayrica provision edilir.
 4. Dogrulanmis gonderen domain, SPF/DKIM/DMARC, bounce/complaint isleme ve teslimat gozlemi.
 5. Outbox ham action URL saklamasini production'da kapatma; gercek saglayiciya gonderim sonrasi yalniz operasyonel metadata tutma.
 6. Session idle/absolute timeout, cihaz adlandirma ve yuksek riskli aksiyonlarda yeniden kimlik dogrulama politikasi.

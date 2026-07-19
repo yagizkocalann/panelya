@@ -13,6 +13,8 @@ interface Env {
   };
   MEDIA_DERIVATIVE_QUEUE?: { send(body: unknown): Promise<unknown> };
   MEDIA_DERIVATIVE_DISPATCH_MODE?: string;
+  EDGE_RATE_LIMITER?: { limit(input: { key: string }): Promise<{ success: boolean }> };
+  RATE_LIMIT_MODE?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
