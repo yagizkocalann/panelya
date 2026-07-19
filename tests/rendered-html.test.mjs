@@ -212,6 +212,49 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(proxy, /url\.pathname\.startsWith\("\/api\/admin\/"\)/);
 });
 
+test("atomik D1 ve Cloudflare edge rate-limit adaptörü fail-closed güvenlik sınırını korur", async () => {
+  const [rateLimit, auth, runtimeConfig, envExample, qaPage, manualQa, worker, deployment] = await Promise.all([
+    readFile(new URL("../app/lib/rate-limit.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/qa/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/rate-limit-deployment.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeConfig, /RATE_LIMIT_MODE/);
+  assert.match(runtimeConfig, /d1_strict/);
+  assert.match(envExample, /RATE_LIMIT_MODE=d1_strict/);
+  assert.match(rateLimit, /EDGE_RATE_LIMITER_BINDING = "EDGE_RATE_LIMITER"/);
+  assert.match(rateLimit, /SHA256_BASE64_PATTERN = \/\^\[A-Za-z0-9\+\/\]\{43\}=\$\//);
+  assert.match(auth, /crypto\.subtle\.digest\("SHA-256", data\)/);
+  assert.match(auth, /return bytesToBase64/);
+  assert.match(rateLimit, /createRateLimitAdapter/);
+  assert.match(rateLimit, /Unsupported rate limit mode/);
+  assert.match(rateLimit, /INSERT OR IGNORE INTO rate_limit_buckets/);
+  assert.match(rateLimit, /WHERE key = \? AND \(reset_at <= \? OR count < \?\)/);
+  assert.doesNotMatch(rateLimit, /SELECT count, reset_at FROM rate_limit_buckets/);
+  assert.match(rateLimit, /if \(!await adapter\.consumeEdge\(key\)\) return false;[\s\S]*consumeStrictD1/);
+  assert.match(rateLimit, /catch \{[\s\S]*return false;/);
+  assert.match(worker, /EDGE_RATE_LIMITER/);
+  assert.match(qaPage, /Kötüye kullanım koruması/);
+  assert.match(qaPage, /QA-SEC-01/);
+  assert.match(manualQa, /QA-SEC-01/);
+  assert.match(manualQa, /QA-ACC-05/);
+  assert.match(deployment, /120 istek \/ 60 saniye/);
+  assert.doesNotMatch(rateLimit, /edge\.limit\(\{ key: (email|client|user|request)/i);
+
+  const response = await request("/api/auth/login", "text/html", "http://localhost", {
+    method: "POST",
+    headers: { origin: "http://localhost", "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ email: "rate-limit-test@example.invalid", password: "invalid" }),
+  });
+  assert.equal(response.status, 303);
+  const rateLimitError = new URL(response.headers.get("location") ?? "http://localhost").searchParams.get("error") ?? "";
+  assert.match(rateLimitError, /Çok fazla giriş denemesi/);
+});
+
 test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async () => {
   const publicStudio = await request("/studio", "text/html", "http://localhost:3000");
   assert.ok([307, 308].includes(publicStudio.status));
