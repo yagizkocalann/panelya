@@ -33,7 +33,7 @@ Durumlar:
 | QA-SEO-01 | BEKLIYOR | Public SEO ve tarama siniri | On kosul: test/production `PUBLIC_SITE_ORIGIN` gercek public domaine ayarli. Public `/robots.txt`, `/sitemap.xml`, `/`, bir seri ve bir okuyucu URL'si; Studio `/robots.txt` | Canonical URL'ler public domaine gitmeli; sitemap yalniz indexlenebilir kurumsal/seri rotalarini icermeli; okuyucu `noindex,follow`, Studio robots ise tum taramayi kapatmali; seri JSON-LD yayin verisiyle uyusmali. |
 | QA-ADS-01 | BEKLIYOR | Google resmi test reklami | Public reklam alanlari + Studio `/ads` | Yalniz resmi Google test birimi gorunmeli; gercek publisher veya tiklama otomasyonu olmamali. |
 | QA-STU-06 | BEKLIYOR | Outbox saklama ve temizleme | Studio `/outbox` | Saklama sayilari dogru olmali; buton yalniz suresi dolan kayit varsa gorunmeli; temizlik aktif kaydi silmemeli ve audit olayi olusturmali. |
-| QA-RESP-01 | BEKLIYOR | Responsive genel tur | Public ana/seri/okuyucu, auth ve Studio | 1440, 1024, 768, 390 ve 360 px'te yatay tasma, kirpik kontrol, 44 px alti dokunma hedefi veya ulasilamayan aksiyon olmamali. |
+| QA-RESP-01 | BEKLIYOR | Responsive genel tur | Public ana/seri/okuyucu, auth ve Studio; on kosul: public okuyucu ve ayri Studio admin oturumu | 1440, 1024, 768, 390 ve 360 px'te yatay tasma, kirpik kontrol, 44 px alti dokunma hedefi veya ulasilamayan aksiyon olmamali. 2026-07-19 otomatik/ajan turunda 41 public URL sablonu, authenticated public hesap/kutuphane, Studio girisi, linkler ve console temizdi; tablet ust menusu 44 px'e duzeltildi. Yetkili Studio ekranlarinin bes viewport turu kullanici testinde tamamlanacak. |
 
 ## Tam feature matrisi
 

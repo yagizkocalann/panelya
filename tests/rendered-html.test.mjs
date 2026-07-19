@@ -234,6 +234,38 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
   assert.match(home, /href="\/privacy"/);
 });
 
+test("görünür public bağlantılar kırık route üretmez", async () => {
+  const pages = [
+    "/", "/?view=catalog", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
+    "/privacy", "/terms", "/copyright", "/copyright/report", "/login", "/register", "/forgot-password",
+    "/reset-password", "/verify-email", "/gece-vardiyasi", "/gece-vardiyasi/bolum-1",
+    "/gece-vardiyasi/bolum-2", "/gece-vardiyasi/bolum-3", "/bir-bilet-uzaginda", "/bir-bilet-uzaginda/bolum-1",
+    "/yarinki-ses", "/yarinki-ses/bolum-1", "/yankinin-bahcesi", "/yankinin-bahcesi/bolum-1", "/sifir-numara",
+    "/sifir-numara/bolum-1", "/kirmizi-hat", "/kirmizi-hat/bolum-1", "/iki-kisilik-gezegen",
+    "/iki-kisilik-gezegen/bolum-1", "/apartman-13", "/apartman-13/bolum-1",
+  ];
+  const links = new Set();
+
+  for (const path of pages) {
+    const response = await request(path);
+    assert.equal(response.status, 200, `${path} görünür sayfa olarak render edilmeli`);
+    const html = await response.text();
+    for (const match of html.matchAll(/<a\b[^>]*\bhref="([^"]+)"/gi)) {
+      const href = match[1].replaceAll("&amp;", "&");
+      if (href.startsWith("mailto:") || href.startsWith("#")) continue;
+      const url = new URL(href, "http://localhost");
+      if (url.origin !== "http://localhost") continue;
+      links.add(`${url.pathname}${url.search}`);
+    }
+  }
+
+  for (const path of links) {
+    const response = await request(path);
+    assert.ok(response.status < 400, `${path} bağlantısı kırık olmamalı; ${response.status} döndü`);
+    if (response.status >= 300) assert.ok(response.headers.get("location"), `${path} yönlendirmesi hedef içermeli`);
+  }
+});
+
 test("telif bildirimi genel iletisimden ayridir ve gizli durum erisimi korunur", async () => {
   const [schema, repository, submitApi, adminApi, messagesPage, auditRepository, proxy] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -287,6 +319,15 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
   assert.match(css, /\.reader-dock a, \.reader-dock > span[^}]*min-width:\s*44px[^}]*min-height:\s*44px/);
   assert.match(css, /\.genre-strip a, \.genre-pills a[^}]*min-height:\s*44px/);
   assert.match(css, /\.catalog-filter-form input, \.catalog-filter-form select[^}]*min-height:\s*48px/);
+  assert.match(css, /\.text-link[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.studio-table a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.message-card header a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.admin-user-card__identity > a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.copyright-status-card a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /\.studio-inline-note a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(css, /:focus-visible\s*\{[^}]*outline:\s*3px solid var\(--mint\)/);
+  assert.match(css, /\.skip-link:focus\s*\{[^}]*top:\s*16px/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation-duration:\s*\.01ms\s*!important[\s\S]*transition-duration:\s*\.01ms\s*!important/);
 });
 
 test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşmesi kaynakta bulunur", async () => {
