@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Panelya splash/launch ekrani: duz marka zemini + ortada kucuk mint
+     isaret. API < 21 (bu katman `drawable-v21` tarafindan gecersiz
+     kilinir, ama tam eskil cihaz dususu icin de ayni zemin/isaret
+     kullanilir). Beyaz flash olmamasi icin `@android:color/white`
+     yerine `@color/brand_background` kullanilir. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
+    <item android:drawable="@color/brand_background" />
+    <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+            android:src="@mipmap/ic_launcher_foreground" />
+    </item>
 </layer-list>

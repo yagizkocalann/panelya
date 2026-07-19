@@ -13,6 +13,8 @@
 
          This Theme is only used starting with V2 of Flutter's Android embedding. -->
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+        <!-- Panelya'nin tek (koyu) temasi vardir; koyu-mod sisteminde de
+             ayni marka zeminine (#07100e) sabitlenir. -->
+        <item name="android:windowBackground">@color/brand_background</item>
     </style>
 </resources>

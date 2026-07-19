@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8 (API 26)+ adaptive icon: duz marka zemini (background) +
+     mint isaret (foreground). Legacy (API < 26) cihazlar bu dosyayi
+     gormez, onun yerine her mipmap-*/ic_launcher.png (duz/flattened
+     ikon) kullanilir -- bkz. apps/mobile/tool/generate_brand_assets.py. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/brand_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
