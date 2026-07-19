@@ -24,6 +24,30 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Deep-link taslağı (bkz. docs/mobile-handoff.md İlk mobil kapsam #5,
+	     apps/mobile/README.md "Deep-link"): `panelya://` custom scheme.
+	     Universal Links için ayrıca bir `applinks:` associated domain
+	     girişi ve AASA dosyası gerekir (bkz. README "Gelecek adım"). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.panelya.mobile.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>panelya</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Flutter 3.44'te platform deep link'leri varsayılan olarak açık
+	     (bkz. Flutter deep-linking dokümanı); bu anahtar burada niyeti
+	     açıkça belgelemek ve gelecekte varsayılan değişse bile davranışı
+	     sabitlemek için `true` olarak eklendi — devre dışı bırakmak
+	     isteseydik `false` yapardık. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

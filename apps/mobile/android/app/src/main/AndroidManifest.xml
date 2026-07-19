@@ -20,9 +20,32 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Flutter 3.44'te platform deep link'leri varsayılan olarak
+                 açık; bu anahtar niyeti açıkça belgelemek ve gelecekte
+                 varsayılan değişse bile davranışı sabitlemek için `true`
+                 olarak eklendi (bkz. ios/Runner/Info.plist
+                 FlutterDeepLinkingEnabled ile aynı gerekçe). -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="true"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Deep-link taslağı (bkz. docs/mobile-handoff.md İlk mobil
+                 kapsam #5, apps/mobile/README.md "Deep-link"): `panelya://`
+                 custom scheme. `autoVerify` YOK — bu yalnız http(s) Android
+                 App Links'te domain sahipliğini doğrulamak için kullanılır
+                 (assetlinks.json), custom scheme'de karşılığı yok ve
+                 sessizce yok sayılır. Production domain kararı verilince
+                 ayrı bir `https` intent-filter + `autoVerify="true"`
+                 eklenecek (bkz. README "Gelecek adım"). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="panelya"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
