@@ -6,6 +6,8 @@ import 'package:panelya_mobile/core/contracts/catalog_response.dart';
 import 'package:panelya_mobile/core/contracts/episode_manifest_response.dart';
 import 'package:panelya_mobile/core/contracts/series_detail_response.dart';
 import 'package:panelya_mobile/core/contracts/story_panel.dart';
+import 'package:panelya_mobile/core/contracts/generated/generated.dart'
+    as gen;
 
 /// Bu testler `packages/contracts/fixtures/` altındaki SALT OKUNUR, ortak
 /// (main'den `codex/mobile`'a merge edilen) sentetik fixture'ları dosya
@@ -13,6 +15,12 @@ import 'package:panelya_mobile/core/contracts/story_panel.dart';
 /// Fixture içerikleri buraya kopyalanmaz; `packages/contracts/` tek
 /// doğruluk kaynağı olarak kalır (bkz. packages/contracts/README.md
 /// "Değişiklik kuralı"). Bu paket dosyalarına buradan YAZILMAZ.
+///
+/// Aynı fixture'lar AYRICA `lib/core/contracts/generated/` altındaki,
+/// `tool/generate_contracts.dart` tarafından `packages/contracts/schema.json`
+/// şemasından üretilen DTO'larla da ayrıştırılır (bkz. PLAN madde 4).
+/// İsim çakışması olmaması için (ör. her iki tarafta da `CatalogResponse`,
+/// `PanelTone` var) üretilmiş modeller `gen.` önekiyle içe aktarılır.
 ///
 /// `flutter test` her zaman paket kökünden (`apps/mobile`) çalıştırıldığı
 /// için repo köküne göre relative yol `../../packages/contracts/fixtures`
@@ -80,5 +88,84 @@ void main() {
       expect(response.next?.slug, 'bolum-2');
       expect(response.next?.number, 2);
     });
+  });
+
+  group('packages/contracts fixture parity (generated DTOs)', () {
+    test('catalog.v1.json parses with generated CatalogResponse', () {
+      final json = _readFixture('catalog.v1.json');
+      final response = gen.CatalogResponse.fromJson(json);
+
+      expect(response.schemaVersion, '1.0');
+      expect(response.featuredSlug, 'gece-denemesi');
+      expect(response.series, hasLength(1));
+
+      final series = response.series.single;
+      expect(series.slug, 'gece-denemesi');
+      expect(series.title, 'Gece Denemesi');
+      expect(series.status, 'Devam Ediyor');
+      expect(series.genres, ['Gizem', 'Romantik']);
+      expect(series.rating, 4.5);
+      expect(series.isNew, isTrue);
+      expect(series.coverImage, '/images/gece-denemesi.webp');
+      expect(series.episodeCount, 1);
+      expect(series.latestEpisode?.slug, 'bolum-1');
+      expect(series.latestEpisode?.panels, hasLength(1));
+      expect(series.latestEpisode?.panels.single.tone, gen.PanelTone.blue);
+
+      // Round-trip: toJson() sonucu aynı fixture ile yeniden ayrıştırılabilir
+      // olmalı (byte-eşitlik değil, semantik eşitlik).
+      final roundTripped = gen.CatalogResponse.fromJson(response.toJson());
+      expect(roundTripped.series.single.slug, series.slug);
+    });
+
+    test(
+      'series-detail.v1.json parses with generated SeriesDetailResponse',
+      () {
+        final json = _readFixture('series-detail.v1.json');
+        final response = gen.SeriesDetailResponse.fromJson(json);
+
+        expect(response.schemaVersion, '1.0');
+        expect(response.series.slug, 'gece-denemesi');
+        expect(response.series.genres, ['Gizem', 'Romantik']);
+        expect(response.series.coverImage, '/images/gece-denemesi.webp');
+        expect(response.episodes, hasLength(1));
+        expect(response.episodes.single.slug, 'bolum-1');
+        expect(response.episodes.single.panelCount, 1);
+
+        final roundTripped = gen.SeriesDetailResponse.fromJson(
+          response.toJson(),
+        );
+        expect(roundTripped.series.slug, response.series.slug);
+      },
+    );
+
+    test(
+      'episode-manifest.v1.json parses with generated '
+      'EpisodeManifestResponse',
+      () {
+        final json = _readFixture('episode-manifest.v1.json');
+        final response = gen.EpisodeManifestResponse.fromJson(json);
+
+        expect(response.schemaVersion, '1.0');
+        expect(response.series.slug, 'gece-denemesi');
+        expect(response.series.title, 'Gece Denemesi');
+        expect(response.episode.panels, hasLength(1));
+
+        final panel = response.episode.panels.single;
+        expect(panel.image?.src, '/images/gece-denemesi/panel-1.webp');
+        expect(panel.image?.width, 1080);
+        expect(panel.align, 'left');
+        expect(panel.tone, gen.PanelTone.blue);
+
+        expect(response.navigation.previous, isNull);
+        expect(response.navigation.next?.slug, 'bolum-2');
+        expect(response.navigation.next?.number, 2);
+
+        final roundTripped = gen.EpisodeManifestResponse.fromJson(
+          response.toJson(),
+        );
+        expect(roundTripped.episode.slug, response.episode.slug);
+      },
+    );
   });
 }
