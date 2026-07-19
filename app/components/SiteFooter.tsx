@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listPublishedGenres } from "../lib/content-repository";
+import { ConsentSettingsButton } from "./ConsentSettingsButton";
 
 export async function SiteFooter() {
   const genres = await listPublishedGenres();
@@ -23,7 +24,7 @@ export async function SiteFooter() {
           </div>
           <div className="footer-link-group"><strong>Bilgi</strong><Link href="/about">Hakkımızda</Link><Link href="/creators">İçerik üreticileri</Link><Link href="/publishing-principles">Yayın ilkeleri</Link><Link href="/production-journal">Üretim günlüğü</Link><Link href="/contact">İletişim</Link></div>
           <div className="footer-link-group"><strong>Hesap</strong><Link href="/login">Giriş yap</Link><Link href="/register">Üye ol</Link><Link href="/library">Kütüphanem</Link><Link href="/account">Hesabım</Link></div>
-          <div className="footer-link-group"><strong>Yasal</strong><Link href="/privacy">Gizlilik</Link><Link href="/terms">Kullanım koşulları</Link><Link href="/copyright">Telif bildirimi</Link></div>
+          <div className="footer-link-group"><strong>Yasal</strong><Link href="/privacy">Gizlilik</Link><Link href="/terms">Kullanım koşulları</Link><Link href="/copyright">Telif bildirimi</Link><ConsentSettingsButton /></div>
         </nav>
       </div>
       <div className="footer-bottom"><span>© 2026 Panelya</span><span>Özgün hikâyeler için üretildi.</span></div>

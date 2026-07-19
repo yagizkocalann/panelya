@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { publicSiteUrlForCurrentRequest } from "./lib/server-site-origins";
+import { ConsentManager } from "./components/ConsentManager";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -22,5 +23,5 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = { colorScheme: "dark", themeColor: "#08110f", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="tr"><body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body></html>;
+  return <html lang="tr"><body className={`${geistSans.variable} ${geistMono.variable}`}>{children}<ConsentManager /></body></html>;
 }
