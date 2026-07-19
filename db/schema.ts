@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
@@ -14,10 +15,19 @@ export const users = sqliteTable("users", {
 export const sessions = sqliteTable("sessions", {
   tokenHash: text("token_hash").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  scope: text("scope", { enum: ["public", "studio"] }).notNull().default("public"),
+  remembered: integer("remembered", { mode: "boolean" }).notNull().default(false),
   expiresAt: integer("expires_at").notNull(),
+  idleExpiresAt: integer("idle_expires_at").notNull(),
+  authenticatedAt: integer("authenticated_at").notNull(),
+  lastSeenAt: integer("last_seen_at").notNull(),
   createdAt: integer("created_at").notNull(),
   userAgent: text("user_agent"),
-});
+}, (table) => [
+  index("sessions_user_idx").on(table.userId),
+  index("sessions_expiry_idx").on(table.expiresAt),
+  index("sessions_idle_expiry_idx").on(table.idleExpiresAt),
+]);
 
 export const accountTokens = sqliteTable("account_tokens", {
   id: text("id").primaryKey(),
@@ -34,14 +44,33 @@ export const notificationOutbox = sqliteTable("notification_outbox", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
   recipient: text("recipient").notNull(),
-  kind: text("kind", { enum: ["verify_email", "password_reset", "security_notice"] }).notNull(),
+  kind: text("kind", { enum: ["verify_email", "password_reset", "security_notice", "new_episode"] }).notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   actionUrl: text("action_url"),
+  dedupeKey: text("dedupe_key"),
   status: text("status", { enum: ["queued", "opened"] }).notNull().default("queued"),
   createdAt: integer("created_at").notNull(),
   openedAt: integer("opened_at"),
-});
+}, (table) => [uniqueIndex("notification_outbox_dedupe_unique").on(table.dedupeKey)]);
+
+export const adminInvitations = sqliteTable("admin_invitations", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  invitedByUserId: text("invited_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  status: text("status", { enum: ["pending", "accepted", "revoked"] }).notNull().default("pending"),
+  expiresAt: integer("expires_at").notNull(),
+  acceptedAt: integer("accepted_at"),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("admin_invitations_token_unique").on(table.tokenHash),
+  uniqueIndex("admin_invitations_pending_email_unique").on(table.email).where(sql`${table.status} = 'pending'`),
+  index("admin_invitations_email_status_idx").on(table.email, table.status, table.createdAt),
+  index("admin_invitations_expiry_idx").on(table.expiresAt),
+]);
 
 export const rateLimitBuckets = sqliteTable("rate_limit_buckets", {
   key: text("key").primaryKey(),
@@ -57,6 +86,17 @@ export const libraryItems = sqliteTable("library_items", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.userId, table.seriesSlug] })]);
+
+export const seriesSubscriptions = sqliteTable("series_subscriptions", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  seriesSlug: text("series_slug").notNull(),
+  notifyNewEpisodes: integer("notify_new_episodes", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.seriesSlug] }),
+  index("series_subscriptions_series_idx").on(table.seriesSlug, table.notifyNewEpisodes),
+]);
 
 export const readingProgress = sqliteTable("reading_progress", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -87,6 +127,30 @@ export const contactMessages = sqliteTable("contact_messages", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const copyrightNotices = sqliteTable("copyright_notices", {
+  id: text("id").primaryKey(),
+  referenceCode: text("reference_code").notNull(),
+  accessTokenHash: text("access_token_hash").notNull(),
+  claimantName: text("claimant_name").notNull(),
+  claimantEmail: text("claimant_email").notNull(),
+  claimantRole: text("claimant_role", { enum: ["rights_holder", "authorized_representative"] }).notNull(),
+  workDescription: text("work_description").notNull(),
+  originalWorkUrl: text("original_work_url"),
+  contentUrl: text("content_url").notNull(),
+  rightsExplanation: text("rights_explanation").notNull(),
+  status: text("status", { enum: ["submitted", "under_review", "needs_information", "action_taken", "rejected"] }).notNull().default("submitted"),
+  publicResponse: text("public_response"),
+  accessExpiresAt: integer("access_expires_at").notNull(),
+  resolvedAt: integer("resolved_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("copyright_notices_reference_unique").on(table.referenceCode),
+  uniqueIndex("copyright_notices_access_token_unique").on(table.accessTokenHash),
+  index("copyright_notices_status_idx").on(table.status, table.createdAt),
+  index("copyright_notices_access_expiry_idx").on(table.accessExpiresAt),
+]);
+
 export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -110,11 +174,40 @@ export const reviewReports = sqliteTable("review_reports", {
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [uniqueIndex("review_reports_reporter_unique").on(table.reviewId, table.reporterUserId)]);
 
+export const reviewReplies = sqliteTable("review_replies", {
+  id: text("id").primaryKey(),
+  reviewId: text("review_id").notNull().references(() => reviews.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["published", "hidden"] }).notNull().default("published"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  index("review_replies_review_idx").on(table.reviewId, table.status, table.createdAt),
+  index("review_replies_user_idx").on(table.userId, table.createdAt),
+]);
+
+export const reviewLikes = sqliteTable("review_likes", {
+  reviewId: text("review_id").notNull().references(() => reviews.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.reviewId, table.userId] })]);
+
+export const userBlocks = sqliteTable("user_blocks", {
+  blockerUserId: text("blocker_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  blockedUserId: text("blocked_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.blockerUserId, table.blockedUserId] }),
+  index("user_blocks_blocked_idx").on(table.blockedUserId, table.createdAt),
+]);
+
 export const contentSeries = sqliteTable("content_series", {
   slug: text("slug").primaryKey(),
   title: text("title").notNull(),
   eyebrow: text("eyebrow").notNull(),
   creator: text("creator").notNull(),
+  searchText: text("search_text").notNull().default(""),
   description: text("description").notNull(),
   longDescription: text("long_description").notNull(),
   storyStatus: text("story_status", { enum: ["ongoing", "completed"] }).notNull().default("ongoing"),
@@ -131,7 +224,12 @@ export const contentSeries = sqliteTable("content_series", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
   publishedAt: integer("published_at"),
-}, (table) => [index("content_series_publication_idx").on(table.publicationStatus, table.isFeatured, table.updatedAt)]);
+}, (table) => [
+  index("content_series_publication_idx").on(table.publicationStatus, table.isFeatured, table.updatedAt),
+  index("content_series_discovery_updated_idx").on(table.publicationStatus, table.storyStatus, table.updatedAt, table.slug),
+  index("content_series_discovery_rating_idx").on(table.publicationStatus, table.storyStatus, table.rating, table.slug),
+  index("content_series_discovery_title_idx").on(table.publicationStatus, table.storyStatus, table.title, table.slug),
+]);
 
 export const contentEpisodes = sqliteTable("content_episodes", {
   id: text("id").primaryKey(),
@@ -168,4 +266,57 @@ export const mediaAssets = sqliteTable("media_assets", {
 }, (table) => [
   uniqueIndex("media_assets_storage_key_unique").on(table.storageKey),
   index("media_assets_series_idx").on(table.seriesSlug, table.episodeSlug, table.createdAt),
+]);
+
+export const mediaVariants = sqliteTable("media_variants", {
+  id: text("id").primaryKey(),
+  assetId: text("asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  storageKey: text("storage_key").notNull(),
+  mimeType: text("mime_type", { enum: ["image/webp"] }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("media_variants_asset_width_unique").on(table.assetId, table.width, table.mimeType),
+  uniqueIndex("media_variants_storage_key_unique").on(table.storageKey),
+  index("media_variants_asset_idx").on(table.assetId, table.width),
+]);
+
+export const mediaDerivativeJobs = sqliteTable("media_derivative_jobs", {
+  id: text("id").primaryKey(),
+  assetId: text("asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  targetWidth: integer("target_width").notNull(),
+  format: text("format", { enum: ["webp"] }).notNull().default("webp"),
+  status: text("status", { enum: ["queued", "processing", "completed", "failed"] }).notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  dispatchMode: text("dispatch_mode", { enum: ["local_browser", "cloudflare_queue"] }).notNull().default("local_browser"),
+  dispatchStatus: text("dispatch_status", { enum: ["local", "pending", "sent", "failed"] }).notNull().default("local"),
+  dispatchAttempts: integer("dispatch_attempts").notNull().default(0),
+  dispatchError: text("dispatch_error"),
+  dispatchedAt: integer("dispatched_at"),
+  createdAt: integer("created_at").notNull(),
+  startedAt: integer("started_at"),
+  completedAt: integer("completed_at"),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("media_derivative_jobs_target_unique").on(table.assetId, table.targetWidth, table.format),
+  index("media_derivative_jobs_status_idx").on(table.status, table.createdAt),
+  index("media_derivative_jobs_dispatch_idx").on(table.dispatchStatus, table.createdAt),
+]);
+
+export const previewTokens = sqliteTable("preview_tokens", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull(),
+  seriesSlug: text("series_slug").notNull().references(() => contentSeries.slug, { onDelete: "cascade" }),
+  episodeSlug: text("episode_slug"),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("preview_tokens_hash_unique").on(table.tokenHash),
+  index("preview_tokens_scope_idx").on(table.seriesSlug, table.episodeSlug, table.expiresAt),
+  index("preview_tokens_expiry_idx").on(table.expiresAt),
 ]);

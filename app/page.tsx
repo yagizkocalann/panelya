@@ -4,25 +4,50 @@ import { SeriesCard } from "./components/SeriesCard";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { AdTestSlot } from "./components/AdTestSlot";
-import { genresFromSeries, listPublishedSeries } from "./lib/content-repository";
+import { listPublishedGenres, listPublishedSeries, searchPublishedSeries, type CatalogSearchResult } from "./lib/content-repository";
 
 export const metadata: Metadata = {
   title: "Panelya — Kaydır, keşfet, hikâyeye gir",
   description: "Özgün Türkçe dikey çizgi hikâyeleri keşfet ve ücretsiz oku.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Panelya — Kaydır, keşfet, hikâyeye gir",
+    description: "Özgün Türkçe dikey çizgi hikâyeleri keşfet ve ücretsiz oku.",
+    url: "/",
+  },
 };
 
-type HomeProps = { searchParams?: Promise<{ q?: string; genre?: string }> };
+type HomeQuery = { q?: string; genre?: string; status?: string; sort?: string; cursor?: string; view?: string };
+type HomeProps = { searchParams?: Promise<HomeQuery> };
+
+function catalogUrl(filters: CatalogSearchResult["filters"], cursor?: string | null) {
+  const params = new URLSearchParams({ view: "catalog" });
+  if (filters.query) params.set("q", filters.query);
+  if (filters.genre) params.set("genre", filters.genre);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.sort !== "updated") params.set("sort", filters.sort);
+  if (cursor) params.set("cursor", cursor);
+  return `/?${params.toString()}`;
+}
 
 export default async function Home({ searchParams }: HomeProps) {
-  const [query, seriesCatalog] = await Promise.all([searchParams, listPublishedSeries()]);
+  const query = await searchParams ?? {};
+  const isCatalogView = Boolean(query.view === "catalog" || query.q || query.genre || query.status || query.sort || query.cursor);
+  const [seriesCatalog, genres, catalogResult] = await Promise.all([
+    listPublishedSeries(),
+    listPublishedGenres(),
+    isCatalogView ? searchPublishedSeries({
+      query: query.q,
+      genre: query.genre,
+      status: query.status,
+      sort: query.sort,
+      cursor: query.cursor,
+      limit: 4,
+    }) : Promise.resolve(null),
+  ]);
   const featuredSeries = seriesCatalog[0];
-  const search = query?.q?.trim().toLocaleLowerCase("tr") ?? "";
-  const genre = query?.genre?.trim() ?? "";
-  const filtered = seriesCatalog.filter((series) => {
-    const matchesSearch = !search || `${series.title} ${series.creator} ${series.genres.join(" ")}`.toLocaleLowerCase("tr").includes(search);
-    return matchesSearch && (!genre || series.genres.includes(genre));
-  });
-  const isFiltered = Boolean(search || genre);
+  const filtered = catalogResult?.items ?? [];
+  const filters = catalogResult?.filters ?? { query: "", genre: "", status: "" as const, sort: "updated" as const };
 
   if (!featuredSeries) return <div className="site-shell"><SiteHeader /><main id="main-content" className="wrap content-wrap"><div className="empty-state"><strong>Henüz yayınlanmış seri yok.</strong><p>Studio üzerinden ilk seriyi ve bölümünü yayınla.</p></div></main><SiteFooter /></div>;
   const featuredFirstEpisode = [...featuredSeries.episodes].sort((a, b) => a.number - b.number)[0];
@@ -31,7 +56,7 @@ export default async function Home({ searchParams }: HomeProps) {
     <div className="site-shell">
       <SiteHeader />
       <main id="main-content">
-        {!isFiltered && (
+        {!isCatalogView && (
           <section className="hero wrap" aria-labelledby="featured-title">
             <div className="hero-art hero-art--generated" aria-hidden="true" />
             <div className="hero-shade" />
@@ -47,18 +72,27 @@ export default async function Home({ searchParams }: HomeProps) {
         )}
 
         <div className="wrap content-wrap">
-          {isFiltered ? (
+          {isCatalogView ? (
             <section className="catalog-results" aria-labelledby="results-title">
-              <div className="section-heading"><div><p className="section-kicker">Arama sonuçları</p><h1 id="results-title">{genre || (search ? `“${query?.q}”` : "Tüm seriler")}</h1></div><Link className="inline-link" href="/">Filtreleri temizle</Link></div>
-              {filtered.length ? <div className="card-grid">{filtered.map((series) => <SeriesCard key={series.slug} series={series} />)}</div> : <div className="empty-state"><strong>Bu rotada henüz bir hikâye yok.</strong><p>Başka bir ad veya tür deneyebilirsin.</p><Link className="button button--primary" href="/">Keşfe dön</Link></div>}
+              <div className="section-heading"><div><p className="section-kicker">Katalog keşfi</p><h1 id="results-title">{filters.genre || (filters.query ? `“${filters.query}”` : "Tüm seriler")}</h1><p>Arama D1 üzerindeki yayınlanmış serilerde çalışır; sıralama ve sayfalama aynı sonuç kümesini korur.</p></div><Link className="inline-link" href="/">Filtreleri temizle</Link></div>
+              <form className="catalog-filter-form" action="/" method="get" role="search">
+                <input type="hidden" name="view" value="catalog" />
+                <label><span>Seri ara</span><input name="q" type="search" defaultValue={filters.query} placeholder="Başlık, üretici veya tür" maxLength={80} /></label>
+                <label><span>Tür</span><select name="genre" defaultValue={filters.genre}><option value="">Tüm türler</option>{genres.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
+                <label><span>Durum</span><select name="status" defaultValue={filters.status}><option value="">Tümü</option><option value="ongoing">Devam ediyor</option><option value="completed">Tamamlandı</option></select></label>
+                <label><span>Sırala</span><select name="sort" defaultValue={filters.sort}><option value="updated">Son güncellenen</option><option value="rating">Puana göre</option><option value="title">Ada göre</option></select></label>
+                <button className="button button--primary" type="submit">Sonuçları getir</button>
+              </form>
+              {catalogResult?.cursorWasInvalid && <p className="catalog-notice" role="status">Geçersiz veya eski sayfa bağlantısı yok sayıldı; ilk sonuçlar gösteriliyor.</p>}
+              {filtered.length ? <><div className="catalog-result-meta" aria-live="polite"><span>Bu sayfada {filtered.length} seri</span><span>{filters.sort === "rating" ? "Puana göre" : filters.sort === "title" ? "Ada göre" : "Son güncellenen"}</span></div><div className="card-grid">{filtered.map((series) => <SeriesCard key={series.slug} series={series} />)}</div><nav className="catalog-pagination" aria-label="Katalog sayfaları">{query.cursor && <Link className="button button--ghost" href={catalogUrl(filters)}>İlk sayfa</Link>}{catalogResult?.nextCursor && <Link className="button button--primary" href={catalogUrl(filters, catalogResult.nextCursor)}>Sonraki sonuçlar →</Link>}</nav></> : <div className="empty-state"><strong>Bu filtrelerde henüz bir hikâye yok.</strong><p>Başka bir ad, tür veya yayın durumu deneyebilirsin.</p><Link className="button button--primary" href="/?view=catalog">Tüm serileri göster</Link></div>}
             </section>
           ) : (
             <>
               <section className="genre-strip" aria-label="Türlere göre keşfet">
-                <span>Hızlı keşif</span>{genresFromSeries(seriesCatalog).slice(0, 8).map((item) => <Link key={item} href={`/?genre=${encodeURIComponent(item)}`}>{item}</Link>)}
+                <span>Hızlı keşif</span>{genres.slice(0, 8).map((item) => <Link key={item} href={`/?genre=${encodeURIComponent(item)}`}>{item}</Link>)}
               </section>
               <section aria-labelledby="recent-title">
-                <div className="section-heading"><div><p className="section-kicker">Okuma akışı</p><h2 id="recent-title">Yeni bölüm eklenenler</h2><p>Hikâyeye kaldığın yerden değil, merak ettiğin yerden gir.</p></div><Link className="inline-link" href="/?genre=Dram">Tümünü gör →</Link></div>
+                <div className="section-heading"><div><p className="section-kicker">Okuma akışı</p><h2 id="recent-title">Yeni bölüm eklenenler</h2><p>Hikâyeye kaldığın yerden değil, merak ettiğin yerden gir.</p></div><Link className="inline-link" href="/?view=catalog">Tüm kataloğu keşfet →</Link></div>
                 <div className="card-grid">{seriesCatalog.slice(0, 4).map((series, index) => <SeriesCard key={series.slug} series={series} badge={index === 0 ? "Yeni bölüm" : undefined} />)}</div>
               </section>
               <AdTestSlot placement="home-feed-01" />
@@ -73,6 +107,15 @@ export default async function Home({ searchParams }: HomeProps) {
             </>
           )}
         </div>
+        <section className="home-seo wrap" aria-labelledby="home-seo-title">
+          <p className="section-kicker">Türkçe dikey hikâyeler</p>
+          <h2 id="home-seo-title">Webtoon ritminde özgün hikâyeler keşfet</h2>
+          <div className="home-seo__grid">
+            <p>Panelya; romantizm, gizem, bilim kurgu, dram, komedi ve daha birçok türde özgün Türkçe dikey çizgi hikâyelerini tek katalogda buluşturur. Bir seri seçip kayıt olmadan okumaya başlayabilirsin.</p>
+            <p>Bölümler telefon, tablet ve bilgisayarda kesintisiz dikey kaydırma için hazırlanır. Hesap oluşturduğunda favorilerini kütüphanende tutabilir, okuma ilerlemeni koruyabilir ve yeni bölümleri takip edebilirsin.</p>
+            <p>Panelya Originals içerikleri mobil ekran ritmi, erişilebilir metinler ve bölüm sonu kancaları düşünülerek üretilir. <Link href="/publishing-principles">Yayın ilkelerimizi incele</Link> veya <Link href="/?view=catalog">tüm serileri keşfet</Link>.</p>
+          </div>
+        </section>
       </main>
       <SiteFooter />
     </div>

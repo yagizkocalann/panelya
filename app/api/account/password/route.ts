@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const db = await getDatabase();
   await db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").bind(await hashPassword(password), Date.now(), user.id).run();
   await db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id).run();
-  const session = await createSession(user.id, true, request.headers.get("user-agent"));
+  const session = await createSession(user.id, true, request);
   await writeAudit(user.id, "account.password_changed");
   const response = redirectTo(request, "/account?saved=password");
   setSessionCookie(response, request, session.rawToken, session.expiresAt);

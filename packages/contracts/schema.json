@@ -12,6 +12,21 @@
       "type": "string",
       "enum": ["coral", "mint", "violet", "blue", "amber", "rose"]
     },
+    "PublicMediaVariant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "width", "height", "mimeType"],
+      "properties": {
+        "src": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Public media URL for an available derivative; clients must not construct storage keys."
+        },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "mimeType": { "type": "string", "const": "image/webp" }
+      }
+    },
     "StoryPanelImage": {
       "type": "object",
       "additionalProperties": false,
@@ -20,7 +35,12 @@
         "src": { "type": "string", "minLength": 1 },
         "alt": { "type": "string", "minLength": 1 },
         "width": { "type": "integer", "minimum": 1 },
-        "height": { "type": "integer", "minimum": 1 }
+        "height": { "type": "integer", "minimum": 1 },
+        "variants": {
+          "type": "array",
+          "description": "Ready responsive derivatives sorted by ascending width. The source URL remains the fallback.",
+          "items": { "$ref": "#/$defs/PublicMediaVariant" }
+        }
       }
     },
     "StoryPanel": {
@@ -122,6 +142,11 @@
         },
         "isNew": { "type": "boolean" },
         "coverImage": { "type": "string", "minLength": 1 },
+        "coverImageVariants": {
+          "type": "array",
+          "description": "Ready responsive cover derivatives sorted by ascending width.",
+          "items": { "$ref": "#/$defs/PublicMediaVariant" }
+        },
         "coverPosition": { "type": "string", "minLength": 1 }
       }
     },
@@ -218,6 +243,179 @@
         "series": { "$ref": "#/$defs/EpisodeManifestSeriesRef" },
         "episode": { "$ref": "#/$defs/Episode" },
         "navigation": { "$ref": "#/$defs/EpisodeNavigation" }
+      }
+    },
+    "AuthProviderConfigResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "provider",
+        "flow",
+        "issuer",
+        "clientId",
+        "audience",
+        "scopes",
+        "authorizationEndpoint",
+        "tokenEndpoint",
+        "revocationEndpoint",
+        "accessTokenLifetimeSeconds",
+        "refreshTokenRotation"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "provider": { "type": "string", "const": "auth0" },
+        "flow": { "type": "string", "const": "authorization_code_pkce" },
+        "issuer": { "type": "string", "minLength": 1 },
+        "clientId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Public native-application client identifier; never a client secret."
+        },
+        "audience": { "type": "string", "minLength": 1 },
+        "scopes": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "authorizationEndpoint": { "type": "string", "minLength": 1 },
+        "tokenEndpoint": { "type": "string", "minLength": 1 },
+        "revocationEndpoint": { "type": "string", "minLength": 1 },
+        "accessTokenLifetimeSeconds": { "type": "integer", "minimum": 300, "maximum": 3600 },
+        "refreshTokenRotation": { "type": "boolean", "const": true }
+      }
+    },
+    "AuthUser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "email", "emailVerified", "role"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Panelya user identifier. Provider subject identifiers are not exposed."
+        },
+        "displayName": { "type": "string", "minLength": 1 },
+        "email": { "type": "string", "minLength": 3 },
+        "emailVerified": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["reader", "admin"] },
+        "avatarUrl": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AuthStateResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "authenticated", "user"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "authenticated": { "type": "boolean" },
+        "user": {
+          "oneOf": [
+            { "$ref": "#/$defs/AuthUser" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "authenticated": { "const": true } } },
+          "then": { "properties": { "user": { "$ref": "#/$defs/AuthUser" } } },
+          "else": { "properties": { "user": { "type": "null" } } }
+        }
+      ]
+    },
+    "AuthAuthorizationCodeExchangeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantType", "authorizationCode", "codeVerifier", "redirectUri"],
+      "properties": {
+        "grantType": { "type": "string", "const": "authorization_code" },
+        "authorizationCode": { "type": "string", "minLength": 16 },
+        "codeVerifier": { "type": "string", "minLength": 43, "maxLength": 128 },
+        "redirectUri": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AuthRefreshTokenRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantType", "refreshToken"],
+      "properties": {
+        "grantType": { "type": "string", "const": "refresh_token" },
+        "refreshToken": { "type": "string", "minLength": 16 }
+      }
+    },
+    "AuthTokenResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "tokenType",
+        "accessToken",
+        "expiresIn",
+        "refreshToken",
+        "scope",
+        "user"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "tokenType": { "type": "string", "const": "Bearer" },
+        "accessToken": { "type": "string", "minLength": 16 },
+        "expiresIn": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "refreshToken": {
+          "type": "string",
+          "minLength": 16,
+          "description": "Rotating token. The client replaces the previous value atomically after every refresh."
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "user": { "$ref": "#/$defs/AuthUser" }
+      }
+    },
+    "AuthRevokeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refreshToken"],
+      "properties": {
+        "refreshToken": { "type": "string", "minLength": 16 }
+      }
+    },
+    "AuthLogoutResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "revoked"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "revoked": { "type": "boolean", "const": true }
+      }
+    },
+    "AuthErrorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "error", "reauthenticate"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "error": {
+          "type": "string",
+          "enum": [
+            "user_cancelled",
+            "invalid_grant",
+            "login_required",
+            "token_expired",
+            "token_reused",
+            "insufficient_scope",
+            "session_revoked",
+            "rate_limited",
+            "service_unavailable"
+          ]
+        },
+        "errorDescription": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "reauthenticate": { "type": "boolean" },
+        "retryAfterSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
       }
     },
     "ErrorResponse": {

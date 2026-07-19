@@ -3,6 +3,7 @@ import { redirectTo } from "../../../lib/auth-http";
 import { getStudioSeries } from "../../../lib/content-repository";
 import { getDatabase, writeAudit } from "../../../lib/database";
 import { extensionForMime, inspectImage, type MediaKind } from "../../../lib/media/image-validation";
+import { enqueueDerivativeJobs } from "../../../lib/media/derivatives";
 import { createMediaAsset } from "../../../lib/media/repository";
 import { getMediaStorage } from "../../../lib/media/storage";
 import { isStudioRequest } from "../../../lib/site-origins";
@@ -56,6 +57,17 @@ export async function POST(request: Request) {
         db.prepare("DELETE FROM media_assets WHERE id = ?").bind(id).run(),
       ]);
       throw error;
+    }
+    try {
+      const queued = await enqueueDerivativeJobs({ id, width: metadata.width, height: metadata.height });
+      await writeAudit(user.id, "media.derivatives_queued", {
+        mediaId: id,
+        jobs: queued.queued,
+        externallyDispatched: queued.sent,
+        dispatchFailed: queued.dispatchFailed,
+      });
+    } catch {
+      await writeAudit(user.id, "media.derivatives_enqueue_failed", { mediaId: id }).catch(() => undefined);
     }
     return redirectTo(request, `/media?uploaded=${id}`);
   } catch (error) {

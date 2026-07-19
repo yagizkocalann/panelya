@@ -1,6 +1,5 @@
-import type { PublicationStatus, StudioEpisode, StudioSeries } from "../../lib/content-repository";
-
-const publicationLabels: Record<PublicationStatus, string> = { draft: "Taslak", published: "Yayında", archived: "Arşiv" };
+import type { StudioEpisode, StudioSeries } from "../../lib/content-repository";
+import { PublicationStatusField } from "./PublicationStatusField";
 
 export function SeriesForm({ series }: { series?: StudioSeries }) {
   return <form className="studio-editor" action="/api/admin/content/series" method="post">
@@ -25,7 +24,7 @@ export function SeriesForm({ series }: { series?: StudioSeries }) {
       <div className="studio-form-grid studio-form-grid--three">
         <label>Hikâye durumu<select name="story_status" defaultValue={series?.status === "Tamamlandı" ? "completed" : "ongoing"}><option value="ongoing">Devam ediyor</option><option value="completed">Tamamlandı</option></select></label>
         <label>Renk tonu<select name="tone" defaultValue={series?.tone ?? "coral"}><option value="coral">Mercan</option><option value="mint">Mint</option><option value="violet">Mor</option><option value="blue">Mavi</option><option value="amber">Kehribar</option><option value="rose">Gül</option></select></label>
-        <label>Yayın durumu<select name="publication_status" defaultValue={series?.publicationStatus ?? "draft"}>{Object.entries(publicationLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <PublicationStatusField currentStatus={series?.publicationStatus ?? "draft"} entityLabel="seriyi" />
         <label>Güncellik etiketi<input name="updated_label" defaultValue={series?.updatedAt ?? "Bugün"} maxLength={60} /></label>
         <label>Takipçi etiketi<input name="followers" defaultValue={series?.followers ?? "Yeni"} maxLength={30} /></label>
         <label>Kapak konumu<input name="cover_position" defaultValue={series?.coverPosition ?? "center"} maxLength={50} placeholder="50% 50%" /></label>
@@ -49,7 +48,7 @@ export function EpisodeForm({ series, episode }: { series: StudioSeries; episode
       <div className="studio-form-grid studio-form-grid--three">
         <label>Slug<input name="slug" defaultValue={episode?.slug ?? ""} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxLength={80} required /></label>
         <label>Bölüm numarası<input name="number" type="number" min={0} max={10000} step={1} defaultValue={episode?.number ?? series.episodes.length + 1} required /></label>
-        <label>Yayın durumu<select name="publication_status" defaultValue={episode?.publicationStatus ?? "draft"}>{Object.entries(publicationLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <PublicationStatusField currentStatus={episode?.publicationStatus ?? "draft"} entityLabel="bölümü" />
         <label className="span-2">Bölüm adı<input name="title" defaultValue={episode?.title ?? ""} minLength={2} maxLength={120} required /></label>
         <label>Okuma süresi<input name="read_time" defaultValue={episode?.readTime ?? "5 dk"} maxLength={30} /></label>
         <label className="span-3">Yayın etiketi<input name="published_label" defaultValue={episode?.publishedAt ?? new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" }).format(new Date())} maxLength={80} /></label>

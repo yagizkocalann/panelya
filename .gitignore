@@ -43,10 +43,14 @@ next-env.d.ts
 /outputs/
 /work/
 /.tools/
-/.openai/hosting.json
 
 # generated build output
 /build-output/
+
+# Local recovery exports can contain account and operational data. Never commit
+# real backup artifacts; only the verifier and synthetic tests belong in Git.
+/.backups/
+/recovery-bundles/
 
 # Local image-generation and research binaries. Keep prompt, manifest, QA and
 # production notes in Git; keep heavyweight raster sources on local storage.

@@ -22,3 +22,7 @@ npm run test:contracts
 Test, fixture'ları ve derlenmiş Worker'ın gerçek katalog/seri/okuyucu cevaplarını aynı JSON Schema tanımlarına karşı doğrular.
 
 V1'de `updatedAt`, `publishedAt` ve `followers` alanları mevcut API davranışını koruyan yerelleştirilmiş gösterim metinleridir. Makine-dostu tarih ve sayısal takipçi alanlarına geçiş ayrı, sürümlü bir sözleşme değişikliği olarak ele alınacaktır.
+
+`coverImageVariants` ve panel görselindeki `variants` alanları opsiyonel ve geriye uyumludur. Yalnız üretimi tamamlanmış public WebP türevleri, artan genişlik sırasıyla URL/boyut/MIME bilgisi taşır. İstemci uygun varyant yoksa mevcut `coverImage` veya `image.src` kaynağına düşer; R2 storage key'i, Studio metadata'sı ya da Queue işi istemciye açılmaz.
+
+Production auth sözleşmesi ADR-039 uyarınca Auth0, Authorization Code + PKCE, 15 dakikalık Bearer access tokeni ve dönen refresh tokeni modelini tanımlar. `auth-*.v1.json` fixture'ları `.example`/`.test` alan adları ve açıkça geçersiz sentetik tokenlar kullanır. Bunlar runtime yapılandırması veya geliştirici kimlik bilgisi değildir. Web host-only cookie kullanabilir; Flutter bu cookie'yi taklit etmez ve tokenları yalnız OS secure storage'da saklar.

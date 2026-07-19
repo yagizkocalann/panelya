@@ -2,7 +2,9 @@ import { assertSameOrigin, getCurrentUser } from "../../../../lib/auth";
 import { createContentEpisode, getStudioSeries, updateContentEpisode, type EpisodeInput, type PublicationStatus } from "../../../../lib/content-repository";
 import { redirectTo } from "../../../../lib/auth-http";
 import { writeAudit } from "../../../../lib/database";
-import { isStudioRequest } from "../../../../lib/site-origins";
+import { assessEpisodePublishing } from "../../../../lib/publishing-readiness";
+import { isStudioRequest, publicSiteOrigin } from "../../../../lib/site-origins";
+import { dispatchNewEpisodeNotifications } from "../../../../lib/series-subscriptions";
 
 const publicationStatuses = new Set<PublicationStatus>(["draft", "published", "archived"]);
 const tones = new Set(["coral", "mint", "violet", "blue", "amber", "rose"]);
@@ -58,9 +60,22 @@ export async function POST(request: Request) {
   if (!series) return redirectTo(request, "/content?error=Seri%20bulunamadı.");
   const mode = form.get("mode") === "update" ? "update" : "create";
   const originalSlug = text(form, "original_slug", 80);
-  if (input.publicationStatus === "published" && !(input.panels?.length || (mode === "update" && series.episodes.find((episode) => episode.slug === originalSlug)?.panels.length))) {
+  const previousEpisode = mode === "update" ? series.episodes.find((episode) => episode.slug === originalSlug) : undefined;
+  if (input.publicationStatus === "published") {
     const path = mode === "create" ? `/content/${input.seriesSlug}/episodes/new` : `/content/${input.seriesSlug}/episodes/${originalSlug}`;
-    return redirectTo(request, `${path}?error=Yayınlanan%20bölümde%20en%20az%20bir%20panel%20olmalı.`);
+    const readiness = assessEpisodePublishing({
+      title: input.title,
+      publishedAt: input.publishedAt,
+      readTime: input.readTime,
+      panels: input.panels ?? previousEpisode?.panels ?? [],
+      seriesPublicationStatus: series.publicationStatus,
+    });
+    if (!readiness.ready) {
+      return redirectTo(request, `${path}?error=${encodeURIComponent(`Yayın engellendi: ${readiness.blocking.map((check) => check.label).join(", ")}.`)}`);
+    }
+    if (previousEpisode?.publicationStatus !== "published" && form.get("publish_confirmed") !== "yes") {
+      return redirectTo(request, `${path}?error=${encodeURIComponent("Public yayın için doğrulama özetini onayla.")}`);
+    }
   }
   try {
     if (mode === "create") {
@@ -68,11 +83,36 @@ export async function POST(request: Request) {
       await writeAudit(user.id, "content.episode_created", { seriesSlug: input.seriesSlug, episodeSlug: input.slug });
     } else {
       await updateContentEpisode(input.seriesSlug, originalSlug, input);
-      await writeAudit(user.id, "content.episode_updated", { seriesSlug: input.seriesSlug, episodeSlug: input.slug, publicationStatus: input.publicationStatus });
+      await writeAudit(user.id, "content.episode_updated", { seriesSlug: input.seriesSlug, episodeSlug: input.slug, publicationStatus: input.publicationStatus, previousStatus: previousEpisode?.publicationStatus });
     }
   } catch {
     const path = mode === "create" ? `/content/${input.seriesSlug}/episodes/new` : `/content/${input.seriesSlug}/episodes/${originalSlug}`;
     return redirectTo(request, `${path}?error=Slug%20veya%20bölüm%20numarası%20başka%20bir%20kayıtla%20çakışıyor.`);
   }
-  return redirectTo(request, `/content/${input.seriesSlug}/episodes/${input.slug}?saved=1`);
+  const shouldNotify = series.publicationStatus === "published"
+    && input.publicationStatus === "published"
+    && (mode === "create" || previousEpisode?.publicationStatus !== "published");
+  if (!shouldNotify) return redirectTo(request, `/content/${input.seriesSlug}/episodes/${input.slug}?saved=1`);
+
+  try {
+    const result = await dispatchNewEpisodeNotifications({
+      seriesSlug: input.seriesSlug,
+      seriesTitle: series.title,
+      episodeSlug: input.slug,
+      episodeTitle: input.title,
+      episodeUrl: new URL(`/${input.seriesSlug}/${input.slug}`, `${publicSiteOrigin(request)}/`).toString(),
+    });
+    await writeAudit(user.id, "content.episode_notifications_dispatched", {
+      seriesSlug: input.seriesSlug,
+      episodeSlug: input.slug,
+      subscriberCount: result.subscribers,
+      queuedCount: result.queued,
+      failedCount: result.failed,
+    });
+    const notificationState = result.failed ? "partial" : "queued";
+    return redirectTo(request, `/content/${input.seriesSlug}/episodes/${input.slug}?saved=1&notifications=${notificationState}&count=${result.queued}`);
+  } catch {
+    await writeAudit(user.id, "content.episode_notifications_failed", { seriesSlug: input.seriesSlug, episodeSlug: input.slug });
+    return redirectTo(request, `/content/${input.seriesSlug}/episodes/${input.slug}?saved=1&notifications=failed`);
+  }
 }

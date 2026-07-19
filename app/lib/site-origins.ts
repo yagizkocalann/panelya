@@ -50,6 +50,11 @@ export function isStudioRequest(request: Request) {
   return requestHostname(request) === new URL(studioSiteOrigin(request)).hostname.toLowerCase();
 }
 
+export function isLocalQaRequest(request: Request) {
+  const hostname = requestHostname(request);
+  return hostname === "localhost" || hostname.endsWith(".localhost") || hostname === "127.0.0.1" || hostname === "::1";
+}
+
 export function isAllowedAccountActionOrigin(origin: string, request?: Request) {
   return origin === publicSiteOrigin(request) || origin === studioSiteOrigin(request);
 }

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "1.0",
+  "error": "token_reused",
+  "errorDescription": "Oturum güvenlik nedeniyle kapatıldı. Yeniden giriş yap.",
+  "reauthenticate": true
+}

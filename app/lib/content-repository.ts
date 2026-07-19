@@ -1,4 +1,4 @@
-import { seriesCatalog, type Episode, type PanelTone, type Series, type StoryPanel } from "../data/catalog";
+import { seriesCatalog, type Episode, type PanelTone, type PublicMediaVariant, type Series, type StoryPanel } from "../data/catalog";
 import { getDatabase } from "./database";
 
 export type PublicationStatus = "draft" | "published" | "archived";
@@ -25,6 +25,7 @@ type SeriesRow = {
   title: string;
   eyebrow: string;
   creator: string;
+  search_text: string;
   description: string;
   long_description: string;
   story_status: "ongoing" | "completed";
@@ -43,6 +44,28 @@ type SeriesRow = {
   published_at: number | null;
 };
 
+type CatalogQueryRow = SeriesRow & { discovery_updated_at: number };
+
+export type CatalogSort = "updated" | "rating" | "title";
+export type CatalogStatus = "ongoing" | "completed";
+export type CatalogSearchInput = {
+  query?: string;
+  genre?: string;
+  status?: string;
+  sort?: string;
+  cursor?: string;
+  limit?: number;
+};
+
+export type CatalogSearchResult = {
+  items: Series[];
+  nextCursor: string | null;
+  cursorWasInvalid: boolean;
+  filters: { query: string; genre: string; status: CatalogStatus | ""; sort: CatalogSort };
+};
+
+type CatalogCursor = { version: 1; sort: CatalogSort; scope: string; value: string | number; slug: string };
+
 type EpisodeRow = {
   id: string;
   series_slug: string;
@@ -56,6 +79,13 @@ type EpisodeRow = {
   created_at: number;
   updated_at: number;
   published_at: number | null;
+};
+
+type PublicMediaVariantRow = {
+  asset_id: string;
+  mime_type: "image/webp";
+  width: number;
+  height: number;
 };
 
 export type SeriesInput = {
@@ -99,6 +129,20 @@ function safeArray<T>(value: string, fallback: T[] = []) {
   }
 }
 
+export function normalizeCatalogSearch(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("tr")
+    .replaceAll("\u0131", "i")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function catalogSearchText(input: Pick<Series, "title" | "creator" | "eyebrow" | "description" | "genres">) {
+  return normalizeCatalogSearch([input.title, input.creator, input.eyebrow, input.description, ...input.genres].join(" "));
+}
+
 async function ensureContentSeed() {
   const db = await getDatabase();
   const now = Date.now();
@@ -120,11 +164,11 @@ async function ensureContentSeed() {
   // anything an editor has already changed in Studio.
   for (const [seriesIndex, series] of seriesCatalog.entries()) {
     statements.push(db.prepare(`INSERT OR IGNORE INTO content_series (
-      slug, title, eyebrow, creator, description, long_description, story_status, genres_json, tone,
+      slug, title, eyebrow, creator, search_text, description, long_description, story_status, genres_json, tone,
       updated_label, rating, followers, is_new, cover_image, cover_position, publication_status,
       is_featured, created_at, updated_at, published_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?)`)
-      .bind(series.slug, series.title, series.eyebrow, series.creator, series.description, series.longDescription,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?)`)
+      .bind(series.slug, series.title, series.eyebrow, series.creator, catalogSearchText(series), series.description, series.longDescription,
         series.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(series.genres), series.tone,
         series.updatedAt, series.rating, series.followers, series.isNew ? 1 : 0, series.coverImage ?? null,
         series.coverPosition ?? null, seriesIndex === 0 ? 1 : 0, now, now, now));
@@ -138,6 +182,18 @@ async function ensureContentSeed() {
     }
   }
   if (statements.length) await db.batch(statements);
+  const missingSearchText = await db.prepare(`SELECT slug, title, eyebrow, creator, description, genres_json
+    FROM content_series WHERE search_text = ''`).all<Pick<SeriesRow, "slug" | "title" | "eyebrow" | "creator" | "description" | "genres_json">>();
+  if (missingSearchText.results.length) {
+    await db.batch(missingSearchText.results.map((row) => db.prepare("UPDATE content_series SET search_text = ? WHERE slug = ?")
+      .bind(catalogSearchText({
+        title: row.title,
+        creator: row.creator,
+        eyebrow: row.eyebrow,
+        description: row.description,
+        genres: safeArray<string>(row.genres_json),
+      }), row.slug)));
+  }
 }
 
 async function ensureReady() {
@@ -237,16 +293,240 @@ function toPublicSeries(series: StudioSeries): Series {
   };
 }
 
+function publicMediaAssetId(src: string | undefined) {
+  const match = src?.match(/^\/api\/media\/([A-Za-z0-9_-]{1,80})$/);
+  return match?.[1] ?? null;
+}
+
+function mediaSources(series: Series[]) {
+  const sources = new Map<string, string>();
+  for (const item of series) {
+    const coverId = publicMediaAssetId(item.coverImage);
+    if (coverId && item.coverImage) sources.set(coverId, item.coverImage);
+    for (const episode of item.episodes) {
+      for (const panel of episode.panels) {
+        const assetId = publicMediaAssetId(panel.image?.src);
+        if (assetId && panel.image) sources.set(assetId, panel.image.src);
+      }
+    }
+  }
+  return sources;
+}
+
+async function attachPublicMediaVariants(series: Series[]) {
+  const sources = mediaSources(series);
+  if (!sources.size) return series;
+  try {
+    const db = await getDatabase();
+    const rows: PublicMediaVariantRow[] = [];
+    const assetIds = Array.from(sources.keys());
+    for (let offset = 0; offset < assetIds.length; offset += 100) {
+      const chunk = assetIds.slice(offset, offset + 100);
+      const placeholders = chunk.map(() => "?").join(", ");
+      const result = await db.prepare(`SELECT asset_id, mime_type, width, height FROM media_variants
+        WHERE asset_id IN (${placeholders}) AND mime_type = 'image/webp' ORDER BY asset_id, width`).bind(...chunk).all<PublicMediaVariantRow>();
+      rows.push(...result.results);
+    }
+    const variantsBySource = new Map<string, PublicMediaVariant[]>();
+    for (const row of rows) {
+      const source = sources.get(row.asset_id);
+      if (!source) continue;
+      const variants = variantsBySource.get(source) ?? [];
+      variants.push({ src: `${source}?width=${Number(row.width)}`, width: Number(row.width), height: Number(row.height), mimeType: row.mime_type });
+      variantsBySource.set(source, variants);
+    }
+    return series.map((item): Series => ({
+      ...item,
+      ...(item.coverImage && variantsBySource.has(item.coverImage) ? { coverImageVariants: variantsBySource.get(item.coverImage) } : {}),
+      episodes: item.episodes.map((episode) => ({
+        ...episode,
+        panels: episode.panels.map((panel) => panel.image && variantsBySource.has(panel.image.src)
+          ? { ...panel, image: { ...panel.image, variants: variantsBySource.get(panel.image.src) } }
+          : panel),
+      })),
+    }));
+  } catch {
+    // Responsive metadata is an optimization. Published originals remain readable
+    // through their source URL if the variant lookup is temporarily unavailable.
+    return series;
+  }
+}
+
 export async function listPublishedSeries(): Promise<Series[]> {
+  try {
+    const rows = await listSeriesRows();
+    const published = rows
+      .filter((series) => series.publicationStatus === "published")
+      .map(toPublicSeries)
+      .filter((series) => series.episodes.length > 0);
+    return attachPublicMediaVariants(published);
+  } catch {
+    // Public reads remain available during build probes or a transient D1 outage.
+    return seriesCatalog;
+  }
+}
+
+function encodeCatalogCursor(cursor: CatalogCursor) {
+  const bytes = new TextEncoder().encode(JSON.stringify(cursor));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
+}
+
+function decodeCatalogCursor(value: string | undefined, sort: CatalogSort, scope: string): CatalogCursor | null {
+  if (!value || value.length > 512) return null;
+  try {
+    const base64 = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as Partial<CatalogCursor>;
+    const valueIsValid = sort === "title"
+      ? typeof parsed.value === "string" && parsed.value.length <= 200
+      : typeof parsed.value === "number" && Number.isFinite(parsed.value);
+    if (parsed.version !== 1 || parsed.sort !== sort || parsed.scope !== scope || !valueIsValid || typeof parsed.slug !== "string" || !/^[a-z0-9-]{1,80}$/.test(parsed.slug)) return null;
+    return parsed as CatalogCursor;
+  } catch {
+    return null;
+  }
+}
+
+function normalizedCatalogFilters(input: CatalogSearchInput) {
+  const query = (input.query ?? "").trim().slice(0, 80);
+  const genre = (input.genre ?? "").trim().slice(0, 50);
+  const status: CatalogStatus | "" = input.status === "ongoing" || input.status === "completed" ? input.status : "";
+  const sort: CatalogSort = input.sort === "rating" || input.sort === "title" ? input.sort : "updated";
+  const requestedLimit = typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.trunc(input.limit) : 4;
+  const limit = Math.max(1, Math.min(12, requestedLimit));
+  return { query, normalizedQuery: normalizeCatalogSearch(query), genre, status, sort, limit };
+}
+
+function catalogCursorScope(filters: ReturnType<typeof normalizedCatalogFilters>) {
+  return [filters.normalizedQuery, normalizeCatalogSearch(filters.genre), filters.status].join("|");
+}
+
+function fallbackCatalogSearch(filters: ReturnType<typeof normalizedCatalogFilters>): Series[] {
+  const items = seriesCatalog.filter((series) => {
+    const matchesSearch = !filters.normalizedQuery || catalogSearchText(series).includes(filters.normalizedQuery);
+    const matchesGenre = !filters.genre || series.genres.some((genre) => genre.localeCompare(filters.genre, "tr", { sensitivity: "base" }) === 0);
+    const storyStatus = series.status === "Tamamland\u0131" ? "completed" : "ongoing";
+    return matchesSearch && matchesGenre && (!filters.status || storyStatus === filters.status);
+  });
+  if (filters.sort === "rating") return items.sort((a, b) => b.rating - a.rating || a.slug.localeCompare(b.slug));
+  if (filters.sort === "title") return items.sort((a, b) => a.title.localeCompare(b.title, "tr") || a.slug.localeCompare(b.slug));
+  return items;
+}
+
+export async function searchPublishedSeries(input: CatalogSearchInput = {}): Promise<CatalogSearchResult> {
+  const filters = normalizedCatalogFilters(input);
+  const cursorScope = catalogCursorScope(filters);
+  const decodedCursor = decodeCatalogCursor(input.cursor, filters.sort, cursorScope);
+  const cursorWasInvalid = Boolean(input.cursor && !decodedCursor);
+  try {
+    await ensureReady();
+    const db = await getDatabase();
+    const where = [
+      "publication_status = 'published'",
+      "EXISTS (SELECT 1 FROM content_episodes ce WHERE ce.series_slug = catalog.slug AND ce.publication_status = 'published')",
+    ];
+    const bindings: Array<string | number> = [];
+    if (filters.normalizedQuery) {
+      where.push("search_text LIKE ?");
+      bindings.push(`%${filters.normalizedQuery}%`);
+    }
+    if (filters.genre) {
+      where.push("EXISTS (SELECT 1 FROM json_each(catalog.genres_json) genre WHERE genre.value = ? COLLATE NOCASE)");
+      bindings.push(filters.genre);
+    }
+    if (filters.status) {
+      where.push("story_status = ?");
+      bindings.push(filters.status);
+    }
+
+    let orderBy = "discovery_updated_at DESC, slug ASC";
+    if (filters.sort === "rating") orderBy = "rating DESC, slug ASC";
+    if (filters.sort === "title") orderBy = "title COLLATE NOCASE ASC, slug ASC";
+    if (decodedCursor) {
+      if (filters.sort === "updated" && typeof decodedCursor.value === "number") {
+        where.push("(discovery_updated_at < ? OR (discovery_updated_at = ? AND slug > ?))");
+        bindings.push(decodedCursor.value, decodedCursor.value, decodedCursor.slug);
+      } else if (filters.sort === "rating" && typeof decodedCursor.value === "number") {
+        where.push("(rating < ? OR (rating = ? AND slug > ?))");
+        bindings.push(decodedCursor.value, decodedCursor.value, decodedCursor.slug);
+      } else if (filters.sort === "title" && typeof decodedCursor.value === "string") {
+        where.push("(title > ? COLLATE NOCASE OR (title = ? COLLATE NOCASE AND slug > ?))");
+        bindings.push(decodedCursor.value, decodedCursor.value, decodedCursor.slug);
+      }
+    }
+
+    const result = await db.prepare(`WITH catalog AS (
+      SELECT cs.*, COALESCE(
+        (SELECT MAX(COALESCE(ce.published_at, ce.updated_at)) FROM content_episodes ce
+          WHERE ce.series_slug = cs.slug AND ce.publication_status = 'published'),
+        cs.published_at, cs.updated_at
+      ) AS discovery_updated_at
+      FROM content_series cs
+    )
+    SELECT * FROM catalog WHERE ${where.join(" AND ")}
+    ORDER BY ${orderBy} LIMIT ?`).bind(...bindings, filters.limit + 1).all<CatalogQueryRow>();
+
+    const pageRows = result.results.slice(0, filters.limit);
+    const bySeries = new Map<string, StudioEpisode[]>();
+    if (pageRows.length) {
+      const placeholders = pageRows.map(() => "?").join(", ");
+      const episodes = await db.prepare(`SELECT * FROM content_episodes
+        WHERE publication_status = 'published' AND series_slug IN (${placeholders})
+        ORDER BY series_slug, number DESC`).bind(...pageRows.map((row) => row.slug)).all<EpisodeRow>();
+      for (const row of episodes.results) {
+        const list = bySeries.get(row.series_slug) ?? [];
+        list.push(episodeFromRow(row));
+        bySeries.set(row.series_slug, list);
+      }
+    }
+    const items = await attachPublicMediaVariants(pageRows.map((row) => toPublicSeries(seriesFromRow(row, bySeries.get(row.slug) ?? []))));
+    const lastRow = pageRows.at(-1);
+    let nextCursor: string | null = null;
+    if (result.results.length > filters.limit && lastRow) {
+      const value = filters.sort === "updated" ? Number(lastRow.discovery_updated_at) : filters.sort === "rating" ? Number(lastRow.rating) : lastRow.title;
+      nextCursor = encodeCatalogCursor({ version: 1, sort: filters.sort, scope: cursorScope, value, slug: lastRow.slug });
+    }
+    return { items, nextCursor, cursorWasInvalid, filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort } };
+  } catch {
+    return {
+      items: fallbackCatalogSearch(filters),
+      nextCursor: null,
+      cursorWasInvalid,
+      filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort },
+    };
+  }
+}
+
+export async function listPublishedGenres() {
+  try {
+    await ensureReady();
+    const db = await getDatabase();
+    const result = await db.prepare(`SELECT genres_json FROM content_series cs
+      WHERE publication_status = 'published'
+        AND EXISTS (SELECT 1 FROM content_episodes ce WHERE ce.series_slug = cs.slug AND ce.publication_status = 'published')`).all<Pick<SeriesRow, "genres_json">>();
+    return Array.from(new Set(result.results.flatMap((row) => safeArray<string>(row.genres_json))))
+      .sort((a, b) => a.localeCompare(b, "tr"));
+  } catch {
+    return genresFromSeries(seriesCatalog);
+  }
+}
+
+export async function listPublishedSeriesForSitemap() {
   try {
     const rows = await listSeriesRows();
     return rows
       .filter((series) => series.publicationStatus === "published")
-      .map(toPublicSeries)
-      .filter((series) => series.episodes.length > 0);
+      .map((series) => {
+        const publishedEpisodes = series.episodes.filter((episode) => episode.publicationStatus === "published");
+        const lastModified = Math.max(series.updatedAtTimestamp, ...publishedEpisodes.map((episode) => episode.updatedAt));
+        return { slug: series.slug, lastModified, publishedEpisodeCount: publishedEpisodes.length };
+      })
+      .filter((series) => series.publishedEpisodeCount > 0);
   } catch {
-    // Public reads remain available during build probes or a transient D1 outage.
-    return seriesCatalog;
+    return seriesCatalog.map((series) => ({ slug: series.slug, lastModified: undefined, publishedEpisodeCount: series.episodes.length }));
   }
 }
 
@@ -269,11 +549,11 @@ export async function createContentSeries(input: SeriesInput) {
   const statements: D1PreparedStatement[] = [];
   if (input.isFeatured) statements.push(db.prepare("UPDATE content_series SET is_featured = 0"));
   statements.push(db.prepare(`INSERT INTO content_series (
-    slug, title, eyebrow, creator, description, long_description, story_status, genres_json, tone,
+    slug, title, eyebrow, creator, search_text, description, long_description, story_status, genres_json, tone,
     updated_label, rating, followers, is_new, cover_image, cover_position, publication_status,
     is_featured, created_at, updated_at, published_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(input.slug, input.title, input.eyebrow, input.creator, input.description, input.longDescription,
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(input.slug, input.title, input.eyebrow, input.creator, catalogSearchText(input), input.description, input.longDescription,
       input.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(input.genres), input.tone,
       input.updatedAt, input.followers, input.isNew ? 1 : 0, input.coverImage ?? null, input.coverPosition ?? null,
       input.publicationStatus, input.isFeatured ? 1 : 0, now, now, input.publicationStatus === "published" ? now : null));
@@ -287,11 +567,11 @@ export async function updateContentSeries(slug: string, input: SeriesInput) {
   const statements: D1PreparedStatement[] = [];
   if (input.isFeatured) statements.push(db.prepare("UPDATE content_series SET is_featured = 0"));
   statements.push(db.prepare(`UPDATE content_series SET
-    title = ?, eyebrow = ?, creator = ?, description = ?, long_description = ?, story_status = ?, genres_json = ?,
+    title = ?, eyebrow = ?, creator = ?, search_text = ?, description = ?, long_description = ?, story_status = ?, genres_json = ?,
     tone = ?, updated_label = ?, followers = ?, is_new = ?, cover_image = ?, cover_position = ?, publication_status = ?,
     is_featured = ?, updated_at = ?, published_at = CASE WHEN ? = 'published' THEN COALESCE(published_at, ?) ELSE published_at END
     WHERE slug = ?`)
-    .bind(input.title, input.eyebrow, input.creator, input.description, input.longDescription,
+    .bind(input.title, input.eyebrow, input.creator, catalogSearchText(input), input.description, input.longDescription,
       input.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(input.genres), input.tone,
       input.updatedAt, input.followers, input.isNew ? 1 : 0, input.coverImage ?? null, input.coverPosition ?? null,
       input.publicationStatus, input.isFeatured ? 1 : 0, now, input.publicationStatus, now, slug));

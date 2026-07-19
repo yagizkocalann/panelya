@@ -26,7 +26,7 @@ Her gorevde once `production-bible.md` ve bu dosyayi oku. `.env` degerlerini yaz
 - TypeScript strict; server-first. Yalnizca gercek etkileşim gereken component'e `use client` ekle.
 - Tek kaynak: katalog/domain verisi `app/data` altinda; sayfalar veri kopyalamaz.
 - Public route'lar: urun route'larina ek olarak `/about`, `/creators`, `/publishing-principles`, `/production-journal`, `/contact`, `/privacy`, `/terms`, `/copyright`, `/api/*`.
-- Studio ayri hostta calisir: production hedefi `studio.<ana-domain>`, yerel hedef `studio.localhost`. Dis URL'ler `/`, `/content`, `/messages`, `/ads`, `/outbox`, `/moderation`; kaynak route'lari `app/studio` altinda kalir.
+- Studio ayri hostta calisir: production hedefi `studio.<ana-domain>`, yerel hedef `studio.localhost`. Dis URL'ler `/`, `/content`, `/messages`, `/ads`, `/outbox`, `/moderation`, `/users`, `/audit`, `/qa`; kaynak route'lari `app/studio` altinda kalir.
 - Studio oturumu host-only cookie kullanir; public oturum otomatik paylasilmaz. Yonetici mutation'lari yalniz Studio hostundaki `/api/admin/*` uclarindan kabul edilir.
 - Ilk kullaniciyi admin yapan kural sadece yerel QA icindir; production varsayimi yapma.
 - Reklam QA'sinda yalniz Google'in resmi ornek test birimini kullan; gercek publisher kimligiyle otomatik test, yenileme veya tiklama yapma.
@@ -42,6 +42,7 @@ Her gorevde once `production-bible.md` ve bu dosyayi oku. `.env` degerlerini yaz
 3. Degisen akis yerel tarayicida PC monitor, tablet dikey/yatay ve mobil genislikte dogrulandi.
 4. Console error ve bozuk link yok.
 5. Mimari veya urun davranisi degistiyse `production-bible.md` guncellendi.
+6. Kullanici tarafindan sonradan denenmesi gereken yeni veya degisen akis `docs/manual-qa-checklist.md` dosyasina URL, on kosul ve beklenen sonucuyla eklendi; tamamlanan manuel kontroller tarih/not ile isaretlendi.
 
 ## Ajan teslim formati
 

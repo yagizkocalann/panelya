@@ -2,7 +2,7 @@ import { assertSameOrigin } from "../../lib/auth";
 import { errorRedirect, redirectTo } from "../../lib/auth-http";
 import { getDatabase, writeAudit } from "../../lib/database";
 
-const subjects = new Set(["general", "creator", "copyright", "technical"]);
+const subjects = new Set(["general", "creator", "technical"]);
 
 export async function POST(request: Request) {
   try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }
