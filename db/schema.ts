@@ -35,14 +35,15 @@ export const notificationOutbox = sqliteTable("notification_outbox", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
   recipient: text("recipient").notNull(),
-  kind: text("kind", { enum: ["verify_email", "password_reset", "security_notice"] }).notNull(),
+  kind: text("kind", { enum: ["verify_email", "password_reset", "security_notice", "new_episode"] }).notNull(),
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   actionUrl: text("action_url"),
+  dedupeKey: text("dedupe_key"),
   status: text("status", { enum: ["queued", "opened"] }).notNull().default("queued"),
   createdAt: integer("created_at").notNull(),
   openedAt: integer("opened_at"),
-});
+}, (table) => [uniqueIndex("notification_outbox_dedupe_unique").on(table.dedupeKey)]);
 
 export const adminInvitations = sqliteTable("admin_invitations", {
   id: text("id").primaryKey(),
@@ -76,6 +77,17 @@ export const libraryItems = sqliteTable("library_items", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.userId, table.seriesSlug] })]);
+
+export const seriesSubscriptions = sqliteTable("series_subscriptions", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  seriesSlug: text("series_slug").notNull(),
+  notifyNewEpisodes: integer("notify_new_episodes", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.userId, table.seriesSlug] }),
+  index("series_subscriptions_series_idx").on(table.seriesSlug, table.notifyNewEpisodes),
+]);
 
 export const readingProgress = sqliteTable("reading_progress", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

@@ -1,7 +1,7 @@
 import { getDatabase } from "./database";
 import { notificationDeliveryMode, type NotificationDeliveryMode } from "./runtime-config";
 
-export type NotificationKind = "verify_email" | "password_reset" | "security_notice";
+export type NotificationKind = "verify_email" | "password_reset" | "security_notice" | "new_episode";
 
 export type NotificationMessage = {
   userId: string | null;
@@ -10,19 +10,22 @@ export type NotificationMessage = {
   subject: string;
   body: string;
   actionUrl?: string;
+  dedupeKey?: string;
 };
 
 export interface NotificationDelivery {
-  send(message: NotificationMessage): Promise<void>;
+  send(message: NotificationMessage): Promise<{ accepted: boolean }>;
 }
 
 export class LocalOutboxDelivery implements NotificationDelivery {
   async send(message: NotificationMessage) {
     const db = await getDatabase();
-    await db.prepare(`INSERT INTO notification_outbox
-      (id, user_id, recipient, kind, subject, body, action_url, status, created_at, opened_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, NULL)`)
-      .bind(crypto.randomUUID(), message.userId, message.recipient, message.kind, message.subject, message.body, message.actionUrl ?? null, Date.now()).run();
+    const result = await db.prepare(`INSERT INTO notification_outbox
+      (id, user_id, recipient, kind, subject, body, action_url, dedupe_key, status, created_at, opened_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, NULL)
+      ON CONFLICT(dedupe_key) DO NOTHING`)
+      .bind(crypto.randomUUID(), message.userId, message.recipient, message.kind, message.subject, message.body, message.actionUrl ?? null, message.dedupeKey ?? null, Date.now()).run();
+    return { accepted: Number(result.meta.changes ?? 0) > 0 };
   }
 }
 

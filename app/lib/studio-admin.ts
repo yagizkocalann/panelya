@@ -64,7 +64,7 @@ type AuditRow = {
   created_at: number;
 };
 
-export const AUDIT_GROUPS = ["account", "admin", "contact", "content", "library", "media", "moderation", "preview", "review"] as const;
+export const AUDIT_GROUPS = ["account", "admin", "contact", "content", "library", "media", "moderation", "preview", "review", "subscription"] as const;
 
 function safeMetadata(raw: string | null) {
   if (!raw) return {};
@@ -74,7 +74,7 @@ function safeMetadata(raw: string | null) {
       "seriesSlug", "episodeSlug", "publicationStatus", "mediaId", "kind", "mimeType", "byteSize", "width", "height",
       "jobs", "jobId", "panelId", "from", "to", "grantId", "expiresAt", "reviewId", "reason", "containsSpoiler",
       "rating", "messageId", "role", "targetUserId", "previousRole", "newRole", "position", "reportId", "invitationId",
-      "deletedCount", "policyVersion",
+      "deletedCount", "policyVersion", "subscriberCount", "queuedCount", "failedCount",
     ]);
     return Object.fromEntries(Object.entries(parsed).filter(([key]) => allowed.has(key)));
   } catch {

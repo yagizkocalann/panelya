@@ -10,6 +10,7 @@ import { getCurrentUser } from "../lib/auth";
 import { getSeriesCommunity } from "../lib/reviews";
 import { getPublishedSeries } from "../lib/content-repository";
 import { publicSiteUrlForCurrentRequest } from "../lib/server-site-origins";
+import { getSeriesReaderState, type SeriesReaderState } from "../lib/series-subscriptions";
 
 type SeriesPageProps = { params: Promise<{ slug: string }>; searchParams?: Promise<{ community?: string }> };
 
@@ -24,6 +25,14 @@ const communityMessages: Record<string, string> = {
   "invalid-report": "Rapor nedeni veya açıklaması geçersiz.",
   "rate-limited": "Çok sık değerlendirme güncellendi. Biraz sonra yeniden dene.",
   "report-rate-limited": "Rapor sınırına ulaştın. Daha sonra yeniden dene.",
+};
+
+const anonymousReaderState: SeriesReaderState = {
+  inLibrary: false,
+  isFavorite: false,
+  libraryStatus: null,
+  isFollowing: false,
+  notifyNewEpisodes: false,
 };
 
 export async function generateMetadata({ params }: SeriesPageProps): Promise<Metadata> {
@@ -44,11 +53,12 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
   const series = await getPublishedSeries(slug);
   if (!series) notFound();
   const user = await getCurrentUser();
-  const [community, query, canonicalUrl, publicOrigin] = await Promise.all([
+  const [community, query, canonicalUrl, publicOrigin, readerState] = await Promise.all([
     getSeriesCommunity(slug, user?.id),
     searchParams ?? Promise.resolve({}),
     publicSiteUrlForCurrentRequest(`/${series.slug}`),
     publicSiteUrlForCurrentRequest("/"),
+    user ? getSeriesReaderState(user.id, series.slug) : Promise.resolve(anonymousReaderState),
   ]);
   const ascending = [...series.episodes].sort((a, b) => a.number - b.number);
   const first = ascending[0];
@@ -103,8 +113,10 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
             <div className="series-actions">
               <Link className="button button--primary button--large" href={`/${series.slug}/${first.slug}`}>▶ İlk bölümü oku</Link>
               <Link className="button button--glass button--large" href={`/${series.slug}/${latest.slug}`}>Son bölüme git</Link>
-              <form action={`/api/library/${series.slug}`} method="post"><input type="hidden" name="action" value="add" /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button type="submit" className="button button--ghost">＋ Kütüphaneye ekle</button></form>
-              <form action={`/api/library/${series.slug}`} method="post"><input type="hidden" name="action" value="favorite" /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button type="submit" className="button button--ghost">♡ Favori</button></form>
+              <form action={`/api/library/${series.slug}`} method="post"><input type="hidden" name="action" value={readerState.inLibrary ? "remove" : "add"} /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button type="submit" className={`button button--ghost${readerState.inLibrary ? " is-active" : ""}`} aria-pressed={readerState.inLibrary}>{readerState.inLibrary ? "✓ Kütüphanede" : "＋ Kütüphaneye ekle"}</button></form>
+              <form action={`/api/library/${series.slug}`} method="post"><input type="hidden" name="action" value="favorite" /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button type="submit" className={`button button--ghost${readerState.isFavorite ? " is-active" : ""}`} aria-pressed={readerState.isFavorite}>{readerState.isFavorite ? "♥ Favori" : "♡ Favori"}</button></form>
+              <form action={`/api/subscriptions/${series.slug}`} method="post"><input type="hidden" name="action" value="follow" /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button type="submit" className={`button button--ghost${readerState.isFollowing ? " is-active" : ""}`} aria-pressed={readerState.isFollowing}>{readerState.isFollowing ? "✓ Takip ediliyor" : "＋ Takip et"}</button></form>
+              {readerState.isFollowing && <form action={`/api/subscriptions/${series.slug}`} method="post"><input type="hidden" name="action" value="notifications" /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button type="submit" className={`button button--ghost${readerState.notifyNewEpisodes ? " is-active" : ""}`} aria-pressed={readerState.notifyNewEpisodes}>{readerState.notifyNewEpisodes ? "🔔 Yeni bölüm bildirimi açık" : "🔕 Yeni bölüm bildirimi kapalı"}</button></form>}
             </div>
           </div>
         </section>
