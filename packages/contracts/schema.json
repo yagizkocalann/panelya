@@ -317,13 +317,9 @@
           ]
         }
       },
-      "allOf": [
-        {
-          "if": { "properties": { "authenticated": { "const": true } } },
-          "then": { "properties": { "user": { "$ref": "#/$defs/AuthUser" } } },
-          "else": { "properties": { "user": { "type": "null" } } }
-        }
-      ]
+      "if": { "properties": { "authenticated": { "const": true } } },
+      "then": { "properties": { "user": { "$ref": "#/$defs/AuthUser" } } },
+      "else": { "properties": { "user": { "type": "null" } } }
     },
     "AuthAuthorizationCodeExchangeRequest": {
       "type": "object",

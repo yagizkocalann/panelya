@@ -120,6 +120,35 @@ test("production auth fixture'lari secret veya gecerli token tasimaz", async () 
   assert.equal(error.reauthenticate, true);
 });
 
+test("auth state kapali, kosullu ve Dart codegen ile yapisal olarak uyumludur", () => {
+  const authState = contract.$defs.AuthStateResponse;
+  assert.equal(authState.type, "object");
+  assert.equal(authState.additionalProperties, false);
+  assert.equal("allOf" in authState, false, "kosul yapisal allOf birlesimi gibi modellenmemeli");
+  assert.ok(authState.if && authState.then && authState.else);
+
+  assert.equal(
+    validators.authState({ schemaVersion: "1.0", authenticated: true, user: null }),
+    false,
+    "authenticated=true iken user zorunlu olmali",
+  );
+  assert.equal(
+    validators.authState({
+      schemaVersion: "1.0",
+      authenticated: false,
+      user: {
+        id: "user_fixture_01",
+        displayName: "Deniz Kaya",
+        email: "deniz@example.test",
+        emailVerified: true,
+        role: "reader",
+      },
+    }),
+    false,
+    "authenticated=false iken user null olmali",
+  );
+});
+
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("contracts-test", `${process.pid}-${Date.now()}`);
 const { default: worker } = await import(workerUrl.href);
