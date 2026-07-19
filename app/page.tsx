@@ -107,6 +107,15 @@ export default async function Home({ searchParams }: HomeProps) {
             </>
           )}
         </div>
+        <section className="home-seo wrap" aria-labelledby="home-seo-title">
+          <p className="section-kicker">Türkçe dikey hikâyeler</p>
+          <h2 id="home-seo-title">Webtoon ritminde özgün hikâyeler keşfet</h2>
+          <div className="home-seo__grid">
+            <p>Panelya; romantizm, gizem, bilim kurgu, dram, komedi ve daha birçok türde özgün Türkçe dikey çizgi hikâyelerini tek katalogda buluşturur. Bir seri seçip kayıt olmadan okumaya başlayabilirsin.</p>
+            <p>Bölümler telefon, tablet ve bilgisayarda kesintisiz dikey kaydırma için hazırlanır. Hesap oluşturduğunda favorilerini kütüphanende tutabilir, okuma ilerlemeni koruyabilir ve yeni bölümleri takip edebilirsin.</p>
+            <p>Panelya Originals içerikleri mobil ekran ritmi, erişilebilir metinler ve bölüm sonu kancaları düşünülerek üretilir. <Link href="/publishing-principles">Yayın ilkelerimizi incele</Link> veya <Link href="/?view=catalog">tüm serileri keşfet</Link>.</p>
+          </div>
+        </section>
       </main>
       <SiteFooter />
     </div>

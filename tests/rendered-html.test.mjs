@@ -257,6 +257,8 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
   assert.match(home, /href="\/about"/);
   assert.match(home, /href="\/contact"/);
   assert.match(home, /href="\/privacy"/);
+  assert.match(home, /Webtoon ritminde özgün hikâyeler keşfet/);
+  assert.match(home, /aria-label="Alt bilgi bağlantıları"/);
 });
 
 test("görünür public bağlantılar kırık route üretmez", async () => {
@@ -334,7 +336,10 @@ test("telif bildirimi genel iletisimden ayridir ve gizli durum erisimi korunur",
 });
 
 test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const [css, authActions] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/AuthActions.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(css, /@media \(max-width: 960px\)/);
   assert.match(css, /@media \(max-width: 720px\)/);
   assert.match(css, /@media \(max-width: 420px\)/);
@@ -345,6 +350,9 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
   assert.match(css, /\.genre-strip a, \.genre-pills a[^}]*min-height:\s*44px/);
   assert.match(css, /\.catalog-filter-form input, \.catalog-filter-form select[^}]*min-height:\s*48px/);
   assert.match(css, /\.text-link[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
+  assert.match(authActions, /library-nav-link/);
+  assert.match(css, /text-link:not\(\.library-nav-link\)/);
+  assert.match(css, /library-nav-link__label/);
   assert.match(css, /\.studio-table a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
   assert.match(css, /\.message-card header a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
   assert.match(css, /\.admin-user-card__identity > a[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
@@ -395,6 +403,10 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(authControls, /aria-label="Hesap ekranını kapat"/);
   assert.doesNotMatch(studio, /disabled/);
   assert.doesNotMatch(footer, /<span>Hakkımızda|<span>İletişim|<span>Gizlilik/);
+  assert.match(footer, /listPublishedGenres/);
+  assert.match(footer, /footer-category-grid/);
+  assert.match(footer, /href="\/library"/);
+  assert.match(footer, /href="\/account"/);
   assert.match(notifications, /interface NotificationDelivery/);
   assert.match(notifications, /deliveryFactories/);
   assert.match(notifications, /NotificationDeliveryUnavailableError/);
@@ -901,6 +913,10 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(validation, /image\/png/);
   assert.match(validation, /image\/webp/);
   assert.match(validation, /MAX_PIXELS/);
+  assert.match(validation, /function u24le/);
+  assert.match(validation, /type === "VP8 "[^\n]*u16\(bytes, 26, true\)[^\n]*u16\(bytes, 28, true\)/);
+  assert.match(validation, /type === "VP8L"[\s\S]*u16\(bytes, 21, true\)/);
+  assert.match(validation, /type === "VP8X"[^\n]*u24le\(bytes, 24\)[^\n]*u24le\(bytes, 27\)/);
   assert.match(validation, /inspectDerivative/);
   assert.match(storage, /interface MediaStorage/);
   assert.match(storage, /env\.MEDIA/);
