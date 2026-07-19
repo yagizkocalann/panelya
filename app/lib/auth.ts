@@ -92,11 +92,11 @@ export async function findUserByEmail(email: string) {
   return row ? toUser(row) : null;
 }
 
-export async function createUser(displayName: string, email: string, password: string) {
+export async function createUser(displayName: string, email: string, password: string, allowLocalFirstAdmin = false) {
   const db = await getDatabase();
   const normalized = normalizeEmail(email);
   const count = await db.prepare("SELECT COUNT(*) AS count FROM users").first<{ count: number }>();
-  const role: LocalUser["role"] = Number(count?.count ?? 0) === 0 ? "admin" : "reader";
+  const role: LocalUser["role"] = allowLocalFirstAdmin && Number(count?.count ?? 0) === 0 ? "admin" : "reader";
   const id = crypto.randomUUID();
   const now = Date.now();
   const passwordHash = await hashPassword(password);

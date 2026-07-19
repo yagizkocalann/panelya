@@ -10,6 +10,11 @@ export const dynamic = "force-dynamic";
 const groupLabels: Record<string, string> = { account: "Hesap", admin: "Yönetim", contact: "İletişim", content: "İçerik", library: "Kütüphane", media: "Medya", moderation: "Moderasyon", preview: "Önizleme", review: "Yorum" };
 const actionLabels: Record<string, string> = {
   "admin.user_role_changed": "Kullanıcı rolü değiştirildi",
+  "admin.invitation_created": "Yönetici daveti oluşturuldu",
+  "admin.invitation_resent": "Yönetici daveti yenilendi",
+  "admin.invitation_revoked": "Yönetici daveti iptal edildi",
+  "admin.invitation_accepted": "Yönetici daveti kabul edildi",
+  "admin.bootstrap_completed": "İlk yönetici kurulumu tamamlandı",
   "account.logged_in": "Hesaba giriş yapıldı",
   "account.registered": "Hesap oluşturuldu",
   "content.series_created": "Seri oluşturuldu",
@@ -23,7 +28,7 @@ const actionLabels: Record<string, string> = {
 };
 
 function metadataLabel(key: string) {
-  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor" };
+  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet" };
   return labels[key] ?? key;
 }
 

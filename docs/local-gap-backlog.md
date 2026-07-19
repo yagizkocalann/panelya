@@ -20,8 +20,8 @@
 ## P1 - Hesap ve guvenlik
 
 1. Tamamlandi: Studio kullanici envanteri, guvenli admin/okuyucu rol degisikligi, kendi rolunu ve son admini koruma, rol degisikliginde oturum kapatma.
-2. Siradaki: admin daveti ve ilk-kullanici-admin kuralinin kaldirilmasi.
-3. Production kimlik ve e-posta saglayicisi ile KVKK/GDPR saklama politikasinin kesinlestirilmesi.
+2. Tamamlandi: 24 saatlik tek kullanimlik admin daveti, yenileme/iptal/kabul akisi; production public kaydinda otomatik admin yetkisinin kaldirilmasi ve sifir admin kosullu tek seferlik Studio bootstrap.
+3. Production kimlik ve e-posta saglayicisi ile bildirim outbox'i/token teslim verisi dahil KVKK/GDPR saklama politikasinin kesinlestirilmesi.
 4. Yerel sabit-pencere limitini edge/WAF veya dagitik rate-limit katmanina tasima.
 5. Idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasini kesinlestirme.
 
@@ -47,6 +47,7 @@
 - Studio seri/bolum icerik yonetimi, R2 medya yukleme, D1 yayin akisi ve reklam laboratuvari.
 - Studio medya ekraninda kalici responsive turetme kuyrugu, hata/yeniden deneme durumu ve varyant envanteri.
 - Studio kullanici/rol yonetimi ve guvenli metadata gosteren audit gunlugu.
+- Studio yonetici daveti, yerel outbox teslimi ve production ilk-yonetici bootstrap siniri.
 - Studio seri/bolum ekranindan guvenli taslak onizleme baglantisi uretme, durumunu gorme ve iptal etme.
 - Yerel e-posta outbox adaptoru, e-posta dogrulama ve sifre sifirlama.
 - E-posta degisikliginde yeniden dogrulama ve eski adrese guvenlik bildirimi.
