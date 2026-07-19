@@ -8,7 +8,7 @@
 3. Tamamlandi: yerel R2 binding'i ile kapak/panel yukleme, dosya imzasi, MIME, byte ve piksel kontrolu, D1 metadata ve yayinla sinirli public servis.
 4. Tamamlandi: panel siralama, Studio'dan yuklenen panel baglantisini R2 kaynagini silmeden kaldirma ve kapak gecmisinden geri yukleme.
 5. Siradaki: turetilmis responsive format kuyrugu.
-6. Siradaki: yayinlanmamis icerik icin guvenli taslak onizleme baglantisi.
+6. Tamamlandi: seri veya tek bolum kapsamli, 30 dakika sureli, iptal edilebilir ve ham anahtari saklanmayan guvenli taslak onizleme baglantisi; taslak R2 medyasi no-store token endpoint'iyle sunulur.
 
 ## P1 - Okuyucu ve topluluk
 
@@ -43,6 +43,7 @@
 - Footer'daki tum kurumsal ve yasal rotalar.
 - Lokal iletisim formu ve Studio mesaj durumu yonetimi.
 - Studio seri/bolum icerik yonetimi, R2 medya yukleme, D1 yayin akisi ve reklam laboratuvari.
+- Studio seri/bolum ekranindan guvenli taslak onizleme baglantisi uretme, durumunu gorme ve iptal etme.
 - Yerel e-posta outbox adaptoru, e-posta dogrulama ve sifre sifirlama.
 - E-posta degisikliginde yeniden dogrulama ve eski adrese guvenlik bildirimi.
 - Aktif oturum listesi, tekil/toplu oturum kapatma ve auth rate limit.

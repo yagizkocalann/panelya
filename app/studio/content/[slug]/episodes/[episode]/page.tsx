@@ -4,12 +4,14 @@ import { notFound, redirect } from "next/navigation";
 import { SiteHeader } from "../../../../../components/SiteHeader";
 import { getCurrentUser } from "../../../../../lib/auth";
 import { getStudioSeries } from "../../../../../lib/content-repository";
+import { listPreviewGrants } from "../../../../../lib/preview-tokens";
 import { publicSiteUrlForCurrentRequest } from "../../../../../lib/server-site-origins";
 import { EpisodeForm } from "../../../ContentForms";
+import { PreviewAccessPanel, PreviewCreateForm } from "../../../PreviewAccess";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditEpisodePage({ params, searchParams }: { params: Promise<{ slug: string; episode: string }>; searchParams: Promise<{ error?: string; saved?: string }> }) {
+export default async function EditEpisodePage({ params, searchParams }: { params: Promise<{ slug: string; episode: string }>; searchParams: Promise<{ error?: string; saved?: string; preview?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?return_to=/content");
   if (user.role !== "admin") redirect("/account?error=Studio%20yalnızca%20yönetici%20hesaplarına%20açık.");
@@ -17,9 +19,12 @@ export default async function EditEpisodePage({ params, searchParams }: { params
   const series = await getStudioSeries(slug);
   const episode = series?.episodes.find((item) => item.slug === episodeSlug);
   if (!series || !episode) notFound();
+  const returnTo = `/content/${series.slug}/episodes/${episode.slug}`;
+  const previewGrants = await listPreviewGrants(series.slug, episode.slug);
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
-    <div className="studio-top"><div><p className="section-kicker">{series.title} · Bölüm {episode.number}</p><h1>{episode.title}</h1><p>Bölüm metadatasını ve uygun olduğunda yerel panel metnini düzenle.</p></div><div className="studio-top__actions"><Link className="button button--ghost" href={`/content/${series.slug}`}>← Seriye dön</Link>{series.publicationStatus === "published" && episode.publicationStatus === "published" && <Link className="button button--ghost" href={new URL(`/${series.slug}/${episode.slug}`, publicHome).toString()}>Okuyucu ↗</Link>}</div></div>
+    <div className="studio-top"><div><p className="section-kicker">{series.title} · Bölüm {episode.number}</p><h1>{episode.title}</h1><p>Bölüm metadatasını ve uygun olduğunda yerel panel metnini düzenle.</p></div><div className="studio-top__actions"><Link className="button button--ghost" href={`/content/${series.slug}`}>← Seriye dön</Link>{series.publicationStatus === "published" && episode.publicationStatus === "published" && <Link className="button button--ghost" href={new URL(`/${series.slug}/${episode.slug}`, publicHome).toString()}>Okuyucu ↗</Link>}<PreviewCreateForm seriesSlug={series.slug} episodeSlug={episode.slug} returnTo={returnTo} /></div></div>
     {query.saved && <p className="form-message form-message--success" role="status">Bölüm kaydedildi.</p>}
+    {query.preview === "revoked" && <p className="form-message form-message--success" role="status">Önizleme bağlantısı iptal edildi.</p>}
     {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
     <EpisodeForm series={series} episode={episode} />
     <section className="studio-section" aria-labelledby="panel-manager-title">
@@ -41,5 +46,6 @@ export default async function EditEpisodePage({ params, searchParams }: { params
         })}
       </div>
     </section>
+    <PreviewAccessPanel grants={previewGrants} seriesSlug={series.slug} episodeSlug={episode.slug} returnTo={returnTo} />
   </main></div>;
 }

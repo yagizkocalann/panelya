@@ -169,3 +169,18 @@ export const mediaAssets = sqliteTable("media_assets", {
   uniqueIndex("media_assets_storage_key_unique").on(table.storageKey),
   index("media_assets_series_idx").on(table.seriesSlug, table.episodeSlug, table.createdAt),
 ]);
+
+export const previewTokens = sqliteTable("preview_tokens", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull(),
+  seriesSlug: text("series_slug").notNull().references(() => contentSeries.slug, { onDelete: "cascade" }),
+  episodeSlug: text("episode_slug"),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("preview_tokens_hash_unique").on(table.tokenHash),
+  index("preview_tokens_scope_idx").on(table.seriesSlug, table.episodeSlug, table.expiresAt),
+  index("preview_tokens_expiry_idx").on(table.expiresAt),
+]);

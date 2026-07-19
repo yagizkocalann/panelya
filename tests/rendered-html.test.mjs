@@ -219,6 +219,46 @@ test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async 
 
   const publicAdminMutation = await request("/api/admin/messages/example", "text/html", "http://localhost", { method: "POST" });
   assert.equal(publicAdminMutation.status, 404);
+
+  const publicPreviewMutation = await request("/api/admin/previews", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicPreviewMutation.status, 404);
+});
+
+test("taslak önizleme süreli, kapsamlı ve public yayından ayrıdır", async () => {
+  const [schema, previewTokens, previewApi, previewMedia, previewPage, seriesStudioPage, proxy] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/preview-tokens.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/previews/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/preview/media/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/preview/[token]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /sqliteTable\("preview_tokens"/);
+  assert.match(schema, /uniqueIndex\("preview_tokens_hash_unique"/);
+  assert.match(previewTokens, /new Uint8Array\(32\)/);
+  assert.match(previewTokens, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(previewTokens, /PREVIEW_TTL_MS = 30 \* 60 \* 1000/);
+  assert.doesNotMatch(previewTokens, /rawToken[^\n]*INSERT|INSERT[^\n]*rawToken/);
+  assert.match(previewApi, /isStudioRequest\(request\)/);
+  assert.match(previewApi, /assertSameOrigin/);
+  assert.match(previewApi, /preview\.created/);
+  assert.match(previewApi, /preview\.revoked/);
+  assert.match(previewMedia, /asset\.seriesSlug !== grant\.seriesSlug/);
+  assert.match(previewMedia, /Cache-Control["']:\s*["']private, no-store/);
+  assert.match(previewPage, /robots:\s*\{ index: false, follow: false/);
+  assert.match(seriesStudioPage, /PreviewCreateForm/);
+  assert.match(proxy, /X-Robots-Tag/);
+
+  const invalidPage = await request("/preview/not-a-valid-token");
+  assert.equal(invalidPage.status, 404);
+  assert.equal(invalidPage.headers.get("referrer-policy"), "no-referrer");
+  assert.match(invalidPage.headers.get("cache-control") ?? "", /no-store/);
+  assert.match(invalidPage.headers.get("x-robots-tag") ?? "", /noindex/);
+
+  const invalidMedia = await request("/api/preview/media/example?token=invalid", "image/webp");
+  assert.equal(invalidMedia.status, 404);
+  assert.match(invalidMedia.headers.get("cache-control") ?? "", /no-store/);
 });
 
 test("şifre sıfırlama ve doğrulama sayfaları herkese açıktır", async () => {

@@ -50,6 +50,13 @@
       "when": 1784387206424,
       "tag": "0006_lying_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1784419192980,
+      "tag": "0007_dashing_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

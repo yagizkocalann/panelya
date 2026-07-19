@@ -165,6 +165,16 @@ async function ensureSchema(db: D1Database) {
       created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at INTEGER NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS preview_tokens (
+      id TEXT PRIMARY KEY NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      series_slug TEXT NOT NULL REFERENCES content_series(slug) ON DELETE CASCADE,
+      episode_slug TEXT,
+      created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      created_at INTEGER NOT NULL
+    )`),
     db.prepare("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS library_user_idx ON library_items(user_id, updated_at DESC)"),
@@ -179,6 +189,8 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS content_series_publication_idx ON content_series(publication_status, is_featured DESC, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_episodes_series_idx ON content_episodes(series_slug, publication_status, number DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS media_assets_series_idx ON media_assets(series_slug, episode_slug, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS preview_tokens_scope_idx ON preview_tokens(series_slug, episode_slug, expires_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS preview_tokens_expiry_idx ON preview_tokens(expires_at)"),
   ]);
 
   const userColumns = await db.prepare("PRAGMA table_info(users)").all<{ name: string }>();
