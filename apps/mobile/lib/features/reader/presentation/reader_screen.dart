@@ -10,6 +10,7 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/api/media_url.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'reader_providers.dart';
 
@@ -127,10 +128,50 @@ class _ReaderSuccessScaffoldState
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<double> _progress = ValueNotifier<double>(0);
 
+  /// Bu bölüm için "bitti" kaydı en fazla bir kez yazılır (bkz.
+  /// [_maybeRecordCompletion]) — tekrar tekrar scroll edip sonuna gelmek
+  /// depolamaya gereksiz yazma yapmamalı.
+  bool _completionRecorded = false;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    // Bölüm açıldığında cihaz-yerel ilerleme kaydı yazılır (bkz. PLAN
+    // "kaldığın yerden devam et" madde 1). `ReaderScreen` bölüm
+    // değiştiğinde (`context.go`) yeniden oluşturulan bir rota olduğundan
+    // bu `initState` her bölüm geçişinde tazelenir.
+    //
+    // Bu, bir kare sonrası `addPostFrameCallback` içinde yapılır: hem yazma
+    // hem de aşağıdaki `ref.invalidate` çağrıları henüz build aşamasında
+    // olan `ReaderScreen`/üst widget ağacını hemen etkileyebilir; build
+    // sürerken senkron `ref.invalidate` "setState()/markNeedsBuild() called
+    // during build" hatası fırlatır (Flutter/Riverpod, bir descendant'ın
+    // build'i sürerken başka provider'ları kirli işaretlemeyi build
+    // AŞAMASI bittikten sonraya erteler).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final response = widget.response;
+      ref
+          .read(readingProgressRepositoryProvider)
+          .recordEpisodeOpened(
+            seriesSlug: widget.seriesSlug,
+            seriesTitle: response.series.title,
+            episodeSlug: response.episode.slug,
+            episodeNumber: response.episode.number,
+          );
+      _invalidateProgressProviders();
+
+      // İçerik zaten viewport'a sığıyorsa (kısa bölüm) hiçbir scroll olayı
+      // hiç tetiklenmeyebilir; bu yüzden aynı ilk karede bir kez de
+      // "sonuna kadar okundu" kontrolü yapılır.
+      if (!_scrollController.hasClients) return;
+      final position = _scrollController.position;
+      _maybeRecordCompletion(
+        maxExtent: position.maxScrollExtent,
+        pixels: position.pixels,
+      );
+    });
   }
 
   void _handleScroll() {
@@ -141,6 +182,45 @@ class _ReaderSuccessScaffoldState
         ? 0.0
         : (position.pixels / maxExtent).clamp(0.0, 1.0);
     _progress.value = value;
+    _maybeRecordCompletion(maxExtent: maxExtent, pixels: position.pixels);
+  }
+
+  /// Bölüm sonuna scroll edilince (veya içerik zaten tamamı görünür
+  /// olduğundan hiç scroll gerekmiyorsa) "bitti" kaydını yazar; varsa
+  /// sonraki bölüm devam hedefi olur (bkz.
+  /// `LocalReadingProgressRepository.recordEpisodeCompleted`).
+  void _maybeRecordCompletion({
+    required double maxExtent,
+    required double pixels,
+  }) {
+    if (_completionRecorded) return;
+    final reachedEnd = maxExtent <= 0 || pixels >= maxExtent - 1;
+    if (!reachedEnd) return;
+    _completionRecorded = true;
+
+    final response = widget.response;
+    final next = response.navigation.next;
+    ref
+        .read(readingProgressRepositoryProvider)
+        .recordEpisodeCompleted(
+          seriesSlug: widget.seriesSlug,
+          seriesTitle: response.series.title,
+          episodeSlug: response.episode.slug,
+          episodeNumber: response.episode.number,
+          nextEpisodeSlug: next?.slug,
+          nextEpisodeNumber: next?.number,
+        );
+    _invalidateProgressProviders();
+  }
+
+  /// Seri detay ve keşif ekranları ilerleme provider'larını yalnız
+  /// `ref.watch` ile okur (bkz. `reading_progress_providers.dart`); bu
+  /// provider'lar senkron olduğu için bir yazımdan sonra elle
+  /// `invalidate` edilmezlerse, o ekranlara geri dönüldüğünde (aynı widget
+  /// örneği korunuyorsa) bayat değer görünmeye devam eder.
+  void _invalidateProgressProviders() {
+    ref.invalidate(readingProgressForSeriesProvider(widget.seriesSlug));
+    ref.invalidate(mostRecentReadingProgressProvider);
   }
 
   @override

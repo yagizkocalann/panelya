@@ -6,6 +6,8 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../../../features/progress/domain/reading_progress.dart';
+import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'series_providers.dart';
@@ -53,14 +55,14 @@ EpisodeSummary firstEpisodeOf(List<EpisodeSummary> episodes) {
   return episodes.reduce((a, b) => a.number <= b.number ? a : b);
 }
 
-class _SeriesDetailView extends StatelessWidget {
+class _SeriesDetailView extends ConsumerWidget {
   const _SeriesDetailView({required this.seriesSlug, required this.response});
 
   final String seriesSlug;
   final SeriesDetailResponse response;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
     final metadata = response.series;
     final episodes = response.episodes;
@@ -72,6 +74,10 @@ class _SeriesDetailView extends StatelessWidget {
     }
 
     final firstEpisode = firstEpisodeOf(episodes);
+    // Cihaz-yerel "kaldığın yerden devam et" kaydı (bkz. PLAN, hesapsız
+    // özellik — auth'lu `/api/progress` ile ilgisi yok). Kayıt yoksa
+    // mevcut "Okumaya başla" davranışı değişmeden kalır.
+    final progress = ref.watch(readingProgressForSeriesProvider(seriesSlug));
 
     return ListView(
       padding: EdgeInsets.all(tokens.spacing.md),
@@ -145,14 +151,10 @@ class _SeriesDetailView extends StatelessWidget {
         SizedBox(height: tokens.spacing.md),
         Text(metadata.longDescription, style: tokens.typography.bodyLarge),
         SizedBox(height: tokens.spacing.lg),
-        SizedBox(
-          height: tokens.sizes.minTouchTarget,
-          child: FilledButton(
-            onPressed: () => context.push(
-              '/series/$seriesSlug/read/${firstEpisode.slug}',
-            ),
-            child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
-          ),
+        _StartReadingActions(
+          seriesSlug: seriesSlug,
+          firstEpisode: firstEpisode,
+          progress: progress,
         ),
         SizedBox(height: tokens.spacing.lg),
         Text('Bölümler', style: tokens.typography.titleMedium),
@@ -164,6 +166,75 @@ class _SeriesDetailView extends StatelessWidget {
               '/series/$seriesSlug/read/${episode.slug}',
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Seri detayının birincil okuma aksiyonu.
+///
+/// Cihaz-yerel ilerleme kaydı [progress] `null` ise (kullanıcı bu seride
+/// hiç bölüm açmamış) mevcut tek "Okumaya başla" davranışı değişmeden
+/// kalır. Kayıt varsa birincil aksiyon "Devam et: Bölüm N" olur ve
+/// kaydedilen bölüme götürür; yanında daha küçük bir ikincil "Baştan
+/// başla" aksiyonu her zaman ilk bölüme döner (PLAN — hesapsız, cihaz-yerel
+/// "kaldığın yerden devam et").
+class _StartReadingActions extends StatelessWidget {
+  const _StartReadingActions({
+    required this.seriesSlug,
+    required this.firstEpisode,
+    required this.progress,
+  });
+
+  final String seriesSlug;
+  final EpisodeSummary firstEpisode;
+  final ReadingProgress? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+
+    if (progress == null) {
+      return SizedBox(
+        height: tokens.sizes.minTouchTarget,
+        child: FilledButton(
+          onPressed: () => context.push(
+            '/series/$seriesSlug/read/${firstEpisode.slug}',
+          ),
+          child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
+        ),
+      );
+    }
+
+    // `FilledButton`/`OutlinedButton` her biri kendi `button: true` +
+    // metin-tabanlı semantics etiketini zaten üretir (bkz. codebase
+    // genelindeki diğer butonlar — "Okumaya başla", "Seriyi incele" vb.);
+    // ek bir dış `Semantics` sarmalayıcı gereksiz, iç içe iki düğüm
+    // oluşturup ekran okuyucuda yinelemeye yol açardı. Bu iki aksiyon zaten
+    // ayrı `SizedBox`/buton olduğundan ayrı ayrı erişilebilirler.
+    final continueLabel = 'Devam et: Bölüm ${progress!.episodeNumber}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: tokens.sizes.minTouchTarget,
+          child: FilledButton(
+            onPressed: () => context.push(
+              '/series/$seriesSlug/read/${progress!.episodeSlug}',
+            ),
+            child: Text(continueLabel),
+          ),
+        ),
+        SizedBox(height: tokens.spacing.sm),
+        SizedBox(
+          height: tokens.sizes.minTouchTarget,
+          child: OutlinedButton(
+            onPressed: () => context.push(
+              '/series/$seriesSlug/read/${firstEpisode.slug}',
+            ),
+            child: const Text('Baştan başla'),
+          ),
+        ),
       ],
     );
   }

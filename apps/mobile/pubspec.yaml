@@ -43,6 +43,13 @@ dependencies:
   # Merkezi API client icin minimum HTTP bagimliligi; dio veya baska agir
   # bir paket eklenmedi (AGENTS.md: gerekcesiz dependency yok).
   http: ^1.6.0
+  # Cihaz-yerel "kaldigin yerden devam et" kaydi icin kalici depolama.
+  # Gerekce (AGENTS.md'nin gerekcesiz dependency yasagina gerekceli istisna):
+  # Flutter ekosisteminin standart, hafif anahtar-deger cozumu; dosya IO'sunu
+  # elle yazmak, test edilmesi zor bir platform-kanali kodunu yeniden icat
+  # etmek olurdu. Daha agir bir cozum (hive/isar/sqflite) bu basit
+  # seri->bolum kaydi icin gerekli degil.
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:

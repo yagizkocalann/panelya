@@ -6,6 +6,8 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../../../features/progress/domain/reading_progress.dart';
+import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/series_card.dart';
 import '../../../shared/widgets/state_views.dart';
@@ -75,6 +77,10 @@ class _DiscoverContent extends ConsumerWidget {
     final featured = selectedGenre == null
         ? findFeaturedSeries(response.series, response.featuredSlug)
         : null;
+    // Cihaz-yerel "kaldığın yerden devam et" kaydı (bkz. PLAN, hesapsız
+    // özellik). Kayıt yoksa şerit hiç render edilmez — boş durum/placeholder
+    // yok (ADR-010).
+    final continueReading = ref.watch(mostRecentReadingProgressProvider);
 
     return RefreshIndicator(
       onRefresh: () => ref.refresh(catalogProvider.future),
@@ -86,6 +92,15 @@ class _DiscoverContent extends ConsumerWidget {
               child: _FeaturedHero(
                 key: const ValueKey('featured-hero'),
                 series: featured,
+              ),
+            ),
+          // Hero'nun ÜSTÜNDE değil altında, ızgaradan önce (bkz. PLAN
+          // "keşif" maddesi).
+          if (continueReading != null)
+            SliverToBoxAdapter(
+              child: _ContinueReadingStrip(
+                key: const ValueKey('continue-reading-strip'),
+                progress: continueReading,
               ),
             ),
           if (genres.isNotEmpty)
@@ -229,6 +244,89 @@ class _FeaturedHero extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// En son okunan seri için kompakt "Okumaya devam et" şeridi — hero'nun
+/// üstünde değil altında, ızgaradan önce (bkz. PLAN "keşif" maddesi).
+/// Yalnız cihaz-yerel bir kayıt varsa çağıran yer (`_DiscoverContent`) bu
+/// widget'ı oluşturur; kayıt yoksa hiç render edilmez (ADR-010 — boş
+/// durum/placeholder yok).
+class _ContinueReadingStrip extends StatelessWidget {
+  const _ContinueReadingStrip({super.key, required this.progress});
+
+  final ReadingProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    final label = '${progress.seriesTitle} · Bölüm ${progress.episodeNumber}';
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        tokens.spacing.md,
+        tokens.spacing.md,
+        tokens.spacing.md,
+        0,
+      ),
+      child: Semantics(
+        button: true,
+        label: 'Okumaya devam et: $label',
+        child: Material(
+          color: tokens.colors.surface2,
+          borderRadius: BorderRadius.circular(tokens.radii.md),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(tokens.radii.md),
+            onTap: () => context.push(
+              '/series/${progress.seriesSlug}/read/${progress.episodeSlug}',
+            ),
+            child: Container(
+              constraints: BoxConstraints(
+                minHeight: tokens.sizes.minTouchTarget,
+              ),
+              padding: EdgeInsets.symmetric(
+                horizontal: tokens.spacing.md,
+                vertical: tokens.spacing.sm,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(tokens.radii.md),
+                border: Border.all(color: tokens.colors.line),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.play_circle_outline_rounded,
+                    color: tokens.colors.mint,
+                  ),
+                  SizedBox(width: tokens.spacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Okumaya devam et',
+                          style: tokens.typography.bodySmall.copyWith(
+                            color: tokens.colors.mint,
+                          ),
+                        ),
+                        Text(
+                          label,
+                          style: tokens.typography.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: tokens.colors.muted),
+                ],
+              ),
+            ),
           ),
         ),
       ),

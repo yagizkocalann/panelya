@@ -7,6 +7,9 @@ import 'package:panelya_mobile/app/theme/tokens.dart';
 import 'package:panelya_mobile/app/theme/tone_gradients.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
+import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
+import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
 import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_providers.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_screen.dart';
@@ -25,6 +28,71 @@ class _FakeReaderRepository implements ReaderRepository {
     String seriesSlug,
     String episodeSlug,
   ) => _result(seriesSlug, episodeSlug);
+}
+
+/// In-memory sahte ilerleme deposu: gerçek implementasyonun upsert
+/// mantığını (bkz. `SharedPreferencesReadingProgressRepository`) taklit
+/// eder ki testler `recordEpisodeOpened`/`recordEpisodeCompleted`
+/// çağrılarının hem yapıldığını hem de doğru veriyi taşıdığını
+/// doğrulayabilsin.
+class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
+  final List<String> openedCalls = [];
+  final List<({String episodeSlug, String? nextEpisodeSlug})> completedCalls =
+      [];
+  final Map<String, ReadingProgress> _store = {};
+
+  @override
+  ReadingProgress? findBySeries(String seriesSlug) => _store[seriesSlug];
+
+  @override
+  ReadingProgress? findMostRecent() {
+    if (_store.isEmpty) return null;
+    return _store.values.reduce(
+      (a, b) => a.updatedAt.isAfter(b.updatedAt) ? a : b,
+    );
+  }
+
+  @override
+  Future<void> recordEpisodeOpened({
+    required String seriesSlug,
+    required String seriesTitle,
+    required String episodeSlug,
+    required int episodeNumber,
+  }) async {
+    openedCalls.add('$seriesSlug/$episodeSlug');
+    _store[seriesSlug] = ReadingProgress(
+      seriesSlug: seriesSlug,
+      seriesTitle: seriesTitle,
+      episodeSlug: episodeSlug,
+      episodeNumber: episodeNumber,
+      updatedAt: DateTime.now(),
+      completed: false,
+    );
+  }
+
+  @override
+  Future<void> recordEpisodeCompleted({
+    required String seriesSlug,
+    required String seriesTitle,
+    required String episodeSlug,
+    required int episodeNumber,
+    String? nextEpisodeSlug,
+    int? nextEpisodeNumber,
+  }) async {
+    completedCalls.add((
+      episodeSlug: episodeSlug,
+      nextEpisodeSlug: nextEpisodeSlug,
+    ));
+    final hasNext = nextEpisodeSlug != null && nextEpisodeNumber != null;
+    _store[seriesSlug] = ReadingProgress(
+      seriesSlug: seriesSlug,
+      seriesTitle: seriesTitle,
+      episodeSlug: hasNext ? nextEpisodeSlug : episodeSlug,
+      episodeNumber: hasNext ? nextEpisodeNumber : episodeNumber,
+      updatedAt: DateTime.now(),
+      completed: !hasNext,
+    );
+  }
 }
 
 /// `.invalid` bir RFC 2606 rezerve alan adıdır: DNS çözümü daima ve hızlı
@@ -89,9 +157,15 @@ Widget _wrap(
   required String seriesSlug,
   required String episodeSlug,
   bool reduceMotion = false,
+  LocalReadingProgressRepository? progressRepository,
 }) {
   return ProviderScope(
-    overrides: [readerRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      readerRepositoryProvider.overrideWithValue(repository),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+    ],
     child: MaterialApp(
       theme: buildAppTheme(),
       builder: reduceMotion
@@ -113,6 +187,7 @@ Widget _wrapWithRouter(
   ReaderRepository repository, {
   required String seriesSlug,
   required String episodeSlug,
+  LocalReadingProgressRepository? progressRepository,
 }) {
   final router = GoRouter(
     initialLocation: '/series/$seriesSlug/read/$episodeSlug',
@@ -134,7 +209,12 @@ Widget _wrapWithRouter(
   );
 
   return ProviderScope(
-    overrides: [readerRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      readerRepositoryProvider.overrideWithValue(repository),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+    ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
   );
 }
@@ -613,4 +693,171 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  group('cihaz-yerel "kaldığın yerden devam et" kaydı', () {
+    List<StoryPanel> tallPanels(int count) => List.generate(
+      count,
+      (i) => StoryPanel(
+        id: 'panel-$i',
+        scene: 'Sahne $i',
+        tone: PanelTone.mint,
+        image: StoryPanelImage(
+          src: _panelImageUrl,
+          alt: 'Panel $i',
+          width: 800,
+          height: 1200,
+        ),
+      ),
+    );
+
+    testWidgets('opening an episode immediately records it as the '
+        'continue target for its series', (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeReaderRepository(
+        (seriesSlug, episodeSlug) async => _manifest(
+          episodeSlug: episodeSlug,
+          number: 2,
+          seriesSlug: 'gece-vardiyasi',
+          seriesTitle: 'Gece Vardiyası',
+        ),
+      );
+      final progressRepository = _FakeReadingProgressRepository();
+
+      await tester.pumpWidget(
+        _wrap(
+          repository,
+          seriesSlug: 'gece-vardiyasi',
+          episodeSlug: 'bolum-2',
+          progressRepository: progressRepository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(progressRepository.openedCalls, ['gece-vardiyasi/bolum-2']);
+      final stored = progressRepository.findBySeries('gece-vardiyasi');
+      expect(stored, isNotNull);
+      expect(stored!.episodeSlug, 'bolum-2');
+      expect(stored.episodeNumber, 2);
+      expect(stored.seriesTitle, 'Gece Vardiyası');
+      expect(stored.completed, isFalse);
+    });
+
+    testWidgets(
+      'scrolling to the end of an episode that has a next episode advances '
+      'the continue target to that next episode',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) async => _manifest(
+            episodeSlug: 'bolum-1',
+            number: 1,
+            panels: tallPanels(4),
+            next: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
+          ),
+        );
+        final progressRepository = _FakeReadingProgressRepository();
+
+        await tester.pumpWidget(
+          _wrap(
+            repository,
+            seriesSlug: 'gece-vardiyasi',
+            episodeSlug: 'bolum-1',
+            progressRepository: progressRepository,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Uzun (4 panelli) içerik viewport'a sığmadığından bu noktada
+        // henüz "bitti" kaydı YOK; yalnız açılış kaydedildi.
+        expect(progressRepository.completedCalls, isEmpty);
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -20000),
+          3000,
+        );
+        await tester.pumpAndSettle();
+
+        expect(progressRepository.completedCalls, hasLength(1));
+        expect(progressRepository.completedCalls.single.episodeSlug, 'bolum-1');
+        expect(
+          progressRepository.completedCalls.single.nextEpisodeSlug,
+          'bolum-2',
+        );
+
+        final stored = progressRepository.findBySeries('gece-vardiyasi');
+        expect(stored!.episodeSlug, 'bolum-2');
+        expect(stored.episodeNumber, 2);
+        expect(stored.completed, isFalse);
+      },
+    );
+
+    testWidgets(
+      'scrolling to the end of the last episode (no next) marks the '
+      'progress record completed, still pointing at that episode',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) async => _manifest(
+            episodeSlug: 'bolum-3',
+            number: 3,
+            panels: tallPanels(4),
+          ),
+        );
+        final progressRepository = _FakeReadingProgressRepository();
+
+        await tester.pumpWidget(
+          _wrap(
+            repository,
+            seriesSlug: 'gece-vardiyasi',
+            episodeSlug: 'bolum-3',
+            progressRepository: progressRepository,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, -20000),
+          3000,
+        );
+        await tester.pumpAndSettle();
+
+        final stored = progressRepository.findBySeries('gece-vardiyasi');
+        expect(stored!.episodeSlug, 'bolum-3');
+        expect(stored.episodeNumber, 3);
+        expect(stored.completed, isTrue);
+      },
+    );
+
+    testWidgets(
+      'a short episode that already fits the viewport (no scrolling '
+      'needed) is recorded as completed without any user scroll',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) async => _manifest(
+            episodeSlug: 'bolum-1',
+            number: 1,
+            panels: const [_panelWithoutImage],
+          ),
+        );
+        final progressRepository = _FakeReadingProgressRepository();
+
+        await tester.pumpWidget(
+          _wrap(
+            repository,
+            seriesSlug: 'gece-vardiyasi',
+            episodeSlug: 'bolum-1',
+            progressRepository: progressRepository,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(progressRepository.completedCalls, hasLength(1));
+        final stored = progressRepository.findBySeries('gece-vardiyasi');
+        expect(stored!.completed, isTrue);
+      },
+    );
+  });
 }

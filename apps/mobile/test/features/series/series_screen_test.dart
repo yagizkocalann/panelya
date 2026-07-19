@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
+import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
+import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
 import 'package:panelya_mobile/features/series/domain/series_repository.dart';
 import 'package:panelya_mobile/features/series/presentation/series_providers.dart';
 import 'package:panelya_mobile/features/series/presentation/series_screen.dart';
@@ -16,6 +19,64 @@ class _FakeSeriesRepository implements SeriesRepository {
 
   @override
   Future<SeriesDetailResponse> fetchSeriesDetail(String slug) => _result(slug);
+}
+
+/// In-memory sahte ilerleme deposu (bkz. `reader_screen_test.dart`'taki
+/// eşdeğeri): seri detay ekranının "Devam et" / "Baştan başla" kararını,
+/// gerçek `SharedPreferences` deposuna dokunmadan test etmeyi sağlar.
+class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
+  _FakeReadingProgressRepository([Map<String, ReadingProgress>? seed])
+    : _store = {...?seed};
+
+  final Map<String, ReadingProgress> _store;
+
+  @override
+  ReadingProgress? findBySeries(String seriesSlug) => _store[seriesSlug];
+
+  @override
+  ReadingProgress? findMostRecent() {
+    if (_store.isEmpty) return null;
+    return _store.values.reduce(
+      (a, b) => a.updatedAt.isAfter(b.updatedAt) ? a : b,
+    );
+  }
+
+  @override
+  Future<void> recordEpisodeOpened({
+    required String seriesSlug,
+    required String seriesTitle,
+    required String episodeSlug,
+    required int episodeNumber,
+  }) async {
+    _store[seriesSlug] = ReadingProgress(
+      seriesSlug: seriesSlug,
+      seriesTitle: seriesTitle,
+      episodeSlug: episodeSlug,
+      episodeNumber: episodeNumber,
+      updatedAt: DateTime.now(),
+      completed: false,
+    );
+  }
+
+  @override
+  Future<void> recordEpisodeCompleted({
+    required String seriesSlug,
+    required String seriesTitle,
+    required String episodeSlug,
+    required int episodeNumber,
+    String? nextEpisodeSlug,
+    int? nextEpisodeNumber,
+  }) async {
+    final hasNext = nextEpisodeSlug != null && nextEpisodeNumber != null;
+    _store[seriesSlug] = ReadingProgress(
+      seriesSlug: seriesSlug,
+      seriesTitle: seriesTitle,
+      episodeSlug: hasNext ? nextEpisodeSlug : episodeSlug,
+      episodeNumber: hasNext ? nextEpisodeNumber : episodeNumber,
+      updatedAt: DateTime.now(),
+      completed: !hasNext,
+    );
+  }
 }
 
 SeriesMetadata _metadata({
@@ -70,9 +131,18 @@ List<EpisodeSummary> _episodesNewestFirst() => const [
   ),
 ];
 
-Widget _wrap(SeriesRepository repository, {required String slug}) {
+Widget _wrap(
+  SeriesRepository repository, {
+  required String slug,
+  LocalReadingProgressRepository? progressRepository,
+}) {
   return ProviderScope(
-    overrides: [seriesRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      seriesRepositoryProvider.overrideWithValue(repository),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+    ],
     child: MaterialApp(
       theme: buildAppTheme(),
       home: SeriesScreen(slug: slug),
@@ -85,7 +155,11 @@ Widget _wrap(SeriesRepository repository, {required String slug}) {
 /// `ReaderScreen` yerine yalnız hedef slug'ları görünür kılan bir işaretçi
 /// widget'tır (okuyucunun kendi provider bağımlılıklarını kurmadan, salt
 /// navigasyon hedefini doğrulamak için).
-Widget _wrapWithRouter(SeriesRepository repository, {required String slug}) {
+Widget _wrapWithRouter(
+  SeriesRepository repository, {
+  required String slug,
+  LocalReadingProgressRepository? progressRepository,
+}) {
   final router = GoRouter(
     initialLocation: '/series/$slug',
     routes: [
@@ -106,7 +180,12 @@ Widget _wrapWithRouter(SeriesRepository repository, {required String slug}) {
   );
 
   return ProviderScope(
-    overrides: [seriesRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      seriesRepositoryProvider.overrideWithValue(repository),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+    ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
   );
 }
@@ -287,5 +366,121 @@ void main() {
     await tester.pumpAndSettle();
 
     await _revealText(tester, 'Okumaya başla · Bölüm 1');
+  });
+
+  group('cihaz-yerel "kaldığın yerden devam et" kaydı', () {
+    testWidgets(
+      'with no local progress record, shows only "Okumaya başla" (no '
+      '"Devam et"/"Baştan başla" pair)',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeSeriesRepository(
+          (slug) async => SeriesDetailResponse(
+            schemaVersion: '1.0',
+            series: _metadata(),
+            episodes: _episodesNewestFirst(),
+          ),
+        );
+
+        await tester.pumpWidget(
+          _wrap(
+            repository,
+            slug: 'gece-vardiyasi',
+            progressRepository: _FakeReadingProgressRepository(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await _revealText(tester, 'Okumaya başla · Bölüm 1');
+        expect(find.textContaining('Devam et:'), findsNothing);
+        expect(find.text('Baştan başla'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'with a local progress record, shows "Devam et: Bölüm N" as the '
+      'primary action and "Baştan başla" as a secondary action, each '
+      'navigating to the expected episode',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeSeriesRepository(
+          (slug) async => SeriesDetailResponse(
+            schemaVersion: '1.0',
+            series: _metadata(),
+            episodes: _episodesNewestFirst(),
+          ),
+        );
+        final progressRepository = _FakeReadingProgressRepository({
+          'gece-vardiyasi': ReadingProgress(
+            seriesSlug: 'gece-vardiyasi',
+            seriesTitle: 'Gece Vardiyası',
+            episodeSlug: 'bolum-2',
+            episodeNumber: 2,
+            updatedAt: DateTime(2026, 7, 18),
+            completed: false,
+          ),
+        });
+
+        await tester.pumpWidget(
+          _wrapWithRouter(
+            repository,
+            slug: 'gece-vardiyasi',
+            progressRepository: progressRepository,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Eski "Okumaya başla" artık görünmüyor; yerine "Devam et" +
+        // "Baştan başla" çifti var.
+        expect(find.textContaining('Okumaya başla'), findsNothing);
+        await _revealText(tester, 'Devam et: Bölüm 2');
+        expect(find.text('Baştan başla'), findsOneWidget);
+
+        await tester.tap(find.text('Devam et: Bölüm 2'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('READER:gece-vardiyasi/bolum-2'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '"Baştan başla" always navigates to the first episode (lowest '
+      'number), even when the continue target is a later episode',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeSeriesRepository(
+          (slug) async => SeriesDetailResponse(
+            schemaVersion: '1.0',
+            series: _metadata(),
+            episodes: _episodesNewestFirst(),
+          ),
+        );
+        final progressRepository = _FakeReadingProgressRepository({
+          'gece-vardiyasi': ReadingProgress(
+            seriesSlug: 'gece-vardiyasi',
+            seriesTitle: 'Gece Vardiyası',
+            episodeSlug: 'bolum-3',
+            episodeNumber: 3,
+            updatedAt: DateTime(2026, 7, 18),
+            completed: true,
+          ),
+        });
+
+        await tester.pumpWidget(
+          _wrapWithRouter(
+            repository,
+            slug: 'gece-vardiyasi',
+            progressRepository: progressRepository,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await _revealText(tester, 'Baştan başla');
+        await tester.tap(find.text('Baştan başla'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('READER:gece-vardiyasi/bolum-1'), findsOneWidget);
+      },
+    );
   });
 }

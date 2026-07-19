@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/app/theme/tokens.dart';
 import 'package:panelya_mobile/app/theme/tone_gradients.dart';
@@ -9,6 +10,9 @@ import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_screen.dart';
+import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
+import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
+import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
 
 class _FakeDiscoverRepository implements DiscoverRepository {
   _FakeDiscoverRepository(this._result);
@@ -17,6 +21,65 @@ class _FakeDiscoverRepository implements DiscoverRepository {
 
   @override
   Future<CatalogResponse> fetchCatalog() => _result();
+}
+
+/// In-memory sahte ilerleme deposu (bkz. `series_screen_test.dart`'taki
+/// eşdeğeri): keşif ekranındaki "Okumaya devam et" şeridinin varlığını/
+/// yokluğunu, gerçek `SharedPreferences` deposuna dokunmadan test etmeyi
+/// sağlar.
+class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
+  _FakeReadingProgressRepository([Map<String, ReadingProgress>? seed])
+    : _store = {...?seed};
+
+  final Map<String, ReadingProgress> _store;
+
+  @override
+  ReadingProgress? findBySeries(String seriesSlug) => _store[seriesSlug];
+
+  @override
+  ReadingProgress? findMostRecent() {
+    if (_store.isEmpty) return null;
+    return _store.values.reduce(
+      (a, b) => a.updatedAt.isAfter(b.updatedAt) ? a : b,
+    );
+  }
+
+  @override
+  Future<void> recordEpisodeOpened({
+    required String seriesSlug,
+    required String seriesTitle,
+    required String episodeSlug,
+    required int episodeNumber,
+  }) async {
+    _store[seriesSlug] = ReadingProgress(
+      seriesSlug: seriesSlug,
+      seriesTitle: seriesTitle,
+      episodeSlug: episodeSlug,
+      episodeNumber: episodeNumber,
+      updatedAt: DateTime.now(),
+      completed: false,
+    );
+  }
+
+  @override
+  Future<void> recordEpisodeCompleted({
+    required String seriesSlug,
+    required String seriesTitle,
+    required String episodeSlug,
+    required int episodeNumber,
+    String? nextEpisodeSlug,
+    int? nextEpisodeNumber,
+  }) async {
+    final hasNext = nextEpisodeSlug != null && nextEpisodeNumber != null;
+    _store[seriesSlug] = ReadingProgress(
+      seriesSlug: seriesSlug,
+      seriesTitle: seriesTitle,
+      episodeSlug: hasNext ? nextEpisodeSlug : episodeSlug,
+      episodeNumber: hasNext ? nextEpisodeNumber : episodeNumber,
+      updatedAt: DateTime.now(),
+      completed: !hasNext,
+    );
+  }
 }
 
 CatalogResponse _catalogWith(
@@ -68,13 +131,55 @@ SeriesSummary _series(
   );
 }
 
-Widget _wrap(DiscoverRepository repository) {
+Widget _wrap(
+  DiscoverRepository repository, {
+  LocalReadingProgressRepository? progressRepository,
+}) {
   return ProviderScope(
-    overrides: [discoverRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      discoverRepositoryProvider.overrideWithValue(repository),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+    ],
     child: MaterialApp(
       theme: buildAppTheme(),
       home: const DiscoverScreen(),
     ),
+  );
+}
+
+/// `context.push` gerektiren şerit dokunuşunu test etmek için gerçek bir
+/// go_router kurar; okuyucu rotası gerçek `ReaderScreen` yerine yalnız
+/// hedef slug'ları görünür kılan bir işaretçi widget'tır (bkz.
+/// `series_screen_test.dart`'taki aynı desen).
+Widget _wrapWithRouter(
+  DiscoverRepository repository, {
+  LocalReadingProgressRepository? progressRepository,
+}) {
+  final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (context, state) => const DiscoverScreen()),
+      GoRoute(
+        path: '/series/:slug/read/:episodeSlug',
+        builder: (context, state) => Scaffold(
+          body: Text(
+            'READER:${state.pathParameters['slug']}/${state.pathParameters['episodeSlug']}',
+          ),
+        ),
+      ),
+    ],
+  );
+
+  return ProviderScope(
+    overrides: [
+      discoverRepositoryProvider.overrideWithValue(repository),
+      readingProgressRepositoryProvider.overrideWithValue(
+        progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+    ],
+    child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
   );
 }
 
@@ -292,5 +397,110 @@ void main() {
 
     expect(find.byKey(_heroFinder), findsOneWidget);
     expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
+  });
+
+  group('"Okumaya devam et" şeridi (cihaz-yerel kaldığın yerden devam et)', () {
+    const continueStrip = ValueKey('continue-reading-strip');
+
+    testWidgets(
+      'with no local progress record, the strip is not rendered at all '
+      '(ADR-010 — no empty state/placeholder)',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoverRepository(
+          () async =>
+              _catalogWith([_series('gece-vardiyasi', 'Gece Vardiyası')]),
+        );
+
+        await tester.pumpWidget(
+          _wrap(repository, progressRepository: _FakeReadingProgressRepository()),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(continueStrip), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'with a local progress record, renders the strip below the hero and '
+      'above the grid, showing the series title and episode number',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoverRepository(
+          () async => _catalogWith([
+            _series('gece-vardiyasi', 'Gece Vardiyası'),
+            _series('yarinki-ses', 'Yarınki Ses'),
+          ]),
+        );
+        final progressRepository = _FakeReadingProgressRepository({
+          'gece-vardiyasi': ReadingProgress(
+            seriesSlug: 'gece-vardiyasi',
+            seriesTitle: 'Gece Vardiyası',
+            episodeSlug: 'bolum-2',
+            episodeNumber: 2,
+            updatedAt: DateTime(2026, 7, 18),
+            completed: false,
+          ),
+        });
+
+        await tester.pumpWidget(
+          _wrap(repository, progressRepository: progressRepository),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(continueStrip), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(continueStrip),
+            matching: find.textContaining('Gece Vardiyası'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(continueStrip),
+            matching: find.textContaining('Bölüm 2'),
+          ),
+          findsOneWidget,
+        );
+
+        // Sıra: hero -> devam-et şeridi -> ızgara (bkz. PLAN "keşif"
+        // maddesi — hero'nun üstünde değil altında, ızgaradan önce).
+        final heroBox = tester.getRect(find.byKey(_heroFinder));
+        final stripBox = tester.getRect(find.byKey(continueStrip));
+        final gridCardBox = tester.getRect(_seriesCard('gece-vardiyasi'));
+        expect(stripBox.top, greaterThanOrEqualTo(heroBox.bottom));
+        expect(gridCardBox.top, greaterThanOrEqualTo(stripBox.bottom));
+      },
+    );
+
+    testWidgets('tapping the strip navigates to the recorded episode', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoverRepository(
+        () async => _catalogWith([_series('gece-vardiyasi', 'Gece Vardiyası')]),
+      );
+      final progressRepository = _FakeReadingProgressRepository({
+        'gece-vardiyasi': ReadingProgress(
+          seriesSlug: 'gece-vardiyasi',
+          seriesTitle: 'Gece Vardiyası',
+          episodeSlug: 'bolum-2',
+          episodeNumber: 2,
+          updatedAt: DateTime(2026, 7, 18),
+          completed: false,
+        ),
+      });
+
+      await tester.pumpWidget(
+        _wrapWithRouter(repository, progressRepository: progressRepository),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(continueStrip));
+      await tester.pumpAndSettle();
+
+      expect(find.text('READER:gece-vardiyasi/bolum-2'), findsOneWidget);
+    });
   });
 }
