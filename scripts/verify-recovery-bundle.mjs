@@ -24,10 +24,13 @@ export const REQUIRED_D1_TABLES = Object.freeze([
   "preview_tokens",
   "rate_limit_buckets",
   "reading_progress",
+  "review_likes",
+  "review_replies",
   "review_reports",
   "reviews",
   "series_subscriptions",
   "sessions",
+  "user_blocks",
   "users",
 ]);
 

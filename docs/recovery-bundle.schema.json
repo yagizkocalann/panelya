@@ -22,8 +22,8 @@
             "sha256": { "$ref": "#/$defs/sha256" },
             "requiredTables": {
               "type": "array",
-              "minItems": 19,
-              "maxItems": 19,
+              "minItems": 22,
+              "maxItems": 22,
               "uniqueItems": true,
               "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
             }

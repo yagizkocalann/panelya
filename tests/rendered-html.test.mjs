@@ -273,6 +273,9 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(schema, /sqliteTable\("rate_limit_buckets"/);
   assert.match(schema, /sqliteTable\("reviews"/);
   assert.match(schema, /sqliteTable\("review_reports"/);
+  assert.match(schema, /sqliteTable\("review_replies"/);
+  assert.match(schema, /sqliteTable\("review_likes"/);
+  assert.match(schema, /sqliteTable\("user_blocks"/);
   assert.equal(JSON.parse(hosting).d1, "DB");
   assert.match(authActions, /href="\/login"/);
   assert.match(studio, /user\.role !== "admin"/);
@@ -292,9 +295,55 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(studio, /href="\/qa"/);
   assert.match(studio, /Manuel QA kuyruğu/);
   assert.match(moderationPage, /Yorumu gizle ve çöz/);
+  assert.match(moderationPage, /Son yorum yanıtları/);
   assert.doesNotMatch(moderationPage, /disabled/);
   assert.match(proxy, /isStudioRequest/);
   assert.match(proxy, /url\.pathname\.startsWith\("\/api\/admin\/"\)/);
+});
+
+test("yorum yanıtı, beğeni ve kullanıcı engelleme kalıcı ve güvenli topluluk akışına bağlıdır", async () => {
+  const [database, community, seriesPage, accountPage, replyApi, likeApi, blockApi, replyModerationApi, qaPage, manualQa, migration] = await Promise.all([
+    readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/reviews.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/review-replies/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/review-likes/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/blocks/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/moderation/replies/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/qa/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0013_parched_leech.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS review_replies/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS review_likes/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS user_blocks/);
+  assert.match(community, /mutualBlockFilter/);
+  assert.match(community, /review_likes mine/);
+  assert.match(seriesPage, /\/api\/review-replies\//);
+  assert.match(seriesPage, /\/api\/review-likes\//);
+  assert.match(seriesPage, /\/api\/blocks\//);
+  assert.match(accountPage, /Engellenen kullanıcılar/);
+  for (const route of [replyApi, likeApi, blockApi, replyModerationApi]) {
+    assert.match(route, /assertSameOrigin\(request\)/);
+    assert.match(route, /getCurrentUser\(\)/);
+  }
+  assert.match(replyApi, /body\.length < 2 \|\| body\.length > 500/);
+  assert.match(replyApi, /reply\.user_id !== user\.id/);
+  assert.match(likeApi, /INSERT OR IGNORE INTO review_likes/);
+  assert.match(blockApi, /targetUserId === user\.id/);
+  assert.match(blockApi, /action"\) === "unblock"/);
+  assert.match(replyModerationApi, /user\.role !== "admin"/);
+  assert.match(qaPage, /QA-COMM-02/);
+  assert.match(manualQa, /QA-COMM-02/);
+  assert.match(migration, /CREATE TABLE `review_replies`/);
+  assert.match(migration, /CREATE TABLE `review_likes`/);
+  assert.match(migration, /CREATE TABLE `user_blocks`/);
+
+  const crossSiteReply = await request("/api/review-replies/example", "text/html", "http://localhost:3000", { method: "POST" });
+  assert.equal(crossSiteReply.status, 403);
+  const unauthenticatedReply = await request("/api/review-replies/example", "text/html", "http://localhost:3000", { method: "POST", headers: { origin: "http://localhost:3000" } });
+  assert.ok([302, 303, 307, 308].includes(unauthenticatedReply.status));
 });
 
 test("kütüphane aktif durumu, seri takibi ve yeni bölüm bildirimi aynı kalıcı okuyucu akışına bağlıdır", async () => {

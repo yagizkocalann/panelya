@@ -134,6 +134,28 @@ async function ensureSchema(db: D1Database) {
       updated_at INTEGER NOT NULL,
       UNIQUE(review_id, reporter_user_id)
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS review_replies (
+      id TEXT PRIMARY KEY NOT NULL,
+      review_id TEXT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'published' CHECK(status IN ('published','hidden')),
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS review_likes (
+      review_id TEXT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (review_id, user_id)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS user_blocks (
+      blocker_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      blocked_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (blocker_user_id, blocked_user_id),
+      CHECK(blocker_user_id <> blocked_user_id)
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS content_series (
       slug TEXT PRIMARY KEY NOT NULL,
       title TEXT NOT NULL,
@@ -242,6 +264,9 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS reviews_series_idx ON reviews(series_slug, status, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS review_reports_status_idx ON review_reports(status, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS review_reports_review_idx ON review_reports(review_id, status)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS review_replies_review_idx ON review_replies(review_id, status, created_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS review_replies_user_idx ON review_replies(user_id, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS user_blocks_blocked_idx ON user_blocks(blocked_user_id, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_series_publication_idx ON content_series(publication_status, is_featured DESC, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_series_discovery_updated_idx ON content_series(publication_status, story_status, updated_at DESC, slug)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_series_discovery_rating_idx ON content_series(publication_status, story_status, rating DESC, slug)"),

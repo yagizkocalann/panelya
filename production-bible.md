@@ -26,6 +26,7 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: yerel hesap, oturum, profil/sifre/hesap silme, kutuphane, favori, okuma durumu, hesaplar arasi okuma ilerlemesi, rol korumali Studio kabugu, kurumsal/yasal bilgi sayfalari ve lokal iletisim mesaj kutusu.
 - Tamamlanan: yerel e-posta dogrulama, sifre sifirlama, oturum iptali, D1 outbox bildirim adaptoru ve hassas auth uclarinda sabit pencereli yerel rate limit.
 - Tamamlanan: seri bazli puan/yorum, spoiler gizleme, okuyucu raporlama ve Studio moderasyon kuyrugu.
+- Tamamlanan: tek seviyeli yorum yanitlari, idempotent yorum begenileri, iki yonlu gorunurluk/etkilesim siniri koyan kullanici engelleme ve Studio yanit moderasyonu.
 - Tamamlanan: Studio'da seri ve bolum CRUD, taslak/yayin/arsiv durumlari, one cikarma ve D1 tabanli public katalog yayini.
 - Tamamlanan: Studio R2 kapak/panel yukleme, JPEG/PNG/WebP dosya-imza-boyut-piksel dogrulamasi, D1 medya metadata'si ve yayin durumuna bagli public medya servisi.
 - Tamamlanan: Studio bolum ekraninda panel siralama, yalniz Studio yuklemesi olan panel baglantisini kaynak R2 nesnesini silmeden kaldirma ve medya ekraninda kapak gecmisinden geri yukleme; tum mutation'lar audit kaydi uretir.
@@ -42,7 +43,7 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: yayinlanmis katalog icin Turkce karakterleri normalize eden D1 `search_text` alani; baslik/uretici/tur aramasi, tur ve yayin durumu filtresi, guncelleme/puan/ad siralamasi ve slug ile birlikte kararli keyset cursor sayfalama. Mevcut `/api/catalog` JSON sozlesmesi degismemistir.
 - Siradaki: deployment ortaminda Queue producer/consumer, Images, rate-limit namespace ve dead-letter politikasini provision edip readiness + gercek servis smoke testlerini calistirmak; yonetilen kimlik/canli e-posta saglayicisi karari.
 - D1 tablolarina gecis hesap ve katalog verisi icin tamamlandi. Medya yerelde R2 binding emulasyonu kullanir; production bucket yasam dongusu ile Queue kaynagi deployment oncesi platform ayarlarinda provision edilir.
-- Yorum yaniti/begeni/engelleme, telif bildirim sureci, analitik ve hata izleme.
+- Telif bildirim sureci, analitik ve hata izleme.
 
 P2:
 
@@ -69,6 +70,9 @@ User 1---N ReadingProgress N---1 Episode
 User 1---N LibraryItem N---1 Series
 User 1---N SeriesSubscription N---1 Series
 User 1---N Review N---1 Series
+Review 1---N ReviewReply
+Review N---N User (ReviewLike)
+User N---N User (UserBlock)
 ```
 
 Episode sirasinda gorunen etiket ile dahili `sequence` ayridir; prolog/0/ara bolumleri destekler. Her EpisodeAsset `position`, `width`, `height`, `mimeType`, `storageKey` ve `blurData` tasir.
@@ -87,7 +91,10 @@ Episode sirasinda gorunen etiket ile dahili `sequence` ayridir; prolog/0/ara bol
 - `POST /api/admin/messages/:id`: admin mesaj durumu guncelleme.
 - `POST /api/reviews/:slug`: kullanicinin seri degerlendirmesini ekleme, guncelleme veya silme.
 - `POST /api/review-reports/:id`: yayindaki bir yorumu neden ve istege bagli aciklamayla raporlama.
-- `POST /api/admin/moderation/*`: yorumu gizleme/yayinlama ve raporu cozme/reddetme.
+- `POST /api/review-replies/:id`: yayindaki yoruma tek seviyeli yanit ekleme veya kendi yanitini silme.
+- `POST /api/review-likes/:id`: yayindaki yorumun begenisini idempotent ekleme veya kaldirma.
+- `POST /api/blocks/:id`: kullaniciyi engelleme veya hesap ekranindan engeli kaldirma.
+- `POST /api/admin/moderation/*`: yorumu/yaniti gizleme-yayinlama ve raporu cozme-reddetme.
 - `POST /api/admin/content/series`, `POST /api/admin/content/episodes`: Studio hostuna, admin rolune ve ayni-origin kontrolune bagli icerik mutation'lari.
 - `POST /api/admin/media`: Studio hostunda admin dosya dogrulamasi, R2 yazimi ve icerik baglantisi.
 - `GET /api/admin/media/:id`: host-only Studio oturumuna bagli private onizleme.
@@ -185,3 +192,4 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-031 / Public SEO siniri: `metadataBase`, canonical, robots ve sitemap URL'leri `PUBLIC_SITE_ORIGIN` tanimliysa onu, yerel QA'da request hostundan turetilen public localhost originini kullanir. Public robots API, hesap/auth, preview ve Studio yollarini taramaya kapatir; Studio hostunun `/robots.txt` cevabi proxy katmaninda tum taramayi reddeder. Sitemap okuyucu bolumlerini kapsamaz cunku okuyucu `noindex,follow` kalir; yalniz kurumsal sayfalar ile D1'de yayinlanmis ve en az bir yayinlanmis bolumu bulunan seri sayfalari listelenir. Seri JSON-LD'si Schema.org `ComicSeries` ve `ComicIssue` tiplerini, ekrandaki yayin verisini ve absolute public URL'leri kullanir; Studio girdisi script kapanisi uretemesin diye JSON icindeki `<` karakterleri Unicode escape edilir. Taslak, preview, hesap, API ve Studio verisi structured data veya sitemap'e girmez.
 - ADR-032 / Okuyucu takibi ve yayin bildirimi: Kutuphane/favori okuma organizasyonu, `series_subscriptions` ise seriyi takip ve yeni bolum tercihi icindir; biri digerini otomatik zorunlu kilmaz. Seri sayfasi her iki durumu da D1'den server-render eder. Yalniz yayindaki seride bir bolum ilk kez `published` durumuna gectiginde e-postasi dogrulanmis ve bildirimi acik takipciler vendor-bagimsiz `NotificationDelivery` hattina verilir. Yerel outbox `new_episode` turunu 7 gun tutar; kullanici-seri-bolum dedupe anahtari tekrar yayinlama veya yeniden denemede kopya kayit olusturmaz. Bildirim fan-out hatasi bolum yayinini geri almaz, Studio'da gorunur uyari ve sayisal audit sonucu uretir; production saglayicisi ayni idempotency sozlesmesini korur.
 - ADR-033 / Katalog kesfi ve cursor: Web katalog kesfi yayinlanmis ve en az bir yayinlanmis bolumu olan D1 serilerini kullanir. Studio yazimlari ve mevcut kayit backfill'i, baslik/uretici/aciklama/turlerden Turkce karakterleri ASCII arama esdegerine katlayan `search_text` alanini tek kaynaktan uretir. Tur filtresi JSON1 ile tam deger, durum filtresi domain enum'u ile uygulanir; siralama `updated`/`rating`/`title` allowlist'inden secilir. Cursor surum, normalize filtre kapsami, siralama degeri ve slug ikilisini base64url zarfinda tasir; gecersiz, baska filtreye veya siralamaya ait cursor ilk sayfaya guvenli duser. Cursor guvenlik yetkisi degildir ve hassas veri tasimaz. Bu web dilimi `/api/catalog` cevap govdesini degistirmez; mobil arama endpoint'i gerektiginde JSON Schema/OpenAPI uzerinden ayri ortak PR ile tanimlanir.
+- ADR-034 / Topluluk etkilesim grafigi: Yanitlar yalniz bir ust yoruma baglanan tek seviyeli kayitlardir; sonsuz zincir olusturmaz. Yorum begenisi kullanici-yorum bilesik anahtariyla idempotenttir. Engelleme ozel bir hesap tercihidir: engelleyen ve engellenen birbirlerinin yorum/yanitlarini gormez ve birbirleriyle yanit/begeni etkilesimine giremez; bu tercih diger okuyuculara global moderasyon veya ban olarak yansitilmaz. Engellenen hesap listesi yalniz hesap sahibine aciktir ve engel geri alinabilir. Yanit yayini Studio admini tarafindan gizlenebilir/yeniden acilabilir; bu web dilimi mevcut mobil contracts/API cevaplarini degistirmez, mobil topluluk endpoint'leri ortak sozlesmede ayrica surumlenir.

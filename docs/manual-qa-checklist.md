@@ -21,6 +21,7 @@ Durumlar:
 | QA-MED-02 | BEKLIYOR | Production responsive kuyruk teslimi | Studio `/media` + Cloudflare Queue test ortami | `cloudflare_queue` modunda is teslim edilmeli ve worker varyanti tamamlamali; eksik binding'de basarili gorunmemeli; yeniden gonderme ayni varyanti cogaltmamalidir. |
 | QA-PREV-01 | BEKLIYOR | Guvenli taslak onizleme | Studio seri/bolum editoru | Link taslagi gostermeli; kapsam disi medya acilmamali; iptal ve 30 dakika bitisinden sonra link calismamali. |
 | QA-COMM-01 | BEKLIYOR | Puan, yorum, spoiler ve raporlama | Public seri sayfasi + Studio `/moderation` | Yorum ekle/guncelle/sil, spoiler gizleme, rapor, gizleme/yayinlama ve rapor cozum akislarini iki farkli test hesapla dene. |
+| QA-COMM-02 | BEKLIYOR | Yorum yaniti, begeni ve kullanici engelleme | Public seri sayfasi + `/account` + Studio `/moderation`; on kosul: e-postasi dogrulanmis iki test hesabi | A hesabi B'nin yorumunu begenip geri alabilmeli ve tek seviyeli yanit yazip silebilmeli. B engellenince iki hesap birbirinin yorum/yanitlarini gormemeli ve etkilesim reddedilmeli; `/account`tan engel kaldirilinca icerik geri gelmeli. Admin yaniti gizleyip yeniden yayinlayabilmeli. 1440/1024/768/390/360 px'te aksiyonlar ulasilabilir ve en az 44 px olmali. |
 | QA-FOL-01 | BEKLIYOR | Kutuphane, favori, takip ve yeni bolum bildirimi | Public seri sayfasi + `/library`; Studio `/content` + `/outbox` | Iki test hesapla kutuphane/favori aktif durumlarini, takipten bagimsizligini ve bildirim tercihini dogrula. Yayindaki seriye ilk kez yeni bolum yayinlandiginda yalniz tercihi acik ve dogrulanmis takipci icin tek `Yeni bolum` outbox kaydi olusmali; yeniden kaydetme kopya uretmemeli. |
 | QA-CAT-01 | BEKLIYOR | Katalog arama, filtre, siralama ve cursor | `http://localhost:3000/?view=catalog`; on kosul: en az 8 yayinlanmis seri | Turkce karakterli baslik/uretici aramasi, tur ve devam/tamamlandi filtreleri, uc siralama ve `Sonraki sonuclar` baglantisi dogru kalmali; sayfalar arasi seri tekrari olmamali, bozuk cursor ilk sayfaya guvenli dusmeli. 1440/1024/768/390/360 px'te form ve pagination ulasilabilir olmali. |
 | QA-ROLE-01 | BEKLIYOR | Kullanici rol yonetimi | Studio `/users` | Kendi rolunu degistirememe, son admin korumasi ve rol degisince hedef oturumlarin kapanmasi dogrulanmali. |
@@ -52,6 +53,11 @@ Durumlar:
 - [ ] `QA-ACC-03` Aktif oturum listesi, tek oturum ve diger tum oturumlari kapatma calisiyor.
 - [ ] `QA-ACC-04` Hassas auth uclarinda rate-limit mesaji gorunuyor ve hesap varligini sizdirmiyor.
 - [ ] `QA-ACC-05` Eszamanli istekler atomik D1 kotasini asamiyor; Cloudflare edge reddi D1 mutation'ina ulasmadan istegi durduruyor.
+
+### Topluluk
+
+- [ ] `QA-COMM-01` Degerlendirme, spoiler, rapor ve yorum moderasyonu iki dogrulanmis hesapla calisiyor.
+- [ ] `QA-COMM-02` Yanit/begeni/engelleme/engel kaldirma ve Studio yanit moderasyonu iki dogrulanmis hesapla calisiyor; engel global ban etkisi yaratmiyor.
 
 ### Studio operasyonu
 

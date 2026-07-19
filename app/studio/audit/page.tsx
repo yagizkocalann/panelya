@@ -26,10 +26,16 @@ const actionLabels: Record<string, string> = {
   "media.derivative_completed": "Responsive varyant tamamlandı",
   "preview.created": "Taslak önizleme oluşturuldu",
   "preview.revoked": "Taslak önizleme iptal edildi",
+  "review.replied": "Yoruma yanıt verildi",
+  "review.reply_deleted": "Yorum yanıtı silindi",
+  "account.user_blocked": "Kullanıcı engellendi",
+  "account.user_unblocked": "Kullanıcı engeli kaldırıldı",
+  "moderation.reply_hide": "Yorum yanıtı gizlendi",
+  "moderation.reply_publish": "Yorum yanıtı yeniden yayınlandı",
 };
 
 function metadataLabel(key: string) {
-  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü" };
+  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", replyId: "Yanıt", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü" };
   return labels[key] ?? key;
 }
 
