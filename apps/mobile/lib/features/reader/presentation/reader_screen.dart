@@ -8,6 +8,7 @@ import '../../../app/theme/tone_gradients.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/api/media_url.dart';
+import '../../../core/api/media_variant_selector.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
@@ -417,7 +418,6 @@ class _PanelBlock extends StatelessWidget {
       );
     }
 
-    final imageUrl = resolveMediaUrl(apiOrigin, image.src);
     final semanticLabel = image.alt.isNotEmpty ? image.alt : panel.scene;
     final hasText = panel.caption != null || panel.dialogue != null;
 
@@ -427,9 +427,22 @@ class _PanelBlock extends StatelessWidget {
         Semantics(
           image: true,
           label: semanticLabel,
-          child: AspectRatio(
-            aspectRatio: image.width / image.height,
-            child: _PanelImage(url: imageUrl),
+          // `AspectRatio`'nun (aşağıda) oranı her zaman ana `image.width`/
+          // `image.height`'tan gelir — seçilen varyantın kendi oranı farklı
+          // olsa bile (yuvarlama nedeniyle olabilir, bkz. fixture'lardaki
+          // varyantlar) düzen zıplamaz; yalnız hangi `src`'in yükleneceği
+          // varyant seçimine göre değişir.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final imageUrl = resolveMediaUrl(
+                apiOrigin,
+                _resolvePanelImageSrc(context, image, constraints),
+              );
+              return AspectRatio(
+                aspectRatio: image.width / image.height,
+                child: _PanelImage(url: imageUrl),
+              );
+            },
           ),
         ),
         if (hasText)
@@ -443,6 +456,34 @@ class _PanelBlock extends StatelessWidget {
       ],
     );
   }
+}
+
+/// `image.variants` varsa (bkz. üretilen `StoryPanelImage.variants`,
+/// `lib/core/contracts/generated/story_panel_image.dart`) okuyucu kolonu
+/// genişliğini (`constraints.maxWidth` — `CenteredMaxWidth` ile ≤760px,
+/// bkz. `shared/layout/content_max_width.dart`) ve cihaz piksel oranını
+/// (`MediaQuery.devicePixelRatioOf`) kullanarak `selectMediaVariant` (bkz.
+/// `core/api/media_variant_selector.dart`) ile ihtiyacı GEREKSİZ AŞMAYAN en
+/// uygun varyantı seçer. `variants` `null`/boşsa, düzen kısıtı henüz
+/// sınırsızsa ya da seçici `null` dönerse mevcut `image.src` davranışı
+/// birebir korunur — canlı yerel API şu an varyant DÖNDÜRMEDİĞİ için bu
+/// geri-düşüş yolu tüm gerçek çalıştırmalarda kullanılan tek yoldur.
+String _resolvePanelImageSrc(
+  BuildContext context,
+  StoryPanelImage image,
+  BoxConstraints constraints,
+) {
+  final variants = image.variants;
+  if (variants == null ||
+      variants.isEmpty ||
+      !constraints.maxWidth.isFinite ||
+      constraints.maxWidth <= 0) {
+    return image.src;
+  }
+  final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+  final targetWidthPx = constraints.maxWidth * devicePixelRatio;
+  final selected = selectMediaVariant(variants, targetWidthPx);
+  return selected?.src ?? image.src;
 }
 
 /// Panel görselinden ayrı, okunabilir metin katmanı (ADR-016). Görseli olan

@@ -49,6 +49,7 @@ class SeriesCard extends StatelessWidget {
                         position: series.coverPosition,
                         semanticLabel: series.title,
                         tone: series.tone,
+                        variants: series.coverImageVariants,
                       ),
                     ),
                     if (series.isNew == true)

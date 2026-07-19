@@ -95,6 +95,7 @@ class _SeriesDetailView extends ConsumerWidget {
                 position: metadata.coverPosition,
                 semanticLabel: metadata.title,
                 tone: metadata.tone,
+                variants: metadata.coverImageVariants,
               ),
             ),
           ),

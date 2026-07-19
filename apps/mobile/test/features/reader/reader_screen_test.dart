@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,6 +107,22 @@ class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
 /// erişimine muhtaç kalmadan (ve asılı kalmadan) her zaman `errorBuilder`'a
 /// düşer.
 const _panelImageUrl = 'https://example.invalid/panel-1.png';
+
+/// `packages/contracts/fixtures/episode-manifest.v1.json`'daki GERÇEK panel
+/// `image.variants` değerlerini (bkz. görev bağlamı — "fixture'lardaki
+/// gerçek varyant değerleriyle seçici entegrasyon testi") okuyup döner.
+/// Fixture içeriği buraya elle kopyalanmaz; dosyadan okunup üretilen
+/// `EpisodeManifestResponse.fromJson` ile ayrıştırılır (bkz.
+/// `test/core/contracts/fixture_contracts_test.dart`'taki aynı desen).
+/// `flutter test` her zaman paket kökünden (`apps/mobile`) çalıştırıldığı
+/// için repo köküne göre relative yol `../../packages/contracts/fixtures`
+/// olur.
+List<PublicMediaVariant> _fixturePanelVariants() {
+  final file = File('../../packages/contracts/fixtures/episode-manifest.v1.json');
+  final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+  final response = EpisodeManifestResponse.fromJson(json);
+  return response.episode.panels.single.image!.variants!;
+}
 
 const _panelWithText = StoryPanel(
   id: 'panel-1',
@@ -983,6 +1002,149 @@ void main() {
           expect(watcher.errors, isEmpty, reason: watcher.describe());
         });
       }
+    },
+  );
+
+  group(
+    'panel görseli varyant seçimi (packages/contracts fixture entegrasyonu)',
+    () {
+      /// Panel görselinin nihai (mutlak) yüklenen URL'ini döner (bkz.
+      /// `test/shared/widgets/cover_image_test.dart`'taki aynı desen —
+      /// `Image.network` bir `NetworkImage(url)` üretir).
+      String renderedPanelImageUrl(WidgetTester tester) {
+        final image = tester.widget<Image>(find.byType(Image));
+        return (image.image as NetworkImage).url;
+      }
+
+      testWidgets(
+        'image.variants yoksa mevcut image.src davranışı birebir korunur '
+        '(geri-düşüş yolu regresyonsuz — canlı yerel API henüz varyant '
+        'döndürmüyor)',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async => _manifest(
+              episodeSlug: episodeSlug,
+              number: 1,
+              panels: const [_panelWithText],
+            ),
+          );
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(renderedPanelImageUrl(tester), _panelImageUrl);
+        },
+      );
+
+      testWidgets(
+        'dar okuyucu kolonu (390px telefon) + DPR 1.0: hedefi karşılayan '
+        'en küçük fixture varyantı (480) seçilir',
+        (tester) async {
+          usePhoneViewport(tester); // 390x844, DPR 1.0.
+          final panel = StoryPanel(
+            id: 'panel-1',
+            scene: 'Ece pencereden dışarı bakıyor',
+            tone: PanelTone.mint,
+            image: StoryPanelImage(
+              src: _panelImageUrl,
+              alt: 'Ece pencereden dışarı bakıyor, yağmurlu bir gece',
+              width: 1080,
+              height: 1920,
+              variants: _fixturePanelVariants(),
+            ),
+          );
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async => _manifest(
+              episodeSlug: episodeSlug,
+              number: 1,
+              panels: [panel],
+            ),
+          );
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // 390 mantıksal px × 1.0 DPR = 390px hedef; 480 yeterli ve en
+          // küçüğü.
+          expect(
+            renderedPanelImageUrl(tester),
+            'http://localhost:3000/api/media/fixture-panel-1?width=480',
+          );
+        },
+      );
+
+      testWidgets(
+        'hiçbir fixture varyantı hedefi karşılamıyorsa (yüksek DPR) en '
+        'büyük varyant (768) seçilir; AspectRatio ana image.width/height '
+        'oranından gelmeye devam eder (varyant oranı farklı olsa bile '
+        'zıplama olmaz)',
+        (tester) async {
+          // `tester.view.physicalSize` FİZİKSEL piksel cinsindendir; mantıksal
+          // genişliği 390 sabit tutmak için DPR ile orantılı büyütülür
+          // (mantıksal = fiziksel / DPR).
+          const devicePixelRatio = 3.0;
+          tester.view.physicalSize = const Size(390, 844) * devicePixelRatio;
+          tester.view.devicePixelRatio = devicePixelRatio;
+          addTearDown(tester.view.reset);
+
+          final panel = StoryPanel(
+            id: 'panel-1',
+            scene: 'Ece pencereden dışarı bakıyor',
+            tone: PanelTone.mint,
+            image: StoryPanelImage(
+              src: _panelImageUrl,
+              alt: 'Ece pencereden dışarı bakıyor, yağmurlu bir gece',
+              width: 1080,
+              height: 1920,
+              variants: _fixturePanelVariants(),
+            ),
+          );
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async => _manifest(
+              episodeSlug: episodeSlug,
+              number: 1,
+              panels: [panel],
+            ),
+          );
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // 390 × 3.0 = 1170px hedef; 480 ve 768 ikisi de yetersiz -> en
+          // büyüğü (768) döner.
+          expect(
+            renderedPanelImageUrl(tester),
+            'http://localhost:3000/api/media/fixture-panel-1?width=768',
+          );
+
+          // AspectRatio her zaman ana `image.width`/`image.height`'tan
+          // (1080/1920) gelir — seçilen 768 genişlikli varyantın kendi
+          // oranı (768/1365) biraz farklı olsa bile düzen zıplamaz.
+          final aspectRatio = tester.widget<AspectRatio>(
+            find.byType(AspectRatio),
+          );
+          expect(aspectRatio.aspectRatio, 1080 / 1920);
+        },
+      );
     },
   );
 }

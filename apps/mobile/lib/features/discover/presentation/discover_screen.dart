@@ -266,6 +266,7 @@ class _FeaturedHero extends StatelessWidget {
                 semanticLabel: series.title,
                 tone: series.tone,
                 showDecorativeIcon: showDecorativeIcon,
+                variants: series.coverImageVariants,
               ),
               DecoratedBox(
                 decoration: BoxDecoration(

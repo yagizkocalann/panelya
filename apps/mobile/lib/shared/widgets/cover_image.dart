@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/tone_gradients.dart';
 import '../../core/api/media_url.dart';
+import '../../core/api/media_variant_selector.dart';
 import '../../core/config/app_config.dart';
 import '../../core/contracts/generated/generated.dart';
 
@@ -26,6 +27,18 @@ import '../../core/contracts/generated/generated.dart';
 ///   yoksa/yüklenirken/hata durumunda düz `surface3` yerine web'deki
 ///   `.poster--<tone>` gradyanı kullanılır (bkz. `tone_gradients.dart`).
 ///   `tone` `null` veya `PanelTone.unknown` ise davranış değişmez.
+/// - `variants` verilirse (bkz. üretilen `SeriesSummary.coverImageVariants`/
+///   `SeriesMetadata.coverImageVariants`, `lib/core/contracts/generated/`)
+///   widget kendi düzen kısıtlarını (`LayoutBuilder`) ve cihaz piksel oranını
+///   (`MediaQuery.devicePixelRatioOf`) kullanarak gerçek görüntüleme
+///   genişliğini hesaplar, `selectMediaVariant` (bkz.
+///   `core/api/media_variant_selector.dart`) ile ihtiyacı GEREKSİZ AŞMAYAN en
+///   uygun varyantı seçer ve onun `src`'ini yükler. `variants` `null`/boşsa
+///   ya da seçici `null` dönerse (örn. düzen kısıtı henüz bilinmiyorsa)
+///   davranış birebir `src` alanına düşer — canlı yerel API şu an varyant
+///   DÖNDÜRMEDİĞİ için bu geri-düşüş yolu tüm gerçek çalıştırmalarda
+///   kullanılan tek yoldur (bkz. görev bağlamı); varyant seçim yolu
+///   `packages/contracts` fixture'ları ve widget testleriyle doğrulanır.
 class CoverImage extends ConsumerWidget {
   const CoverImage({
     super.key,
@@ -35,9 +48,12 @@ class CoverImage extends ConsumerWidget {
     this.fit = BoxFit.cover,
     this.tone,
     this.showDecorativeIcon = true,
+    this.variants,
   });
 
-  /// Mutlak veya web origin'ine göre relative görsel yolu (varsa).
+  /// Mutlak veya web origin'ine göre relative görsel yolu (varsa). `variants`
+  /// boş/null olduğunda veya seçici bir varyant döndürmediğinde yüklenen
+  /// tek yoldur.
   final String? src;
 
   /// Ekran okuyucular için görsel açıklaması.
@@ -50,6 +66,11 @@ class CoverImage extends ConsumerWidget {
 
   /// Serinin tonu (varsa); placeholder gradyanı için kullanılır.
   final PanelTone? tone;
+
+  /// Ready responsive kapak derivatives'i (bkz. üretilen
+  /// `SeriesSummary.coverImageVariants`/`SeriesMetadata.coverImageVariants`).
+  /// `null`/boş ise mevcut `src` davranışı birebir korunur.
+  final List<PublicMediaVariant>? variants;
 
   /// Kapak yokken ortadaki dekoratif `Icons.auto_stories_outlined` ikonunun
   /// gösterilip gösterilmeyeceği (bkz. QA bulgusu — keşif hero'sunda büyük
@@ -77,31 +98,53 @@ class CoverImage extends ConsumerWidget {
     }
 
     final apiOrigin = ref.watch(appConfigProvider).apiOrigin;
-    final url = resolveMediaUrl(apiOrigin, source);
+    final variantList = variants;
 
-    return Semantics(
-      image: true,
-      label: semanticLabel,
-      child: Image.network(
-        url,
-        fit: fit,
-        alignment: parseCoverAlignment(position),
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return _CoverPlaceholder(
-            tokens: tokens,
-            semanticLabel: semanticLabel,
-            loading: true,
-            gradient: gradient,
-          );
-        },
-        errorBuilder: (context, error, stackTrace) => _CoverPlaceholder(
-          tokens: tokens,
-          semanticLabel: semanticLabel,
-          isError: true,
-          gradient: gradient,
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Varyant yoksa (ya da düzen kısıtı henüz sınırsızsa, örn. bir
+        // `Row`/`Column` içinde `Expanded` olmadan) doğrudan `source`
+        // kullanılır — mevcut davranış birebir korunur.
+        var resolvedSource = source;
+        if (variantList != null &&
+            variantList.isNotEmpty &&
+            constraints.maxWidth.isFinite &&
+            constraints.maxWidth > 0) {
+          final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+          final targetWidthPx = constraints.maxWidth * devicePixelRatio;
+          final selected = selectMediaVariant(variantList, targetWidthPx);
+          if (selected != null) {
+            resolvedSource = selected.src;
+          }
+        }
+
+        final url = resolveMediaUrl(apiOrigin, resolvedSource);
+
+        return Semantics(
+          image: true,
+          label: semanticLabel,
+          child: Image.network(
+            url,
+            fit: fit,
+            alignment: parseCoverAlignment(position),
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return _CoverPlaceholder(
+                tokens: tokens,
+                semanticLabel: semanticLabel,
+                loading: true,
+                gradient: gradient,
+              );
+            },
+            errorBuilder: (context, error, stackTrace) => _CoverPlaceholder(
+              tokens: tokens,
+              semanticLabel: semanticLabel,
+              isError: true,
+              gradient: gradient,
+            ),
+          ),
+        );
+      },
     );
   }
 }
