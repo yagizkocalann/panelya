@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isStudioRequest, publicSiteOrigin, studioSiteOrigin } from "./app/lib/site-origins";
 
-const STUDIO_SECTIONS = new Set(["content", "media", "messages", "ads", "outbox", "moderation"]);
+const STUDIO_SECTIONS = new Set(["content", "media", "messages", "ads", "outbox", "moderation", "users", "audit"]);
 
 function copySearch(from: URL, to: URL) {
   to.search = from.search;
