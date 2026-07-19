@@ -27,6 +27,49 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|OkuToon/i);
 });
 
+test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sınırını korur", async () => {
+  const [schema, database, repository, page, header, css, migration, manualQa] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/SiteHeader.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0012_round_mulholland_black.sql", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /searchText: text\("search_text"\)/);
+  assert.match(schema, /content_series_discovery_updated_idx/);
+  assert.match(database, /ALTER TABLE content_series ADD COLUMN search_text/);
+  assert.match(migration, /ALTER TABLE `content_series` ADD `search_text`/);
+  assert.match(repository, /normalizeCatalogSearch/);
+  assert.match(repository, /searchPublishedSeries/);
+  assert.match(repository, /WITH catalog AS/);
+  assert.match(repository, /discovery_updated_at < \?/);
+  assert.match(repository, /rating < \?/);
+  assert.match(repository, /title > \? COLLATE NOCASE/);
+  assert.match(repository, /LIMIT \?/);
+  assert.match(repository, /decodeCatalogCursor/);
+  assert.match(repository, /catalogCursorScope/);
+  assert.match(repository, /cursorWasInvalid/);
+  assert.match(page, /className="catalog-filter-form"/);
+  assert.match(page, /Sonraki sonuçlar/);
+  assert.match(header, /listPublishedGenres/);
+  assert.match(css, /\.catalog-filter-form[^}]*grid-template-columns/);
+  assert.match(manualQa, /QA-CAT-01/);
+
+  const catalogHtml = await (await request("/?view=catalog&q=ses&sort=title")).text();
+  assert.match(catalogHtml, /class="catalog-filter-form"/);
+  assert.match(catalogHtml, /name="q"[^>]*value="ses"/);
+  assert.match(catalogHtml, /option value="title" selected/);
+  assert.match(catalogHtml, /Yarınki Ses/);
+  const invalidCursorHtml = await (await request("/?view=catalog&cursor=bozuk")).text();
+  assert.match(invalidCursorHtml, /Geçersiz veya eski sayfa bağlantısı/);
+
+  const catalogApi = await (await request("/api/catalog", "application/json")).json();
+  assert.deepEqual(Object.keys(catalogApi).sort(), ["featuredSlug", "schemaVersion", "series"]);
+});
+
 test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => {
   const seriesResponse = await request("/gece-vardiyasi");
   assert.equal(seriesResponse.status, 200);
@@ -201,6 +244,7 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
   assert.match(css, /\.reader-tools button[^}]*width:\s*44px[^}]*height:\s*44px/);
   assert.match(css, /\.reader-dock a, \.reader-dock > span[^}]*min-width:\s*44px[^}]*min-height:\s*44px/);
   assert.match(css, /\.genre-strip a, \.genre-pills a[^}]*min-height:\s*44px/);
+  assert.match(css, /\.catalog-filter-form input, \.catalog-filter-form select[^}]*min-height:\s*48px/);
 });
 
 test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşmesi kaynakta bulunur", async () => {

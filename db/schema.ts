@@ -146,6 +146,7 @@ export const contentSeries = sqliteTable("content_series", {
   title: text("title").notNull(),
   eyebrow: text("eyebrow").notNull(),
   creator: text("creator").notNull(),
+  searchText: text("search_text").notNull().default(""),
   description: text("description").notNull(),
   longDescription: text("long_description").notNull(),
   storyStatus: text("story_status", { enum: ["ongoing", "completed"] }).notNull().default("ongoing"),
@@ -162,7 +163,12 @@ export const contentSeries = sqliteTable("content_series", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
   publishedAt: integer("published_at"),
-}, (table) => [index("content_series_publication_idx").on(table.publicationStatus, table.isFeatured, table.updatedAt)]);
+}, (table) => [
+  index("content_series_publication_idx").on(table.publicationStatus, table.isFeatured, table.updatedAt),
+  index("content_series_discovery_updated_idx").on(table.publicationStatus, table.storyStatus, table.updatedAt, table.slug),
+  index("content_series_discovery_rating_idx").on(table.publicationStatus, table.storyStatus, table.rating, table.slug),
+  index("content_series_discovery_title_idx").on(table.publicationStatus, table.storyStatus, table.title, table.slug),
+]);
 
 export const contentEpisodes = sqliteTable("content_episodes", {
   id: text("id").primaryKey(),

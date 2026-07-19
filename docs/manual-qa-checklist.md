@@ -22,6 +22,7 @@ Durumlar:
 | QA-PREV-01 | BEKLIYOR | Guvenli taslak onizleme | Studio seri/bolum editoru | Link taslagi gostermeli; kapsam disi medya acilmamali; iptal ve 30 dakika bitisinden sonra link calismamali. |
 | QA-COMM-01 | BEKLIYOR | Puan, yorum, spoiler ve raporlama | Public seri sayfasi + Studio `/moderation` | Yorum ekle/guncelle/sil, spoiler gizleme, rapor, gizleme/yayinlama ve rapor cozum akislarini iki farkli test hesapla dene. |
 | QA-FOL-01 | BEKLIYOR | Kutuphane, favori, takip ve yeni bolum bildirimi | Public seri sayfasi + `/library`; Studio `/content` + `/outbox` | Iki test hesapla kutuphane/favori aktif durumlarini, takipten bagimsizligini ve bildirim tercihini dogrula. Yayindaki seriye ilk kez yeni bolum yayinlandiginda yalniz tercihi acik ve dogrulanmis takipci icin tek `Yeni bolum` outbox kaydi olusmali; yeniden kaydetme kopya uretmemeli. |
+| QA-CAT-01 | BEKLIYOR | Katalog arama, filtre, siralama ve cursor | `http://localhost:3000/?view=catalog`; on kosul: en az 8 yayinlanmis seri | Turkce karakterli baslik/uretici aramasi, tur ve devam/tamamlandi filtreleri, uc siralama ve `Sonraki sonuclar` baglantisi dogru kalmali; sayfalar arasi seri tekrari olmamali, bozuk cursor ilk sayfaya guvenli dusmeli. 1440/1024/768/390/360 px'te form ve pagination ulasilabilir olmali. |
 | QA-ROLE-01 | BEKLIYOR | Kullanici rol yonetimi | Studio `/users` | Kendi rolunu degistirememe, son admin korumasi ve rol degisince hedef oturumlarin kapanmasi dogrulanmali. |
 | QA-SEC-01 | BEKLIYOR | Atomik ve dagitik rate-limit | Studio `/qa`; public `/login`, `/register`, `/forgot-password`; Studio yonetici mutation'lari | Yerelde `d1_strict` etiketi gorunmeli ve kota tam sinirda reddetmeli. Production testinde `cloudflare_hybrid` etiketi gorunmeli; eksik binding fail-closed olmali ve hesap varligi sizmamali. |
 | QA-OPS-01 | BEKLIYOR | Production platform hazirligi | Studio `/qa` + `/api/admin/platform-readiness` + Cloudflare deployment kaynagi | Production profili otomatik D1/R2/Images/Queue/rate-limit kontrollerini gecmeli; consumer retry ve DLQ ayari ayrica gorulmeli; eksik binding 503 vermeli. |
@@ -42,6 +43,7 @@ Durumlar:
 - [ ] `QA-PUB-05` Kutuphane, favori ve hesaplar arasi okuma ilerlemesi korunuyor.
 - [ ] `QA-PUB-06` Public canonical, robots, sitemap ve ComicSeries JSON-LD ayni production origin'ini kullaniyor; taslak, Studio, API, hesap ve okuyucu URL'leri sitemap'e sizmiyor.
 - [ ] `QA-PUB-07` Seri sayfasinda kutuphane/favori/takip aktif durumu hesaba gore server-render ediliyor; yeni bolum tercihi `/library` uzerinden de yonetiliyor ve ilk yayin bildirimi idempotent kaliyor.
+- [ ] `QA-PUB-08` Katalog kesfinde normalize arama, tur/durum filtresi, guncelleme/puan/ad siralamasi ve cursor sayfalama ayni D1 yayin kumesinde kararli kaliyor.
 
 ### Hesap ve guvenlik
 

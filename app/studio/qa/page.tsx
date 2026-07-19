@@ -15,6 +15,7 @@ const priorityChecks = [
   { id: "QA-OPS-01", title: "Production platform hazırlığı", path: "/qa + /api/admin/platform-readiness", result: "Otomatik binding kontrolleri hazır olmalı; Queue consumer retry ve dead-letter politikası ayrıca doğrulanmalı." },
   { id: "QA-OPS-02", title: "D1/R2 kurtarma tatbikatı", path: "docs/backup-restore-runbook.md + izole test kaynakları", result: "Doğrulanmış paket yeni D1/R2 test kaynaklarına dönmeli; katalog ve medya smoke geçmeli, eski oturum/token/linkler kullanılamamalıdır." },
   { id: "QA-FOL-01", title: "Takip ve yeni bölüm bildirimi", path: "Public seri + /library → Studio /content + /outbox", result: "Yalnız bildirimi açık, doğrulanmış takipçi tek yeni bölüm kaydı almalı; yeniden kaydetme kopya üretmemeli ve aktif durumlar hesapla eşleşmelidir." },
+  { id: "QA-CAT-01", title: "Katalog keşfi ve cursor", path: "Public /?view=catalog", result: "Türkçe arama, tür/durum filtresi, üç sıralama ve cursor sayfaları aynı D1 yayın kümesinde tekrarsız kalmalı; bozuk cursor güvenli biçimde ilk sayfaya dönmelidir." },
   { id: "QA-SEO-01", title: "Public SEO ve tarama sınırı", path: "Public robots/sitemap/seri + Studio robots", result: "Production public origin canonical ve sitemap'te aynı olmalı; okuyucu noindex kalmalı, Studio taraması kapanmalı ve JSON-LD yalnız yayın verisini anlatmalıdır." },
   { id: "QA-RESP-01", title: "Responsive genel tur", path: "Public + Studio", result: "1440, 1024, 768, 390 ve 360 px'te taşma, kırpılma veya 44 px altı dokunma hedefi olmamalı." },
 ] as const;

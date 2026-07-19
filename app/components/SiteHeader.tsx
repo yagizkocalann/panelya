@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { genresFromSeries, listPublishedSeries } from "../lib/content-repository";
+import { listPublishedGenres } from "../lib/content-repository";
 import { AuthActions } from "./AuthActions";
 
 export async function SiteHeader({ compact = false, homeHref = "/", studioHref = "/studio" }: { compact?: boolean; homeHref?: string; studioHref?: string }) {
-  const genres = compact ? [] : genresFromSeries(await listPublishedSeries());
+  const genres = compact ? [] : await listPublishedGenres();
   return (
     <header className={`site-header${compact ? " site-header--compact" : ""}`}>
       <a className="skip-link" href="#main-content">İçeriğe geç</a>
