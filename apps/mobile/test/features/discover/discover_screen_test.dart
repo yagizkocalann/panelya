@@ -359,6 +359,61 @@ void main() {
     },
   );
 
+  group(
+    'kapaksız hero placeholder ikonu büyük yazı tipinde çakışmayı önler '
+    '(QA bulgusu — chip satırı ikinci satıra sarınca dekoratif kitap '
+    'ikonu içerik bloğuyla çakışıyordu)',
+    () {
+      Finder heroDecorativeIcon() => find.descendant(
+        of: find.byKey(_heroFinder),
+        matching: find.byIcon(Icons.auto_stories_outlined),
+      );
+
+      testWidgets(
+        'textScale 1.0: mevcut görünüm değişmez, ikon görünür kalır',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeDiscoverRepository(
+            () async => _catalogWith([
+              _series('gece-vardiyasi', 'Gece Vardiyası'),
+            ]),
+          );
+
+          await tester.pumpWidget(_wrap(repository, textScale: 1.0));
+          await tester.pumpAndSettle();
+
+          expect(heroDecorativeIcon(), findsOneWidget);
+        },
+      );
+
+      for (final scale in [1.6, 2.0]) {
+        testWidgets(
+          'textScale $scale: chip satırı sarındığında dekoratif ikon '
+          'gizlenir (içerikle çakışmaz)',
+          (tester) async {
+            usePhoneViewport(tester);
+            final repository = _FakeDiscoverRepository(
+              () async => _catalogWith([
+                _series(
+                  'gece-vardiyasi',
+                  'Gece Vardiyası: Kayıp Dakikanın İzinde Bir Teslimat '
+                      'Hikâyesi',
+                  genres: const ['Gizem', 'Dram', 'Bilim Kurgu', 'Aksiyon'],
+                ),
+              ]),
+            );
+
+            await tester.pumpWidget(_wrap(repository, textScale: scale));
+            await tester.pumpAndSettle();
+
+            expect(find.byKey(_heroFinder), findsOneWidget);
+            expect(heroDecorativeIcon(), findsNothing);
+          },
+        );
+      }
+    },
+  );
+
   testWidgets('filtering by genre hides the hero and non-matching cards', (
     tester,
   ) async {

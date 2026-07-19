@@ -222,6 +222,15 @@ class _DiscoverContent extends ConsumerWidget {
 /// Öne çıkan seri hero alanı (`featuredSlug`). Katalogda karşılığı yoksa
 /// (findFeaturedSeries `null` dönerse) çağıran yer bu widget'ı hiç
 /// oluşturmaz; bu yüzden burada ayrı bir boş/hata durumu yoktur.
+/// Hero'nun kapaksız (placeholder) durumunda, ortadaki dekoratif kitap
+/// ikonunun (`Icons.auto_stories_outlined`) gösterilmeye devam edebileceği en
+/// büyük metin ölçeği. Bunun üzerinde (QA'da gözlenen 1.6+) durum/tür
+/// chip'leri ikinci satıra sarar ve alttaki içerik bloğu yükselerek kartın
+/// ortasına ulaşır; ikon SALT DEKORATİF olduğundan (bkz. `CoverImage`'daki
+/// `Semantics` kapsamı dışı kalması) çakışacağı durumda gizlenmesi, üst üste
+/// binmesinden daha doğrudur.
+const double _heroDecorativeIconMaxTextScale = 1.5;
+
 class _FeaturedHero extends StatelessWidget {
   const _FeaturedHero({super.key, required this.series});
 
@@ -230,6 +239,12 @@ class _FeaturedHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    // `TextScaler.scale(1.0)` katsayıyı (lineer ölçekleyicilerde) doğrudan
+    // verir; `seriesCardMainAxisExtent`'teki satır yüksekliği hesaplamasıyla
+    // aynı `MediaQuery.textScalerOf` kaynağını kullanır.
+    final textScaleFactor = MediaQuery.textScalerOf(context).scale(1.0);
+    final showDecorativeIcon =
+        textScaleFactor <= _heroDecorativeIconMaxTextScale;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -250,6 +265,7 @@ class _FeaturedHero extends StatelessWidget {
                 position: series.coverPosition,
                 semanticLabel: series.title,
                 tone: series.tone,
+                showDecorativeIcon: showDecorativeIcon,
               ),
               DecoratedBox(
                 decoration: BoxDecoration(

@@ -34,6 +34,7 @@ class CoverImage extends ConsumerWidget {
     this.position,
     this.fit = BoxFit.cover,
     this.tone,
+    this.showDecorativeIcon = true,
   });
 
   /// Mutlak veya web origin'ine göre relative görsel yolu (varsa).
@@ -50,6 +51,16 @@ class CoverImage extends ConsumerWidget {
   /// Serinin tonu (varsa); placeholder gradyanı için kullanılır.
   final PanelTone? tone;
 
+  /// Kapak yokken ortadaki dekoratif `Icons.auto_stories_outlined` ikonunun
+  /// gösterilip gösterilmeyeceği (bkz. QA bulgusu — keşif hero'sunda büyük
+  /// yazı tipinde durum/tür chip'leri ikinci satıra sarınca bu SALT
+  /// DEKORATİF ikon (Semantics dışı) içerik bloğuyla çakışıyordu). Varsayılan
+  /// `true` — ızgara kartı ve seri detay çağrıları mevcut görünümü korur;
+  /// yalnız çakışma riski olan çağıran yer (keşif hero'su) `false` geçer.
+  /// Yükleme spinner'ını ve hata ikonunu ETKİLEMEZ — onlar bilgilendirici,
+  /// dekoratif değildir.
+  final bool showDecorativeIcon;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
@@ -61,6 +72,7 @@ class CoverImage extends ConsumerWidget {
         tokens: tokens,
         semanticLabel: semanticLabel,
         gradient: gradient,
+        showDecorativeIcon: showDecorativeIcon,
       );
     }
 
@@ -101,6 +113,7 @@ class _CoverPlaceholder extends StatelessWidget {
     this.loading = false,
     this.isError = false,
     this.gradient,
+    this.showDecorativeIcon = true,
   });
 
   final AppTokens tokens;
@@ -110,6 +123,10 @@ class _CoverPlaceholder extends StatelessWidget {
 
   /// `null` ise (ton yok/`unknown`) mevcut düz `surface3` rengi kullanılır.
   final LinearGradient? gradient;
+
+  /// bkz. `CoverImage.showDecorativeIcon` doc yorumu. Yalnız normal (yükleme/
+  /// hata dışı) kapaksız durumdaki dekoratif ikonu etkiler.
+  final bool showDecorativeIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -132,12 +149,11 @@ class _CoverPlaceholder extends StatelessWidget {
                   strokeWidth: 2,
                 ),
               )
-            : Icon(
-                isError
-                    ? Icons.broken_image_outlined
-                    : Icons.auto_stories_outlined,
-                color: tokens.colors.muted,
-              ),
+            : isError
+            ? Icon(Icons.broken_image_outlined, color: tokens.colors.muted)
+            : showDecorativeIcon
+            ? Icon(Icons.auto_stories_outlined, color: tokens.colors.muted)
+            : const SizedBox.shrink(),
       ),
     );
   }
