@@ -47,6 +47,47 @@ test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => 
   assert.match(episodeHtml, /name="robots" content="noindex, follow"/i);
 });
 
+test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin politikasini kullanir", async () => {
+  const jsonLdComponent = await readFile(new URL("../app/components/JsonLd.tsx", import.meta.url), "utf8");
+  assert.match(jsonLdComponent, /JSON\.stringify\(data\)\.replace\(\/<\/g, "\\\\u003c"\)/);
+  const homeHtml = await (await request("/")).text();
+  assert.match(homeHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/"/i);
+
+  const seriesHtml = await (await request("/gece-vardiyasi")).text();
+  assert.match(seriesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/gece-vardiyasi"/i);
+  const jsonLdMatch = seriesHtml.match(/<script type="application\/ld\+json">(.+?)<\/script>/);
+  assert.ok(jsonLdMatch, "Seri sayfasi JSON-LD script'i icermeli");
+  const jsonLd = JSON.parse(jsonLdMatch[1]);
+  assert.equal(jsonLd["@type"], "ComicSeries");
+  assert.equal(jsonLd.url, "http://localhost:3000/gece-vardiyasi");
+  assert.equal(jsonLd.publisher.name, "Panelya");
+  assert.ok(Array.isArray(jsonLd.hasPart) && jsonLd.hasPart.length > 0);
+  assert.ok(jsonLd.hasPart.every((episode) => episode["@type"] === "ComicIssue"));
+
+  const episodeHtml = await (await request("/gece-vardiyasi/bolum-1")).text();
+  assert.match(episodeHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/gece-vardiyasi\/bolum-1"/i);
+  assert.match(episodeHtml, /name="robots" content="noindex, follow"/i);
+
+  const robotsResponse = await request("/robots.txt", "text/plain");
+  assert.equal(robotsResponse.status, 200);
+  const robots = await robotsResponse.text();
+  assert.match(robots, /Allow: \//);
+  assert.match(robots, /Disallow: \/api\//);
+  assert.match(robots, /Disallow: \/preview\//);
+  assert.match(robots, /Sitemap: http:\/\/localhost:3000\/sitemap\.xml/);
+
+  const studioRobots = await (await request("/robots.txt", "text/plain", "http://studio.localhost")).text();
+  assert.match(studioRobots, /^User-agent: \*\s+Disallow: \/\s*$/i);
+  assert.doesNotMatch(studioRobots, /Sitemap:/i);
+
+  const sitemapResponse = await request("/sitemap.xml", "application/xml");
+  assert.equal(sitemapResponse.status, 200);
+  const sitemap = await sitemapResponse.text();
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/gece-vardiyasi<\/loc>/);
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/publishing-principles<\/loc>/);
+  assert.doesNotMatch(sitemap, /\/gece-vardiyasi\/bolum-1|\/api\/|\/preview\/|studio\.localhost/);
+});
+
 test("görsel pilot katalog, seri ve okuyucu rotalarına bağlıdır", async () => {
   const home = await (await request("/")).text();
   assert.match(home, /href="\/bir-bilet-uzaginda"/);

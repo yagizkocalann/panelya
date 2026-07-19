@@ -9,6 +9,12 @@ import { genresFromSeries, listPublishedSeries } from "./lib/content-repository"
 export const metadata: Metadata = {
   title: "Panelya — Kaydır, keşfet, hikâyeye gir",
   description: "Özgün Türkçe dikey çizgi hikâyeleri keşfet ve ücretsiz oku.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Panelya — Kaydır, keşfet, hikâyeye gir",
+    description: "Özgün Türkçe dikey çizgi hikâyeleri keşfet ve ücretsiz oku.",
+    url: "/",
+  },
 };
 
 type HomeProps = { searchParams?: Promise<{ q?: string; genre?: string }> };

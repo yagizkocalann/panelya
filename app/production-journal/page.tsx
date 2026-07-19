@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage } from "../components/InfoPage";
 
-export const metadata: Metadata = { title: "Üretim Günlüğü — Panelya" };
+export const metadata: Metadata = { title: "Üretim Günlüğü — Panelya", alternates: { canonical: "/production-journal" } };
 export default function ProductionJournalPage() {
   return <InfoPage kicker="Panelya Originals" title="Üretim günlüğü" intro="Özgün bir dikey serinin fikirden okuyucuya uzanan üretim hattını açık ve tekrarlanabilir biçimde kaydediyoruz." actions={[{ href: "/gece-vardiyasi", label: "Gece Vardiyası'nı aç", primary: true }, { href: "/about", label: "Panelya hakkında" }]} sections={[
     { title: "01 · Ürün omurgası", paragraphs: ["Keşif, seri detayı ve kesintisiz okuyucu akışı responsive olarak tamamlandı. Hesap, kütüphane ve ilerleme D1'e bağlandı."] },

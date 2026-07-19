@@ -250,6 +250,22 @@ export async function listPublishedSeries(): Promise<Series[]> {
   }
 }
 
+export async function listPublishedSeriesForSitemap() {
+  try {
+    const rows = await listSeriesRows();
+    return rows
+      .filter((series) => series.publicationStatus === "published")
+      .map((series) => {
+        const publishedEpisodes = series.episodes.filter((episode) => episode.publicationStatus === "published");
+        const lastModified = Math.max(series.updatedAtTimestamp, ...publishedEpisodes.map((episode) => episode.updatedAt));
+        return { slug: series.slug, lastModified, publishedEpisodeCount: publishedEpisodes.length };
+      })
+      .filter((series) => series.publishedEpisodeCount > 0);
+  } catch {
+    return seriesCatalog.map((series) => ({ slug: series.slug, lastModified: undefined, publishedEpisodeCount: series.episodes.length }));
+  }
+}
+
 export async function getStudioSeries(slug: string) {
   return (await listSeriesRows()).find((series) => series.slug === slug);
 }

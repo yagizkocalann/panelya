@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage } from "../components/InfoPage";
 
-export const metadata: Metadata = { title: "Kullanım Koşulları — Panelya" };
+export const metadata: Metadata = { title: "Kullanım Koşulları — Panelya", alternates: { canonical: "/terms" } };
 export default function TermsPage() {
   return <InfoPage kicker="Lokal prototip" title="Kullanım koşulları" intro="Panelya'nın mevcut sürümü geliştirme ve ürün testi içindir. Bu metin production sözleşmesi değildir." sections={[
     { title: "Kabul edilen kullanım", items: ["Özellikleri lokal ortamda test etmek", "Örnek hesap ve içerik akışlarını denemek", "Hata ve ürün geri bildirimi göndermek"] },

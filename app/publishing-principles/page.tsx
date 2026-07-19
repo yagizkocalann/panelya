@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage } from "../components/InfoPage";
 
-export const metadata: Metadata = { title: "Yayın İlkeleri — Panelya" };
+export const metadata: Metadata = { title: "Yayın İlkeleri — Panelya", alternates: { canonical: "/publishing-principles" } };
 export default function PublishingPrinciplesPage() {
   return <InfoPage kicker="Editoryal çerçeve" title="Yayın ilkeleri" intro="Bir hikâyenin Panelya'da yer alabilmesi için karşılaması gereken temel editoryal, hukuki ve teknik kurallar." actions={[{ href: "/creators", label: "Üreticiler için süreç", primary: true }, { href: "/contact?subject=creator", label: "Başvuru gönder" }]} sections={[
     { title: "Özgünlük ve haklar", items: ["Yayın hakkı üreticide veya doğrulanmış lisans sahibinde olmalı.", "Başka platformlardan izinsiz bölüm, çeviri veya görsel kabul edilmez.", "Kaynak dosya ve üretim kayıtları talep edilebilir."] },

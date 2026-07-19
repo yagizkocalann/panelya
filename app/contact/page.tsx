@@ -3,7 +3,7 @@ import Link from "next/link";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 
-export const metadata: Metadata = { title: "İletişim — Panelya", description: "Panelya'ya genel, teknik, üretici veya telif mesajı gönder." };
+export const metadata: Metadata = { title: "İletişim — Panelya", description: "Panelya'ya genel, teknik, üretici veya telif mesajı gönder.", alternates: { canonical: "/contact" } };
 const subjectValues = new Set(["general", "creator", "copyright", "technical"]);
 
 export default async function ContactPage({ searchParams }: { searchParams: Promise<{ subject?: string; sent?: string; error?: string }> }) {

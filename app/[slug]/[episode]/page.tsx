@@ -10,8 +10,12 @@ export async function generateMetadata({ params }: EpisodePageProps): Promise<Me
   const { slug, episode: episodeSlug } = await params;
   const series = await getPublishedSeries(slug);
   const episode = series ? getEpisode(series, episodeSlug) : undefined;
-  if (!series || !episode) return { title: "Bölüm bulunamadı — Panelya" };
-  return { title: `${series.title} · Bölüm ${episode.number}: ${episode.title} — Panelya`, robots: { index: false, follow: true } };
+  if (!series || !episode) return { title: "Bölüm bulunamadı — Panelya", robots: { index: false, follow: false } };
+  return {
+    title: `${series.title} · Bölüm ${episode.number}: ${episode.title} — Panelya`,
+    alternates: { canonical: `/${series.slug}/${episode.slug}` },
+    robots: { index: false, follow: true },
+  };
 }
 
 export default async function EpisodePage({ params }: EpisodePageProps) {

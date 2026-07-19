@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage } from "../components/InfoPage";
 
-export const metadata: Metadata = { title: "Gizlilik — Panelya" };
+export const metadata: Metadata = { title: "Gizlilik — Panelya", alternates: { canonical: "/privacy" } };
 export default function PrivacyPage() {
   return <InfoPage kicker="Veri ve gizlilik" title="Gizlilik bildirimi" intro="Bu metin lokal geliştirme sürümünde hangi verilerin tutulduğunu açıklar; production yayını öncesinde hukuki incelemeden geçirilecektir." sections={[
     { title: "Tuttuğumuz veriler", items: ["Hesap e-postası ve görünen ad", "Şifrelenmiş parola özeti", "Oturum, kütüphane, favori ve okuma ilerlemesi", "İletişim formundan gönderilen mesajlar"] },
