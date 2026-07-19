@@ -12,6 +12,12 @@ type ReaderExperienceProps = {
   preview?: { token: string; episodeScoped?: boolean };
 };
 
+function responsiveSrcSet(src: string) {
+  if (!/^\/api\/(?:preview\/)?media\/[A-Za-z0-9-]+(?:\?.*)?$/.test(src)) return undefined;
+  const separator = src.includes("?") ? "&" : "?";
+  return [480, 768, 1200].map((width) => `${src}${separator}width=${width} ${width}w`).join(", ");
+}
+
 export function ReaderExperience({ series, episode, previous, next, preview }: ReaderExperienceProps) {
   const [light, setLight] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
@@ -91,7 +97,7 @@ export function ReaderExperience({ series, episode, previous, next, preview }: R
             panel.image ? (
               <section key={panel.id} className="story-image-panel" aria-label={panel.scene}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={panel.image.src} alt={panel.image.alt} width={panel.image.width} height={panel.image.height} loading={index === 0 ? "eager" : "lazy"} />
+                <img src={panel.image.src} srcSet={responsiveSrcSet(panel.image.src)} sizes="(max-width: 760px) 100vw, 760px" alt={panel.image.alt} width={panel.image.width} height={panel.image.height} loading={index === 0 ? "eager" : "lazy"} />
                 {(panel.caption || panel.dialogue) && <div className="story-image-lettering" aria-label="Panel metni">
                   {panel.caption && <p className="story-image-caption">{panel.caption}</p>}
                   {panel.dialogue && <p className={`story-image-dialogue story-image-dialogue--${panel.align ?? (index % 2 ? "left" : "right")}`}>{panel.dialogue}</p>}

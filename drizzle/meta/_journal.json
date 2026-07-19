@@ -57,6 +57,13 @@
       "when": 1784419192980,
       "tag": "0007_dashing_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784420354153,
+      "tag": "0008_yummy_quicksilver",
+      "breakpoints": true
     }
   ]
 }

@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "../../components/SiteHeader";
 import { getCurrentUser } from "../../lib/auth";
 import { listStudioSeries } from "../../lib/content-repository";
+import { listDerivativeJobs, listVariantCounts } from "../../lib/media/derivatives";
 import { listMediaAssets } from "../../lib/media/repository";
 import { publicSiteUrlForCurrentRequest } from "../../lib/server-site-origins";
+import { DerivativeQueue } from "./DerivativeQueue";
 
 export const dynamic = "force-dynamic";
 function formatBytes(value: number) { return value < 1024 * 1024 ? `${Math.ceil(value / 1024)} KB` : `${(value / (1024 * 1024)).toFixed(1)} MB`; }
@@ -14,7 +16,7 @@ export default async function StudioMediaPage({ searchParams }: { searchParams: 
   const user = await getCurrentUser();
   if (!user) redirect("/login?return_to=/media");
   if (user.role !== "admin") redirect("/account?error=Studio%20yalnızca%20yönetici%20hesaplarına%20açık.");
-  const [series, assets, publicHome, query] = await Promise.all([listStudioSeries(), listMediaAssets(), publicSiteUrlForCurrentRequest("/"), searchParams]);
+  const [series, assets, derivativeJobs, variantCounts, publicHome, query] = await Promise.all([listStudioSeries(), listMediaAssets(), listDerivativeJobs(), listVariantCounts(), publicSiteUrlForCurrentRequest("/"), searchParams]);
   const uploaded = query.uploaded ? assets.find((asset) => asset.id === query.uploaded) : undefined;
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
     <div className="studio-top"><div><p className="section-kicker">Medya</p><h1>Kapak ve paneller</h1><p>Özgün görselleri doğrula, R2 depolamaya yükle ve ilgili seri ya da bölüme bağla.</p></div><div className="studio-top__actions"><Link className="button button--ghost" href="/">← Studio</Link><Link className="button button--ghost" href="/content">İçeriğe git</Link></div></div>
@@ -31,11 +33,14 @@ export default async function StudioMediaPage({ searchParams }: { searchParams: 
         <div className="studio-editor__actions span-2"><button className="button button--primary" type="submit">Dosyayı doğrula ve yükle</button></div>
       </form>}
     </div></section>
+    <section className="studio-section" aria-labelledby="derivative-queue-title"><div className="section-heading"><div><p className="section-kicker">Responsive medya</p><h2 id="derivative-queue-title">Türetme kuyruğu</h2></div><span className="sort-note">{derivativeJobs.filter((job) => job.status === "queued" || job.status === "failed").length} bekleyen</span></div>
+      <DerivativeQueue jobs={derivativeJobs} />
+    </section>
     <section className="studio-section" aria-labelledby="media-library-title"><div className="section-heading"><div><p className="section-kicker">Envanter</p><h2 id="media-library-title">Yüklenen dosyalar</h2></div><span className="sort-note">{assets.length} varlık</span></div>
       {assets.length ? <div className="media-library">{assets.map((asset) => {
         const owner = series.find((item) => item.slug === asset.seriesSlug);
         const activeCover = asset.kind === "cover" && owner?.coverImage === `/api/media/${asset.id}`;
-        return <article key={asset.id}><a className="media-library__preview" href={`/api/admin/media/${asset.id}`} target="_blank" rel="noreferrer" aria-label={`${asset.originalFilename} dosyasını yeni sekmede aç`}><Image src={`/api/admin/media/${asset.id}`} alt="" width={asset.width} height={asset.height} loading="lazy" unoptimized /></a><div><div className="inventory-status"><span className="pill pill--accent">{asset.kind === "cover" ? "Kapak" : "Panel"}</span><span className="pill">{asset.mimeType.replace("image/", "").toUpperCase()}</span>{activeCover && <span className="pill">Aktif</span>}</div><strong>{asset.originalFilename}</strong><small>{asset.seriesSlug}{asset.episodeSlug ? ` · ${asset.episodeSlug}` : ""}</small><small>{asset.width} × {asset.height} px · {formatBytes(asset.byteSize)}</small></div><div className="media-library__actions"><a className="inline-link" href={`/api/admin/media/${asset.id}`} target="_blank" rel="noreferrer">Önizle →</a>{asset.kind === "cover" && !activeCover && <form action="/api/admin/media/manage" method="post"><input type="hidden" name="action" value="cover_restore" /><input type="hidden" name="media_id" value={asset.id} /><input type="hidden" name="series_slug" value={asset.seriesSlug} /><input type="hidden" name="return_to" value="/media" /><button className="button button--ghost" type="submit">Kapak yap</button></form>}</div></article>;
+        return <article key={asset.id}><a className="media-library__preview" href={`/api/admin/media/${asset.id}`} target="_blank" rel="noreferrer" aria-label={`${asset.originalFilename} dosyasını yeni sekmede aç`}><Image src={`/api/admin/media/${asset.id}`} alt="" width={asset.width} height={asset.height} loading="lazy" unoptimized /></a><div><div className="inventory-status"><span className="pill pill--accent">{asset.kind === "cover" ? "Kapak" : "Panel"}</span><span className="pill">{asset.mimeType.replace("image/", "").toUpperCase()}</span>{activeCover && <span className="pill">Aktif</span>}<span className="pill">{variantCounts.get(asset.id) ?? 0} varyant</span></div><strong>{asset.originalFilename}</strong><small>{asset.seriesSlug}{asset.episodeSlug ? ` · ${asset.episodeSlug}` : ""}</small><small>{asset.width} × {asset.height} px · {formatBytes(asset.byteSize)}</small></div><div className="media-library__actions"><a className="inline-link" href={`/api/admin/media/${asset.id}`} target="_blank" rel="noreferrer">Önizle →</a>{asset.kind === "cover" && !activeCover && <form action="/api/admin/media/manage" method="post"><input type="hidden" name="action" value="cover_restore" /><input type="hidden" name="media_id" value={asset.id} /><input type="hidden" name="series_slug" value={asset.seriesSlug} /><input type="hidden" name="return_to" value="/media" /><button className="button button--ghost" type="submit">Kapak yap</button></form>}</div></article>;
       })}</div> : <div className="empty-state"><strong>Henüz medya yok.</strong><p>İlk kapak ya da paneli bu formdan yüklediğinde burada görünür.</p></div>}
     </section>
   </main></div>;

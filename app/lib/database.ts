@@ -165,6 +165,31 @@ async function ensureSchema(db: D1Database) {
       created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       created_at INTEGER NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS media_variants (
+      id TEXT PRIMARY KEY NOT NULL,
+      asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+      storage_key TEXT NOT NULL UNIQUE,
+      mime_type TEXT NOT NULL CHECK(mime_type = 'image/webp'),
+      byte_size INTEGER NOT NULL,
+      width INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(asset_id, width, mime_type)
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS media_derivative_jobs (
+      id TEXT PRIMARY KEY NOT NULL,
+      asset_id TEXT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+      target_width INTEGER NOT NULL,
+      format TEXT NOT NULL DEFAULT 'webp' CHECK(format = 'webp'),
+      status TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','processing','completed','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      completed_at INTEGER,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(asset_id, target_width, format)
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS preview_tokens (
       id TEXT PRIMARY KEY NOT NULL,
       token_hash TEXT NOT NULL UNIQUE,
@@ -189,6 +214,8 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS content_series_publication_idx ON content_series(publication_status, is_featured DESC, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS content_episodes_series_idx ON content_episodes(series_slug, publication_status, number DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS media_assets_series_idx ON media_assets(series_slug, episode_slug, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS media_variants_asset_idx ON media_variants(asset_id, width)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS media_derivative_jobs_status_idx ON media_derivative_jobs(status, created_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS preview_tokens_scope_idx ON preview_tokens(series_slug, episode_slug, expires_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS preview_tokens_expiry_idx ON preview_tokens(expires_at)"),
   ]);

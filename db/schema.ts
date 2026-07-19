@@ -170,6 +170,38 @@ export const mediaAssets = sqliteTable("media_assets", {
   index("media_assets_series_idx").on(table.seriesSlug, table.episodeSlug, table.createdAt),
 ]);
 
+export const mediaVariants = sqliteTable("media_variants", {
+  id: text("id").primaryKey(),
+  assetId: text("asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  storageKey: text("storage_key").notNull(),
+  mimeType: text("mime_type", { enum: ["image/webp"] }).notNull(),
+  byteSize: integer("byte_size").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("media_variants_asset_width_unique").on(table.assetId, table.width, table.mimeType),
+  uniqueIndex("media_variants_storage_key_unique").on(table.storageKey),
+  index("media_variants_asset_idx").on(table.assetId, table.width),
+]);
+
+export const mediaDerivativeJobs = sqliteTable("media_derivative_jobs", {
+  id: text("id").primaryKey(),
+  assetId: text("asset_id").notNull().references(() => mediaAssets.id, { onDelete: "cascade" }),
+  targetWidth: integer("target_width").notNull(),
+  format: text("format", { enum: ["webp"] }).notNull().default("webp"),
+  status: text("status", { enum: ["queued", "processing", "completed", "failed"] }).notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  createdAt: integer("created_at").notNull(),
+  startedAt: integer("started_at"),
+  completedAt: integer("completed_at"),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("media_derivative_jobs_target_unique").on(table.assetId, table.targetWidth, table.format),
+  index("media_derivative_jobs_status_idx").on(table.status, table.createdAt),
+]);
+
 export const previewTokens = sqliteTable("preview_tokens", {
   id: text("id").primaryKey(),
   tokenHash: text("token_hash").notNull(),
