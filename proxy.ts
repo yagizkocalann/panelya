@@ -51,6 +51,14 @@ export function proxy(request: NextRequest) {
 
   if (url.pathname.startsWith("/api/admin/")) return new NextResponse("Not found", { status: 404 });
 
+  if (url.pathname.startsWith("/preview/") || url.pathname.startsWith("/api/preview/")) {
+    const response = NextResponse.next();
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+    return response;
+  }
+
   return NextResponse.next();
 }
 

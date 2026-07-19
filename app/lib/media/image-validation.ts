@@ -58,4 +58,16 @@ export async function inspectImage(file: File, kind: MediaKind): Promise<ImageMe
   return { mimeType: file.type as AllowedImageType, width: size.width, height: size.height, byteSize: file.size };
 }
 
+export async function inspectDerivative(file: File, expectedWidth: number, expectedHeight: number): Promise<ImageMetadata> {
+  if (file.type !== "image/webp") throw new Error("Responsive varyant WebP olmalıdır.");
+  if (!file.size || file.size > 6 * 1024 * 1024) throw new Error("Responsive varyant 6 MB sınırını aşıyor.");
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const size = webpSize(bytes);
+  if (!size) throw new Error("Responsive WebP dosyası okunamadı.");
+  if (size.width !== expectedWidth || size.height !== expectedHeight) {
+    throw new Error(`Responsive varyant ${expectedWidth} × ${expectedHeight} px olmalıdır.`);
+  }
+  return { mimeType: "image/webp", width: size.width, height: size.height, byteSize: file.size };
+}
+
 export function extensionForMime(mimeType: AllowedImageType) { return mimeType === "image/jpeg" ? "jpg" : mimeType === "image/png" ? "png" : "webp"; }

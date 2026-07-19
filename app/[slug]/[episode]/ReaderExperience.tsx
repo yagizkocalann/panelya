@@ -9,9 +9,16 @@ type ReaderExperienceProps = {
   episode: Episode;
   previous?: Pick<Episode, "slug" | "number">;
   next?: Pick<Episode, "slug" | "number">;
+  preview?: { token: string; episodeScoped?: boolean };
 };
 
-export function ReaderExperience({ series, episode, previous, next }: ReaderExperienceProps) {
+function responsiveSrcSet(src: string) {
+  if (!/^\/api\/(?:preview\/)?media\/[A-Za-z0-9-]+(?:\?.*)?$/.test(src)) return undefined;
+  const separator = src.includes("?") ? "&" : "?";
+  return [480, 768, 1200].map((width) => `${src}${separator}width=${width} ${width}w`).join(", ");
+}
+
+export function ReaderExperience({ series, episode, previous, next, preview }: ReaderExperienceProps) {
   const [light, setLight] = useState(false);
   const [autoScroll, setAutoScroll] = useState(false);
   const scrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -20,6 +27,7 @@ export function ReaderExperience({ series, episode, previous, next }: ReaderExpe
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (preview?.token) return;
     const key = `panelya:progress:${series.slug}:${episode.slug}`;
     const update = () => {
       const total = document.documentElement.scrollHeight - window.innerHeight;
@@ -52,7 +60,7 @@ export function ReaderExperience({ series, episode, previous, next }: ReaderExpe
       window.removeEventListener("scroll", update);
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
-  }, [episode.number, episode.slug, episode.title, series.slug]);
+  }, [episode.number, episode.slug, episode.title, preview?.token, series.slug]);
 
   useEffect(() => {
     if (!autoScroll) {
@@ -63,11 +71,16 @@ export function ReaderExperience({ series, episode, previous, next }: ReaderExpe
     return () => { if (scrollTimerRef.current) clearInterval(scrollTimerRef.current); };
   }, [autoScroll]);
 
+  const previewRoot = preview ? `/preview/${encodeURIComponent(preview.token)}` : null;
+  const seriesHref = previewRoot ? `${previewRoot}${preview?.episodeScoped ? "?index=1" : ""}` : `/${series.slug}`;
+  const episodeHref = (slug: string) => previewRoot ? `${previewRoot}?episode=${encodeURIComponent(slug)}` : `/${series.slug}/${slug}`;
+
   return (
     <div className={`reader${light ? " reader--light" : ""}`}>
+      {preview && <div className="preview-ribbon" role="status">Taslak önizleme · yayınlanmadı · bağlantı 30 dakika geçerli</div>}
       <div className="reader-progress" aria-hidden="true"><span /></div>
       <header className="reader-header">
-        <Link className="reader-back" href={`/${series.slug}`} aria-label={`${series.title} seri sayfasına dön`}>← <span>{series.title}</span></Link>
+        <Link className="reader-back" href={seriesHref} aria-label={`${series.title} seri sayfasına dön`}>← <span>{series.title}</span></Link>
         <strong>Bölüm {episode.number}: {episode.title}</strong>
         <div className="reader-tools">
           <button type="button" className={autoScroll ? "is-active" : ""} onClick={() => setAutoScroll((value) => !value)} aria-pressed={autoScroll} aria-label="Otomatik kaydırmayı aç veya kapat">{autoScroll ? "■" : "▶"}</button>
@@ -84,7 +97,7 @@ export function ReaderExperience({ series, episode, previous, next }: ReaderExpe
             panel.image ? (
               <section key={panel.id} className="story-image-panel" aria-label={panel.scene}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={panel.image.src} alt={panel.image.alt} width={panel.image.width} height={panel.image.height} loading={index === 0 ? "eager" : "lazy"} />
+                <img src={panel.image.src} srcSet={responsiveSrcSet(panel.image.src)} sizes="(max-width: 760px) 100vw, 760px" alt={panel.image.alt} width={panel.image.width} height={panel.image.height} loading={index === 0 ? "eager" : "lazy"} />
                 {(panel.caption || panel.dialogue) && <div className="story-image-lettering" aria-label="Panel metni">
                   {panel.caption && <p className="story-image-caption">{panel.caption}</p>}
                   {panel.dialogue && <p className={`story-image-dialogue story-image-dialogue--${panel.align ?? (index % 2 ? "left" : "right")}`}>{panel.dialogue}</p>}
@@ -100,20 +113,20 @@ export function ReaderExperience({ series, episode, previous, next }: ReaderExpe
               </section>
             )
           ))}
-          <div className="story-end"><span>Devam edecek</span><h2>Bu bölüm burada bitti.</h2><p>İlerleme cihazda; giriş yaptıysan hesabında da otomatik kaydedildi.</p></div>
+          <div className="story-end"><span>Devam edecek</span><h2>Bu bölüm burada bitti.</h2><p>{preview ? "Bu bir taslak önizlemedir; okuma ilerlemesi kaydedilmez." : "İlerleme cihazda; giriş yaptıysan hesabında da otomatik kaydedildi."}</p></div>
         </article>
 
         <nav className="reader-end-nav" aria-label="Bölüm geçişleri">
-          {previous ? <Link href={`/${series.slug}/${previous.slug}`}>← Bölüm {previous.number}</Link> : <span />}
-          <Link href={`/${series.slug}`}>Bölüm listesi</Link>
-          {next ? <Link href={`/${series.slug}/${next.slug}`}>Bölüm {next.number} →</Link> : <span />}
+          {previous ? <Link href={episodeHref(previous.slug)}>← Bölüm {previous.number}</Link> : <span />}
+          <Link href={seriesHref}>Bölüm listesi</Link>
+          {next ? <Link href={episodeHref(next.slug)}>Bölüm {next.number} →</Link> : <span />}
         </nav>
       </main>
 
       <nav className="reader-dock" aria-label="Hızlı bölüm geçişleri">
-        {previous ? <Link href={`/${series.slug}/${previous.slug}`}>← <span>Önceki</span></Link> : <span className="reader-dock__spacer" aria-hidden="true" />}
-        <Link className="reader-dock__chapter" href={`/${series.slug}`}>Bölüm {episode.number}⌃</Link>
-        {next ? <Link href={`/${series.slug}/${next.slug}`}><span>Sonraki</span> →</Link> : <span className="reader-dock__spacer" aria-hidden="true" />}
+        {previous ? <Link href={episodeHref(previous.slug)}>← <span>Önceki</span></Link> : <span className="reader-dock__spacer" aria-hidden="true" />}
+        <Link className="reader-dock__chapter" href={seriesHref}>Bölüm {episode.number}⌃</Link>
+        {next ? <Link href={episodeHref(next.slug)}><span>Sonraki</span> →</Link> : <span className="reader-dock__spacer" aria-hidden="true" />}
       </nav>
     </div>
   );

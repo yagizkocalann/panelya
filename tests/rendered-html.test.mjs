@@ -219,6 +219,48 @@ test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async 
 
   const publicAdminMutation = await request("/api/admin/messages/example", "text/html", "http://localhost", { method: "POST" });
   assert.equal(publicAdminMutation.status, 404);
+
+  const publicPreviewMutation = await request("/api/admin/previews", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicPreviewMutation.status, 404);
+  const publicDerivativeMutation = await request("/api/admin/media/derivatives", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicDerivativeMutation.status, 404);
+});
+
+test("taslak önizleme süreli, kapsamlı ve public yayından ayrıdır", async () => {
+  const [schema, previewTokens, previewApi, previewMedia, previewPage, seriesStudioPage, proxy] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/preview-tokens.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/previews/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/preview/media/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/preview/[token]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /sqliteTable\("preview_tokens"/);
+  assert.match(schema, /uniqueIndex\("preview_tokens_hash_unique"/);
+  assert.match(previewTokens, /new Uint8Array\(32\)/);
+  assert.match(previewTokens, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(previewTokens, /PREVIEW_TTL_MS = 30 \* 60 \* 1000/);
+  assert.doesNotMatch(previewTokens, /rawToken[^\n]*INSERT|INSERT[^\n]*rawToken/);
+  assert.match(previewApi, /isStudioRequest\(request\)/);
+  assert.match(previewApi, /assertSameOrigin/);
+  assert.match(previewApi, /preview\.created/);
+  assert.match(previewApi, /preview\.revoked/);
+  assert.match(previewMedia, /asset\.seriesSlug !== grant\.seriesSlug/);
+  assert.match(previewMedia, /Cache-Control["']:\s*["']private, no-store/);
+  assert.match(previewPage, /robots:\s*\{ index: false, follow: false/);
+  assert.match(seriesStudioPage, /PreviewCreateForm/);
+  assert.match(proxy, /X-Robots-Tag/);
+
+  const invalidPage = await request("/preview/not-a-valid-token");
+  assert.equal(invalidPage.status, 404);
+  assert.equal(invalidPage.headers.get("referrer-policy"), "no-referrer");
+  assert.match(invalidPage.headers.get("cache-control") ?? "", /no-store/);
+  assert.match(invalidPage.headers.get("x-robots-tag") ?? "", /noindex/);
+
+  const invalidMedia = await request("/api/preview/media/example?token=invalid", "image/webp");
+  assert.equal(invalidMedia.status, 404);
+  assert.match(invalidMedia.headers.get("cache-control") ?? "", /no-store/);
 });
 
 test("şifre sıfırlama ve doğrulama sayfaları herkese açıktır", async () => {
@@ -249,20 +291,28 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(seriesApi, /writeAudit/);
   assert.match(episodeApi, /writeAudit/);
 });
-test("Studio medya hattı R2, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
-  const [schema, hosting, mediaApi, privateMedia, publicMedia, validation, storage, mediaPage, proxy] = await Promise.all([
+test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
+  const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, derivatives, derivativeQueue, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/media/manage/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/media/derivatives/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/media/derivatives.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/media/DerivativeQueue.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/media/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/media/image-validation.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/media/storage.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/media/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/episodes/[episode]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/[slug]/[episode]/ReaderExperience.tsx", import.meta.url), "utf8"),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
   ]);
   assert.equal(JSON.parse(hosting).r2, "MEDIA");
   assert.match(schema, /sqliteTable\("media_assets"/);
+  assert.match(schema, /sqliteTable\("media_variants"/);
+  assert.match(schema, /sqliteTable\("media_derivative_jobs"/);
   assert.match(schema, /storage_key/);
   assert.match(mediaApi, /isStudioRequest\(request\)/);
   assert.match(mediaApi, /assertSameOrigin/);
@@ -274,9 +324,28 @@ test("Studio medya hattı R2, host sınırı ve yayın görünürlüğü sözle�
   assert.match(validation, /image\/png/);
   assert.match(validation, /image\/webp/);
   assert.match(validation, /MAX_PIXELS/);
+  assert.match(validation, /inspectDerivative/);
   assert.match(storage, /interface MediaStorage/);
   assert.match(storage, /env\.MEDIA/);
   assert.match(mediaPage, /multipart\/form-data/);
   assert.match(mediaPage, /Dosyayı doğrula ve yükle/);
+  assert.match(mediaPage, /Türetme kuyruğu/);
+  assert.match(derivatives, /RESPONSIVE_WIDTHS = \[480, 768, 1200\]/);
+  assert.match(derivatives, /INSERT OR IGNORE INTO media_derivative_jobs/);
+  assert.match(derivativeQueue, /createImageBitmap/);
+  assert.match(derivativeQueue, /image\/webp/);
+  assert.match(derivativesApi, /inspectDerivative/);
+  assert.match(derivativesApi, /isStudioRequest\(request\)/);
+  assert.match(derivativesApi, /assertSameOrigin/);
+  assert.match(derivativesApi, /media\.derivative_completed/);
+  assert.match(publicMedia, /getMediaVariant/);
+  assert.match(reader, /srcSet=/);
+  assert.match(mediaPage, /cover_restore/);
+  assert.match(episodePage, /panel_move/);
+  assert.match(episodePage, /panel_remove/);
+  assert.match(mediaManageApi, /media\.panel_reordered/);
+  assert.match(mediaManageApi, /media\.panel_unlinked/);
+  assert.match(mediaManageApi, /media\.cover_restored/);
+  assert.match(mediaManageApi, /isStudioRequest/);
   assert.match(proxy, /"media"/);
 });
