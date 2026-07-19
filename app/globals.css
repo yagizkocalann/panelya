@@ -120,6 +120,7 @@ button { color: inherit; }
 .card-kicker, .card-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #788982; font-size: 11px; }
 .card-kicker span:first-child { color: var(--mint); text-transform: uppercase; letter-spacing: 1px; font-weight: 800; }
 .series-card h3 { margin: 9px 0 5px; font-size: 19px; letter-spacing: -.5px; }
+.series-card h3 a { min-height: 44px; display: inline-flex; align-items: center; }
 .series-card h3 a:hover { color: var(--mint); }
 .series-card p { min-height: 36px; margin: 0 0 11px; color: var(--muted); font-size: 13px; line-height: 1.4; }
 .card-meta { padding-top: 10px; border-top: 1px solid var(--line); }

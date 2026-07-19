@@ -29,6 +29,12 @@ export function proxy(request: NextRequest) {
   const url = request.nextUrl;
 
   if (isStudioRequest(request)) {
+    if (url.pathname === "/robots.txt") {
+      return new NextResponse("User-agent: *\nDisallow: /\n", {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" },
+      });
+    }
+
     if (url.pathname === "/studio" || url.pathname.startsWith("/studio/")) {
       return NextResponse.redirect(copySearch(url, new URL(cleanStudioPath(url.pathname), studioSiteOrigin(request))));
     }

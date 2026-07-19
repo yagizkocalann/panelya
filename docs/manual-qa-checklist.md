@@ -25,6 +25,7 @@ Durumlar:
 | QA-SEC-01 | BEKLIYOR | Atomik ve dagitik rate-limit | Studio `/qa`; public `/login`, `/register`, `/forgot-password`; Studio yonetici mutation'lari | Yerelde `d1_strict` etiketi gorunmeli ve kota tam sinirda reddetmeli. Production testinde `cloudflare_hybrid` etiketi gorunmeli; eksik binding fail-closed olmali ve hesap varligi sizmamali. |
 | QA-OPS-01 | BEKLIYOR | Production platform hazirligi | Studio `/qa` + `/api/admin/platform-readiness` + Cloudflare deployment kaynagi | Production profili otomatik D1/R2/Images/Queue/rate-limit kontrollerini gecmeli; consumer retry ve DLQ ayari ayrica gorulmeli; eksik binding 503 vermeli. |
 | QA-OPS-02 | BEKLIYOR | D1/R2 yedek ve geri yukleme tatbikati | `docs/backup-restore-runbook.md` + izole D1/R2 test kaynaklari | Kurtarma paketi verifier'dan gecmeli; yeni D1 ve ayri R2 test kovasina geri donmeli; katalog/medya smoke gecmeli; eski oturum, token, preview ve davetler kullanilamamali. |
+| QA-SEO-01 | BEKLIYOR | Public SEO ve tarama siniri | On kosul: test/production `PUBLIC_SITE_ORIGIN` gercek public domaine ayarli. Public `/robots.txt`, `/sitemap.xml`, `/`, bir seri ve bir okuyucu URL'si; Studio `/robots.txt` | Canonical URL'ler public domaine gitmeli; sitemap yalniz indexlenebilir kurumsal/seri rotalarini icermeli; okuyucu `noindex,follow`, Studio robots ise tum taramayi kapatmali; seri JSON-LD yayin verisiyle uyusmali. |
 | QA-ADS-01 | BEKLIYOR | Google resmi test reklami | Public reklam alanlari + Studio `/ads` | Yalniz resmi Google test birimi gorunmeli; gercek publisher veya tiklama otomasyonu olmamali. |
 | QA-STU-06 | BEKLIYOR | Outbox saklama ve temizleme | Studio `/outbox` | Saklama sayilari dogru olmali; buton yalniz suresi dolan kayit varsa gorunmeli; temizlik aktif kaydi silmemeli ve audit olayi olusturmali. |
 | QA-RESP-01 | BEKLIYOR | Responsive genel tur | Public ana/seri/okuyucu, auth ve Studio | 1440, 1024, 768, 390 ve 360 px'te yatay tasma, kirpik kontrol, 44 px alti dokunma hedefi veya ulasilamayan aksiyon olmamali. |
@@ -38,6 +39,7 @@ Durumlar:
 - [ ] `QA-PUB-03` Okuyucu onceki/sonraki, ilerleme, tema ve dikey panel akisinda calisiyor.
 - [ ] `QA-PUB-04` Bilinmeyen seri/bolum 404; hakkimizda, iletisim ve yasal footer linkleri calisiyor.
 - [ ] `QA-PUB-05` Kutuphane, favori ve hesaplar arasi okuma ilerlemesi korunuyor.
+- [ ] `QA-PUB-06` Public canonical, robots, sitemap ve ComicSeries JSON-LD ayni production origin'ini kullaniyor; taslak, Studio, API, hesap ve okuyucu URL'leri sitemap'e sizmiyor.
 
 ### Hesap ve guvenlik
 

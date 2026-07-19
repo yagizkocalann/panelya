@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { InfoPage } from "../components/InfoPage";
 
-export const metadata: Metadata = { title: "Telif Bildirimi — Panelya" };
+export const metadata: Metadata = { title: "Telif Bildirimi — Panelya", alternates: { canonical: "/copyright" } };
 export default function CopyrightPage() {
   return <InfoPage kicker="Hak sahipliği" title="Telif bildirimi" intro="Hak sahibiysen ve Panelya'daki bir içeriğin izinsiz kullanıldığını düşünüyorsan incelenmesi için bildirim gönderebilirsin." actions={[{ href: "/contact?subject=copyright", label: "Telif bildirimi gönder", primary: true }, { href: "/publishing-principles", label: "Yayın ilkelerini oku" }]} sections={[
     { title: "Gerekli bilgiler", items: ["Hak sahibinin adı ve iletişim bilgisi", "Korunan eserin açıklaması", "İhlal edildiği düşünülen Panelya URL'si", "Hak sahipliğini destekleyen belge veya kaynak", "Bildirimin iyi niyetle yapıldığına dair beyan"] },

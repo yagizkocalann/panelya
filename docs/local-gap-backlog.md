@@ -31,7 +31,7 @@
 2. Analitik, hata izleme, performans butcesi ve reklam gorunurluk olcumleri.
 3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
 4. Tamamlandi: D1 Time Travel + uzun sureli SQL export, ayri immutable R2 yedek kovasi, surumlu kurtarma paketi verifier'i ve izole geri yukleme tatbikati runbook'u. Kalan dis is: production yedek kovasi/kimligi, retention lock ve zamanlanmis export-copy workflow'unu provision edip `QA-OPS-02` tatbikatini calistirmak.
-5. Sitemap, robots, canonical ve Series JSON-LD.
+5. Tamamlandi: request-host uyumlu canonical URL'ler, public/Studio ayri robots politikasi, yalniz indexlenebilir yayin rotalarini iceren D1 tabanli sitemap ve guvenli ComicSeries/ComicIssue JSON-LD. Kalan dis is: production domainiyle `QA-SEO-01` arama motoru smoke ve Search Console kaydi.
 6. Tamamlandi: D1/R2/Images/Queue/rate-limit binding ve runtime modlarini secret sizdirmadan denetleyen Studio platform readiness kapisi. Kalan dis is: gercek Queue consumer/DLQ ve edge namespace provision/smoke testi.
 
 ## P2

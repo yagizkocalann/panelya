@@ -5,9 +5,11 @@ import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { ReadingProgressCard } from "./ReadingProgressCard";
 import { AdTestSlot } from "../components/AdTestSlot";
+import { JsonLd } from "../components/JsonLd";
 import { getCurrentUser } from "../lib/auth";
 import { getSeriesCommunity } from "../lib/reviews";
 import { getPublishedSeries } from "../lib/content-repository";
+import { publicSiteUrlForCurrentRequest } from "../lib/server-site-origins";
 
 type SeriesPageProps = { params: Promise<{ slug: string }>; searchParams?: Promise<{ community?: string }> };
 
@@ -27,8 +29,14 @@ const communityMessages: Record<string, string> = {
 export async function generateMetadata({ params }: SeriesPageProps): Promise<Metadata> {
   const { slug } = await params;
   const series = await getPublishedSeries(slug);
-  if (!series) return { title: "Seri bulunamadı — Panelya" };
-  return { title: `${series.title} — Panelya`, description: series.description };
+  if (!series) return { title: "Seri bulunamadı — Panelya", robots: { index: false, follow: false } };
+  const canonical = `/${series.slug}`;
+  return {
+    title: `${series.title} — Panelya`,
+    description: series.description,
+    alternates: { canonical },
+    openGraph: { title: `${series.title} — Panelya`, description: series.description, url: canonical, type: "website" },
+  };
 }
 
 export default async function SeriesPage({ params, searchParams }: SeriesPageProps) {
@@ -36,16 +44,48 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
   const series = await getPublishedSeries(slug);
   if (!series) notFound();
   const user = await getCurrentUser();
-  const [community, query] = await Promise.all([getSeriesCommunity(slug, user?.id), searchParams ?? Promise.resolve({})]);
+  const [community, query, canonicalUrl, publicOrigin] = await Promise.all([
+    getSeriesCommunity(slug, user?.id),
+    searchParams ?? Promise.resolve({}),
+    publicSiteUrlForCurrentRequest(`/${series.slug}`),
+    publicSiteUrlForCurrentRequest("/"),
+  ]);
   const ascending = [...series.episodes].sort((a, b) => a.number - b.number);
   const first = ascending[0];
   const latest = ascending[ascending.length - 1];
   const coverStyle = series.coverImage
     ? { backgroundImage: `url("${series.coverImage}")`, backgroundPosition: series.coverPosition ?? "center" }
     : undefined;
+  const seriesJsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "ComicSeries",
+    "@id": `${canonicalUrl}#series`,
+    url: canonicalUrl,
+    name: series.title,
+    description: series.description,
+    inLanguage: "tr-TR",
+    genre: series.genres,
+    creditText: series.creator,
+    creativeWorkStatus: series.status,
+    isAccessibleForFree: true,
+    publisher: { "@type": "Organization", name: "Panelya", url: publicOrigin },
+    publishingPrinciples: new URL("/publishing-principles", publicOrigin).toString(),
+    hasPart: ascending.map((episode) => ({
+      "@type": "ComicIssue",
+      name: episode.title,
+      issueNumber: episode.number,
+      url: new URL(`/${series.slug}/${episode.slug}`, publicOrigin).toString(),
+      isPartOf: { "@id": `${canonicalUrl}#series` },
+    })),
+  };
+  if (series.coverImage?.startsWith("/")) seriesJsonLd.image = new URL(series.coverImage, publicOrigin).toString();
+  if (community.average && community.count > 0) {
+    seriesJsonLd.aggregateRating = { "@type": "AggregateRating", ratingValue: community.average, ratingCount: community.count, bestRating: 5, worstRating: 1 };
+  }
 
   return (
     <div className="site-shell">
+      <JsonLd data={seriesJsonLd} />
       <SiteHeader />
       <main id="main-content" className="series-page">
         <section className="series-hero wrap" aria-labelledby="series-title">
