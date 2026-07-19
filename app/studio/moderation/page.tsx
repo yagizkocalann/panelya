@@ -34,6 +34,16 @@ type ModerationReviewRow = {
   report_count: number;
 };
 
+type ModerationReplyRow = {
+  id: string;
+  series_slug: string;
+  body: string;
+  status: "published" | "hidden";
+  updated_at: number;
+  author_name: string;
+  review_author_name: string;
+};
+
 const reasonLabels: Record<string, string> = { spam: "Spam veya reklam", harassment: "Taciz veya nefret", spoiler: "İşaretlenmemiş spoiler", copyright: "Telif ihlali", other: "Diğer" };
 
 export default async function ModerationPage() {
@@ -43,7 +53,7 @@ export default async function ModerationPage() {
   const [publicHome, contentSeries] = await Promise.all([publicSiteUrlForCurrentRequest("/"), listStudioSeries()]);
   const seriesNames = new Map(contentSeries.map((series) => [series.slug, series.title]));
   const db = await getDatabase();
-  const [reports, reviews] = await Promise.all([
+  const [reports, reviews, replies] = await Promise.all([
     db.prepare(`SELECT rr.id, rr.review_id, rr.reason, rr.details, rr.status AS report_status, rr.created_at,
       r.series_slug, r.rating, r.comment, r.status AS review_status,
       author.display_name AS author_name, reporter.display_name AS reporter_name
@@ -57,6 +67,13 @@ export default async function ModerationPage() {
       FROM reviews r JOIN users u ON u.id = r.user_id
       LEFT JOIN review_reports rr ON rr.review_id = r.id
       GROUP BY r.id ORDER BY r.updated_at DESC LIMIT 100`).all<ModerationReviewRow>(),
+    db.prepare(`SELECT reply.id, r.series_slug, reply.body, reply.status, reply.updated_at,
+      author.display_name AS author_name, review_author.display_name AS review_author_name
+      FROM review_replies reply
+      JOIN reviews r ON r.id = reply.review_id
+      JOIN users author ON author.id = reply.user_id
+      JOIN users review_author ON review_author.id = r.user_id
+      ORDER BY reply.updated_at DESC LIMIT 100`).all<ModerationReplyRow>(),
   ]);
   return <div className="site-shell studio-shell"><SiteHeader compact homeHref={publicHome} /><main id="main-content" className="studio-main wrap">
     <div className="studio-top"><div><p className="section-kicker">Topluluk güvenliği</p><h1>Moderasyon</h1><p>Okuyucu raporlarını değerlendir, yorumu gizle veya yanlış raporu kapat.</p></div><Link className="button button--ghost" href="/">← Studio</Link></div>
@@ -65,6 +82,9 @@ export default async function ModerationPage() {
     </section>
     <section className="moderation-section" aria-labelledby="all-reviews-title"><div className="section-heading"><div><p className="section-kicker">İçerik durumu</p><h2 id="all-reviews-title">Son değerlendirmeler</h2></div><span className="sort-note">{reviews.results.length} kayıt</span></div>
       <div className="moderation-review-table">{reviews.results.length ? reviews.results.map((item) => <article key={item.id}><div><span className={`pill${item.status === "published" ? " pill--accent" : ""}`}>{item.status === "published" ? "Yayında" : "Gizli"}</span><strong>{item.author_name} · {item.rating}/5</strong><small>{seriesNames.get(item.series_slug) ?? item.series_slug} · {Number(item.report_count)} rapor</small><p>{item.comment ?? "Yalnızca puan verilmiş."}</p></div><form action={`/api/admin/moderation/reviews/${item.id}`} method="post"><input type="hidden" name="action" value={item.status === "published" ? "hide" : "publish"} /><button className="button button--ghost" type="submit">{item.status === "published" ? "Gizle" : "Yeniden yayınla"}</button></form></article>) : <div className="empty-state"><strong>Henüz değerlendirme yok.</strong></div>}</div>
+    </section>
+    <section id="recent-replies" className="moderation-section" aria-labelledby="all-replies-title"><div className="section-heading"><div><p className="section-kicker">Yanıt durumu</p><h2 id="all-replies-title">Son yorum yanıtları</h2></div><span className="sort-note">{replies.results.length} kayıt</span></div>
+      <div className="moderation-review-table">{replies.results.length ? replies.results.map((item) => <article key={item.id}><div><span className={`pill${item.status === "published" ? " pill--accent" : ""}`}>{item.status === "published" ? "Yayında" : "Gizli"}</span><strong>{item.author_name}</strong><small>{seriesNames.get(item.series_slug) ?? item.series_slug} · {item.review_author_name} kullanıcısının yorumuna yanıt</small><p>{item.body}</p></div><form action={`/api/admin/moderation/replies/${item.id}`} method="post"><input type="hidden" name="action" value={item.status === "published" ? "hide" : "publish"} /><button className="button button--ghost" type="submit">{item.status === "published" ? "Gizle" : "Yeniden yayınla"}</button></form></article>) : <div className="empty-state"><strong>Henüz yanıt yok.</strong></div>}</div>
     </section>
   </main></div>;
 }

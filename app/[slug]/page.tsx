@@ -25,6 +25,15 @@ const communityMessages: Record<string, string> = {
   "invalid-report": "Rapor nedeni veya açıklaması geçersiz.",
   "rate-limited": "Çok sık değerlendirme güncellendi. Biraz sonra yeniden dene.",
   "report-rate-limited": "Rapor sınırına ulaştın. Daha sonra yeniden dene.",
+  "reply-saved": "Yanıtın yayınlandı.",
+  "reply-deleted": "Yanıtın silindi.",
+  "invalid-reply": "Yanıt 2–500 karakter olmalı.",
+  "reply-rate-limited": "Çok sık yanıt gönderildi. Biraz sonra yeniden dene.",
+  liked: "Yorumu beğendin.",
+  "like-removed": "Yorum beğenisi kaldırıldı.",
+  "like-rate-limited": "Çok sık beğeni değiştirildi. Biraz sonra yeniden dene.",
+  "user-blocked": "Kullanıcı engellendi; içerikleri artık gösterilmiyor.",
+  "interaction-blocked": "Engellenen kullanıcılarla etkileşim kurulamaz.",
 };
 
 const anonymousReaderState: SeriesReaderState = {
@@ -135,7 +144,7 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
 
         <section id="community" className="community-section wrap" aria-labelledby="community-title">
           <div className="community-heading"><div><p className="section-kicker">Okuyucu topluluğu</p><h2 id="community-title">Puanlar ve yorumlar</h2></div><div className="rating-summary"><strong>{community.average?.toFixed(1) ?? "—"}</strong><span aria-label={community.average ? `5 üzerinden ${community.average.toFixed(1)}` : "Henüz puan yok"}>★★★★★</span><small>{community.count ? `${community.count} değerlendirme` : "İlk değerlendirmeyi sen yap"}</small></div></div>
-          {query.community && communityMessages[query.community] && <p className={`form-message ${query.community.includes("invalid") || query.community.includes("limited") || query.community === "cannot-report-own" ? "form-message--error" : "form-message--success"}`} role="status">{communityMessages[query.community]}</p>}
+          {query.community && communityMessages[query.community] && <p className={`form-message ${query.community.includes("invalid") || query.community.includes("limited") || query.community === "cannot-report-own" || query.community === "interaction-blocked" ? "form-message--error" : "form-message--success"}`} role="status">{communityMessages[query.community]}</p>}
           <div className="community-layout">
             <aside className="review-composer">
               <h3>{community.currentReview ? "Değerlendirmeni düzenle" : "Seriyi değerlendir"}</h3>
@@ -152,7 +161,8 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
             </aside>
             <div className="review-list" aria-label="Okuyucu yorumları">{community.reviews.length ? community.reviews.map((review) => <article className="review-card" key={review.id}><header><div><strong>{review.display_name}</strong><span aria-label={`5 üzerinden ${review.rating}`}>{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</span></div><time dateTime={new Date(review.updated_at).toISOString()}>{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(review.updated_at))}</time></header>
               {review.comment ? review.contains_spoiler ? <details className="spoiler-comment"><summary>Spoiler içerir — yorumu göster</summary><p>{review.comment}</p></details> : <p>{review.comment}</p> : <p className="rating-only">Yalnızca puan verdi.</p>}
-              {user && user.id !== review.user_id && user.emailVerifiedAt && <details className="report-panel"><summary>Yorumu raporla</summary><form className="stack-form" action={`/api/review-reports/${review.id}`} method="post"><label>Neden<select name="reason" defaultValue="spam"><option value="spam">Spam veya reklam</option><option value="harassment">Taciz veya nefret</option><option value="spoiler">İşaretlenmemiş spoiler</option><option value="copyright">Telif ihlali</option><option value="other">Diğer</option></select></label><label>Ek açıklama<textarea name="details" maxLength={500} rows={3} /></label><button className="button button--ghost" type="submit">Raporu gönder</button></form></details>}
+              {user?.emailVerifiedAt && <div className="review-actions"><form action={`/api/review-likes/${review.id}`} method="post"><input type="hidden" name="action" value={review.viewer_liked ? "unlike" : "like"} /><button className={`button button--compact${review.viewer_liked ? " is-active" : ""}`} type="submit" aria-pressed={Boolean(review.viewer_liked)}>♡ {review.viewer_liked ? "Beğenildi" : "Beğen"} · {review.like_count}</button></form><details className="reply-panel"><summary>Yanıtla</summary><form className="stack-form" action={`/api/review-replies/${review.id}`} method="post"><label>Yanıt<textarea name="body" minLength={2} maxLength={500} rows={3} required /><small>2–500 karakter · yanıtlar tek seviyedir.</small></label><button className="button button--ghost" type="submit">Yanıtı yayınla</button></form></details>{user.id !== review.user_id && <details className="review-more"><summary>Diğer işlemler</summary><div><details className="report-panel"><summary>Yorumu raporla</summary><form className="stack-form" action={`/api/review-reports/${review.id}`} method="post"><label>Neden<select name="reason" defaultValue="spam"><option value="spam">Spam veya reklam</option><option value="harassment">Taciz veya nefret</option><option value="spoiler">İşaretlenmemiş spoiler</option><option value="copyright">Telif ihlali</option><option value="other">Diğer</option></select></label><label>Ek açıklama<textarea name="details" maxLength={500} rows={3} /></label><button className="button button--ghost" type="submit">Raporu gönder</button></form></details><form action={`/api/blocks/${review.user_id}`} method="post"><input type="hidden" name="action" value="block" /><input type="hidden" name="return_to" value={`/${series.slug}`} /><button className="button button--danger" type="submit">{review.display_name} kullanıcısını engelle</button></form></div></details>}</div>}
+              {review.replies.length > 0 && <div className="reply-list" aria-label={`${review.display_name} yorumuna yanıtlar`}>{review.replies.map((reply) => <article className="reply-card" key={reply.id}><header><strong>{reply.display_name}</strong><time dateTime={new Date(reply.created_at).toISOString()}>{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(reply.created_at))}</time></header><p>{reply.body}</p>{user?.id === reply.user_id && <form action={`/api/review-replies/${review.id}`} method="post"><input type="hidden" name="action" value="delete" /><input type="hidden" name="reply_id" value={reply.id} /><button className="button button--compact" type="submit">Yanıtımı sil</button></form>}</article>)}</div>}
             </article>) : <div className="empty-state"><strong>Henüz değerlendirme yok.</strong><p>Bu seri için ilk puanı ve yorumu bırakabilirsin.</p></div>}</div>
           </div>
         </section>

@@ -141,6 +141,34 @@ export const reviewReports = sqliteTable("review_reports", {
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [uniqueIndex("review_reports_reporter_unique").on(table.reviewId, table.reporterUserId)]);
 
+export const reviewReplies = sqliteTable("review_replies", {
+  id: text("id").primaryKey(),
+  reviewId: text("review_id").notNull().references(() => reviews.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  status: text("status", { enum: ["published", "hidden"] }).notNull().default("published"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  index("review_replies_review_idx").on(table.reviewId, table.status, table.createdAt),
+  index("review_replies_user_idx").on(table.userId, table.createdAt),
+]);
+
+export const reviewLikes = sqliteTable("review_likes", {
+  reviewId: text("review_id").notNull().references(() => reviews.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.reviewId, table.userId] })]);
+
+export const userBlocks = sqliteTable("user_blocks", {
+  blockerUserId: text("blocker_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  blockedUserId: text("blocked_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.blockerUserId, table.blockedUserId] }),
+  index("user_blocks_blocked_idx").on(table.blockedUserId, table.createdAt),
+]);
+
 export const contentSeries = sqliteTable("content_series", {
   slug: text("slug").primaryKey(),
   title: text("title").notNull(),

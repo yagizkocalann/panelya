@@ -72,7 +72,7 @@ function safeMetadata(raw: string | null) {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const allowed = new Set([
       "seriesSlug", "episodeSlug", "publicationStatus", "mediaId", "kind", "mimeType", "byteSize", "width", "height",
-      "jobs", "jobId", "panelId", "from", "to", "grantId", "expiresAt", "reviewId", "reason", "containsSpoiler",
+      "jobs", "jobId", "panelId", "from", "to", "grantId", "expiresAt", "reviewId", "replyId", "reason", "containsSpoiler",
       "rating", "messageId", "role", "targetUserId", "previousRole", "newRole", "position", "reportId", "invitationId",
       "deletedCount", "policyVersion", "subscriberCount", "queuedCount", "failedCount",
     ]);
