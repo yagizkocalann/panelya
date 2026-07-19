@@ -4,6 +4,7 @@
 // çalıştırılmalıdır (dart run tool/generate_contracts.dart).
 
 import 'panel_tone.dart';
+import 'public_media_variant.dart';
 
 /// Kaynak: `packages/contracts/schema.json` -> `$defs/SeriesMetadata`.
 class SeriesMetadata {
@@ -22,6 +23,7 @@ class SeriesMetadata {
     required this.followers,
     this.isNew,
     this.coverImage,
+    this.coverImageVariants,
     this.coverPosition,
   });
 
@@ -40,6 +42,14 @@ class SeriesMetadata {
     final followers = json['followers'] as String;
     final isNew = json['isNew'] as bool?;
     final coverImage = json['coverImage'] as String?;
+    final coverImageVariantsRaw = json['coverImageVariants'];
+    final coverImageVariants = coverImageVariantsRaw == null ? null : (coverImageVariantsRaw as List<dynamic>)
+        .map(
+          (item) => PublicMediaVariant.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList(growable: false);
     final coverPosition = json['coverPosition'] as String?;
     return SeriesMetadata(
       slug: slug,
@@ -56,6 +66,7 @@ class SeriesMetadata {
       followers: followers,
       isNew: isNew,
       coverImage: coverImage,
+      coverImageVariants: coverImageVariants,
       coverPosition: coverPosition,
     );
   }
@@ -77,6 +88,8 @@ class SeriesMetadata {
   final String followers;
   final bool? isNew;
   final String? coverImage;
+  /// Ready responsive cover derivatives sorted by ascending width.
+  final List<PublicMediaVariant>? coverImageVariants;
   final String? coverPosition;
 
   Map<String, dynamic> toJson() {
@@ -95,6 +108,7 @@ class SeriesMetadata {
       'followers': followers,
       'isNew': isNew,
       'coverImage': coverImage,
+      'coverImageVariants': coverImageVariants?.map((e) => e.toJson()).toList(),
       'coverPosition': coverPosition,
     };
   }

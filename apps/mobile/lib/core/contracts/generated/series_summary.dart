@@ -5,6 +5,7 @@
 
 import 'episode.dart';
 import 'panel_tone.dart';
+import 'public_media_variant.dart';
 
 /// Kaynak: `packages/contracts/schema.json` -> `$defs/SeriesSummary`.
 class SeriesSummary {
@@ -23,6 +24,7 @@ class SeriesSummary {
     required this.followers,
     this.isNew,
     this.coverImage,
+    this.coverImageVariants,
     this.coverPosition,
     required this.episodeCount,
     required this.latestEpisode,
@@ -43,6 +45,14 @@ class SeriesSummary {
     final followers = json['followers'] as String;
     final isNew = json['isNew'] as bool?;
     final coverImage = json['coverImage'] as String?;
+    final coverImageVariantsRaw = json['coverImageVariants'];
+    final coverImageVariants = coverImageVariantsRaw == null ? null : (coverImageVariantsRaw as List<dynamic>)
+        .map(
+          (item) => PublicMediaVariant.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList(growable: false);
     final coverPosition = json['coverPosition'] as String?;
     final episodeCount = (json['episodeCount'] as num).toInt();
     final latestEpisodeRaw = json['latestEpisode'];
@@ -66,6 +76,7 @@ class SeriesSummary {
       followers: followers,
       isNew: isNew,
       coverImage: coverImage,
+      coverImageVariants: coverImageVariants,
       coverPosition: coverPosition,
       episodeCount: episodeCount,
       latestEpisode: latestEpisode,
@@ -89,6 +100,8 @@ class SeriesSummary {
   final String followers;
   final bool? isNew;
   final String? coverImage;
+  /// Ready responsive cover derivatives sorted by ascending width.
+  final List<PublicMediaVariant>? coverImageVariants;
   final String? coverPosition;
   final int episodeCount;
   final Episode? latestEpisode;
@@ -109,6 +122,7 @@ class SeriesSummary {
       'followers': followers,
       'isNew': isNew,
       'coverImage': coverImage,
+      'coverImageVariants': coverImageVariants?.map((e) => e.toJson()).toList(),
       'coverPosition': coverPosition,
       'episodeCount': episodeCount,
       'latestEpisode': latestEpisode?.toJson(),

@@ -46,7 +46,11 @@ void main() {
       expect(series.genres, ['Gizem', 'Romantik']);
       expect(series.rating, 4.5);
       expect(series.isNew, isTrue);
-      expect(series.coverImage, '/images/gece-denemesi.webp');
+      expect(series.coverImage, '/api/media/fixture-cover-1');
+      expect(series.coverImageVariants, hasLength(2));
+      expect(series.coverImageVariants?.first.width, 480);
+      expect(series.coverImageVariants?.first.height, 640);
+      expect(series.coverImageVariants?.first.mimeType, 'image/webp');
       expect(series.episodeCount, 1);
       expect(series.latestEpisode?.slug, 'bolum-1');
       expect(series.latestEpisode?.panels, hasLength(1));
@@ -69,7 +73,8 @@ void main() {
         expect(response.schemaVersion, '1.0');
         expect(response.series.slug, 'gece-denemesi');
         expect(response.series.genres, ['Gizem', 'Romantik']);
-        expect(response.series.coverImage, '/images/gece-denemesi.webp');
+        expect(response.series.coverImage, '/api/media/fixture-cover-1');
+        expect(response.series.coverImageVariants, hasLength(2));
         expect(response.episodes, hasLength(1));
         expect(response.episodes.single.slug, 'bolum-1');
         expect(response.episodes.single.panelCount, 1);
@@ -92,8 +97,14 @@ void main() {
         expect(response.episode.panels, hasLength(1));
 
         final panel = response.episode.panels.single;
-        expect(panel.image?.src, '/images/gece-denemesi/panel-1.webp');
+        expect(panel.image?.src, '/api/media/fixture-panel-1');
         expect(panel.image?.width, 1080);
+        expect(panel.image?.variants, hasLength(2));
+        expect(
+          panel.image?.variants?.first.src,
+          '/api/media/fixture-panel-1?width=480',
+        );
+        expect(panel.image?.variants?.first.width, 480);
         expect(panel.align, 'left');
         expect(panel.tone, PanelTone.blue);
 
