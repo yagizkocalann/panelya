@@ -1,4 +1,5 @@
 import { getDatabase } from "./database";
+import { notificationDeliveryMode, type NotificationDeliveryMode } from "./runtime-config";
 
 export type NotificationKind = "verify_email" | "password_reset" | "security_notice";
 
@@ -15,7 +16,7 @@ export interface NotificationDelivery {
   send(message: NotificationMessage): Promise<void>;
 }
 
-class LocalOutboxDelivery implements NotificationDelivery {
+export class LocalOutboxDelivery implements NotificationDelivery {
   async send(message: NotificationMessage) {
     const db = await getDatabase();
     await db.prepare(`INSERT INTO notification_outbox
@@ -25,11 +26,26 @@ class LocalOutboxDelivery implements NotificationDelivery {
   }
 }
 
-// Production e-mail/SMS providers implement the same boundary; routes never depend on a vendor SDK.
-export function getNotificationDelivery(): NotificationDelivery {
-  return new LocalOutboxDelivery();
+export class NotificationDeliveryUnavailableError extends Error {
+  constructor(public readonly mode: string) {
+    super("notification_delivery_unavailable");
+    this.name = "NotificationDeliveryUnavailableError";
+  }
+}
+
+type DeliveryFactory = () => NotificationDelivery;
+const deliveryFactories: Record<NotificationDeliveryMode, DeliveryFactory> = {
+  local_outbox: () => new LocalOutboxDelivery(),
+};
+
+// Production providers add an adapter/factory here; routes and account flows remain vendor-independent.
+export async function getNotificationDelivery(): Promise<NotificationDelivery> {
+  const mode = await notificationDeliveryMode();
+  const factory = deliveryFactories[mode as NotificationDeliveryMode];
+  if (!factory) throw new NotificationDeliveryUnavailableError(mode);
+  return factory();
 }
 
 export async function sendNotification(message: NotificationMessage) {
-  return getNotificationDelivery().send(message);
+  return (await getNotificationDelivery()).send(message);
 }

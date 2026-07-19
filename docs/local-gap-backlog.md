@@ -21,7 +21,7 @@
 
 1. Tamamlandi: Studio kullanici envanteri, guvenli admin/okuyucu rol degisikligi, kendi rolunu ve son admini koruma, rol degisikliginde oturum kapatma.
 2. Tamamlandi: 24 saatlik tek kullanimlik admin daveti, yenileme/iptal/kabul akisi; production public kaydinda otomatik admin yetkisinin kaldirilmasi ve sifir admin kosullu tek seferlik Studio bootstrap.
-3. Production kimlik ve e-posta saglayicisi ile bildirim outbox'i/token teslim verisi dahil KVKK/GDPR saklama politikasinin kesinlestirilmesi.
+3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk yerel saklama-purge politikasi. Siradaki: production kimlik ve canli e-posta saglayicisi secimi ile genel KVKK/GDPR veri envanteri.
 4. Yerel sabit-pencere limitini edge/WAF veya dagitik rate-limit katmanina tasima.
 5. Idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasini kesinlestirme.
 
@@ -50,6 +50,7 @@
 - Studio yonetici daveti, yerel outbox teslimi ve production ilk-yonetici bootstrap siniri.
 - Studio seri/bolum ekranindan guvenli taslak onizleme baglantisi uretme, durumunu gorme ve iptal etme.
 - Yerel e-posta outbox adaptoru, e-posta dogrulama ve sifre sifirlama.
+- Studio outbox saklama ozeti, suresi dolan kayitlari admin-only temizleme ve vendor-bagimsiz bildirim adapter secimi.
 - E-posta degisikliginde yeniden dogrulama ve eski adrese guvenlik bildirimi.
 - Aktif oturum listesi, tekil/toplu oturum kapatma ve auth rate limit.
 - Puanlama, yorum, spoiler gizleme, raporlama ve Studio moderasyon kuyrugu.

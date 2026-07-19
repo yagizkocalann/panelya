@@ -15,6 +15,7 @@ const actionLabels: Record<string, string> = {
   "admin.invitation_revoked": "Yönetici daveti iptal edildi",
   "admin.invitation_accepted": "Yönetici daveti kabul edildi",
   "admin.bootstrap_completed": "İlk yönetici kurulumu tamamlandı",
+  "admin.notification_outbox_purged": "Süresi dolan bildirimler temizlendi",
   "account.logged_in": "Hesaba giriş yapıldı",
   "account.registered": "Hesap oluşturuldu",
   "content.series_created": "Seri oluşturuldu",
@@ -28,7 +29,7 @@ const actionLabels: Record<string, string> = {
 };
 
 function metadataLabel(key: string) {
-  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet" };
+  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü" };
   return labels[key] ?? key;
 }
 
