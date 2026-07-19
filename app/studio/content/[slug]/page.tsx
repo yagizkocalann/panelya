@@ -4,9 +4,11 @@ import { SiteHeader } from "../../../components/SiteHeader";
 import { getCurrentUser } from "../../../lib/auth";
 import { getStudioSeries } from "../../../lib/content-repository";
 import { listPreviewGrants } from "../../../lib/preview-tokens";
+import { assessSeriesPublishing } from "../../../lib/publishing-readiness";
 import { publicSiteUrlForCurrentRequest } from "../../../lib/server-site-origins";
 import { SeriesForm } from "../ContentForms";
 import { PreviewAccessPanel, PreviewCreateForm } from "../PreviewAccess";
+import { PublishingReadinessSummary } from "../PublishingReadiness";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,7 @@ export default async function EditSeriesPage({ params, searchParams }: { params:
     {(query.saved || query.created) && <p className="form-message form-message--success" role="status">{query.created ? "Taslak seri oluşturuldu." : "Seri değişiklikleri kaydedildi."}</p>}
     {query.preview === "revoked" && <p className="form-message form-message--success" role="status">Önizleme bağlantısı iptal edildi.</p>}
     {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
+    <PublishingReadinessSummary readiness={assessSeriesPublishing(series)} title="Seri yayın kontrolü" />
     <SeriesForm series={series} />
     <section className="studio-section"><div className="section-heading"><div><p className="section-kicker">Bölüm yönetimi</p><h2>Bölümler</h2></div><Link className="button button--primary" href={`/content/${series.slug}/episodes/new`}>＋ Yeni bölüm</Link></div>
       {series.episodes.length ? <div className="studio-episode-list">{[...series.episodes].sort((a, b) => b.number - a.number).map((episode) => <article key={episode.id}><div><span className={`pill${episode.publicationStatus === "published" ? " pill--accent" : ""}`}>{episode.publicationStatus === "published" ? "Yayında" : episode.publicationStatus === "draft" ? "Taslak" : "Arşiv"}</span><strong>Bölüm {episode.number}: {episode.title}</strong><small>{episode.panels.length} panel · {episode.readTime}</small></div><Link className="button button--ghost" href={`/content/${series.slug}/episodes/${episode.slug}`}>Düzenle</Link></article>)}</div> : <div className="empty-state"><strong>Henüz bölüm yok.</strong><p>Seriyi yayınlayabilmek için en az bir yayınlanmış bölüm oluştur.</p><Link className="button button--primary" href={`/content/${series.slug}/episodes/new`}>İlk bölümü oluştur</Link></div>}

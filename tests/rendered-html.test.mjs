@@ -829,6 +829,40 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(seriesApi, /writeAudit/);
   assert.match(episodeApi, /writeAudit/);
 });
+
+test("Studio yayın hazırlığı, açık yayın onayı ve toplu panel güvenlik sınırları korunur", async () => {
+  const [readiness, statusField, summary, bulkActions, seriesPage, episodePage, seriesApi, episodeApi, mediaApi, css] = await Promise.all([
+    readFile(new URL("../app/lib/publishing-readiness.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/PublicationStatusField.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/PublishingReadiness.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/BulkPanelActions.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/[slug]/episodes/[episode]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/content/series/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/media/manage/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(readiness, /assessSeriesPublishing/);
+  assert.match(readiness, /assessEpisodePublishing/);
+  assert.match(readiness, /Panel erişilebilirliği/);
+  assert.match(summary, /Yayın isteği gönderildiğinde kritik kurallar sunucuda güncel veriyle tekrar kontrol edilir/);
+  assert.match(seriesPage, /PublishingReadinessSummary/);
+  assert.match(episodePage, /PublishingReadinessSummary/);
+  assert.match(statusField, /name="publish_confirmed"/);
+  assert.match(statusField, /required/);
+  assert.match(seriesApi, /assessSeriesPublishing/);
+  assert.match(seriesApi, /form\.get\("publish_confirmed"\) !== "yes"/);
+  assert.match(episodeApi, /assessEpisodePublishing/);
+  assert.match(episodeApi, /form\.get\("publish_confirmed"\) !== "yes"/);
+  assert.match(bulkActions, /panel_move_many/);
+  assert.match(bulkActions, /panel_remove_many/);
+  assert.match(mediaApi, /panels\.length - selectedPanels\.length < 1/);
+  assert.match(mediaApi, /form\.get\("bulk_confirmed"\) !== "yes"/);
+  assert.match(mediaApi, /media\.panels_unlinked/);
+  assert.match(css, /bulk-panel-actions__choices label[^}]*min-height:\s*48px/);
+});
+
 test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
   const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, redispatchApi, derivatives, dispatch, derivativeQueue, consumer, worker, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy, envExample] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -907,6 +941,8 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(episodePage, /panel_remove/);
   assert.match(mediaManageApi, /media\.panel_reordered/);
   assert.match(mediaManageApi, /media\.panel_unlinked/);
+  assert.match(mediaManageApi, /media\.panels_unlinked/);
+  assert.match(mediaManageApi, /media\.panels_reordered/);
   assert.match(mediaManageApi, /media\.cover_restored/);
   assert.match(mediaManageApi, /isStudioRequest/);
   assert.match(proxy, /"media"/);
