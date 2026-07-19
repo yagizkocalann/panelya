@@ -23,7 +23,7 @@
 2. Tamamlandi: 24 saatlik tek kullanimlik admin daveti, yenileme/iptal/kabul akisi; production public kaydinda otomatik admin yetkisinin kaldirilmasi ve sifir admin kosullu tek seferlik Studio bootstrap.
 3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk yerel saklama-purge politikasi. Siradaki: production kimlik ve canli e-posta saglayicisi secimi ile genel KVKK/GDPR veri envanteri.
 4. Tamamlandi: mevcut uzun pencere kotalarini atomik D1 sayaciyla kesinlestirme; production'da Cloudflare Rate Limiting binding'ini lokasyon bazli ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter.
-5. Idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasini kesinlestirme.
+5. Tamamlandi: public/Studio host kapsamli idle/overall timeout, hassas Studio islemlerinde 10 dakikalik yeniden kimlik dogrulama ve token dondurme.
 
 ## P1 - Operasyon ve gelir
 
@@ -34,6 +34,7 @@
 4. Tamamlandi: D1 Time Travel + uzun sureli SQL export, ayri immutable R2 yedek kovasi, surumlu kurtarma paketi verifier'i ve izole geri yukleme tatbikati runbook'u. Kalan dis is: production yedek kovasi/kimligi, retention lock ve zamanlanmis export-copy workflow'unu provision edip `QA-OPS-02` tatbikatini calistirmak.
 5. Tamamlandi: request-host uyumlu canonical URL'ler, public/Studio ayri robots politikasi, yalniz indexlenebilir yayin rotalarini iceren D1 tabanli sitemap ve guvenli ComicSeries/ComicIssue JSON-LD. Kalan dis is: production domainiyle `QA-SEO-01` arama motoru smoke ve Search Console kaydi.
 6. Tamamlandi: D1/R2/Images/Queue/rate-limit binding ve runtime modlarini secret sizdirmadan denetleyen Studio platform readiness kapisi. Kalan dis is: gercek Queue consumer/DLQ ve edge namespace provision/smoke testi.
+7. Tamamlandi: yalniz Studio localhost'ta calisan, deterministik sentetik hesap/katalog/topluluk/outbox kayitlarini kurup guvenli QA ad alanini sifirlayan yerel test veri paketi. Kalan: manuel checklist regresyon turunu bu paketle yurutmek.
 
 ## P2
 
@@ -51,6 +52,7 @@
 - Studio medya ekraninda kalici responsive turetme kuyrugu, hata/yeniden deneme durumu ve varyant envanteri.
 - Studio kullanici/rol yonetimi ve guvenli metadata gosteren audit gunlugu.
 - Studio yonetici daveti, yerel outbox teslimi ve production ilk-yonetici bootstrap siniri.
+- Studio `/qa` uzerinden normal kullanici ve ozgun katalog verisine dokunmayan yerel sentetik QA veri paketi kurma/sifirlama.
 - Studio seri/bolum ekranindan guvenli taslak onizleme baglantisi uretme, durumunu gorme ve iptal etme.
 - Yerel e-posta outbox adaptoru, e-posta dogrulama ve sifre sifirlama.
 - Studio outbox saklama ozeti, suresi dolan kayitlari admin-only temizleme ve vendor-bagimsiz bildirim adapter secimi.

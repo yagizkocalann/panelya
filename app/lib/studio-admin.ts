@@ -76,6 +76,7 @@ function safeMetadata(raw: string | null) {
       "jobs", "jobId", "panelId", "from", "to", "grantId", "expiresAt", "reviewId", "replyId", "reason", "containsSpoiler",
       "rating", "messageId", "role", "targetUserId", "previousRole", "newRole", "position", "reportId", "invitationId",
       "deletedCount", "policyVersion", "subscriberCount", "queuedCount", "failedCount", "noticeId", "previousStatus", "newStatus",
+      "fixtureVersion", "users", "series",
     ]);
     return Object.fromEntries(Object.entries(parsed).filter(([key]) => allowed.has(key)));
   } catch {

@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { isStudioRequest, publicSiteOrigin } from "./site-origins";
+import { isLocalQaRequest, isStudioRequest, publicSiteOrigin } from "./site-origins";
 
 export async function requestForCurrentHost() {
   const requestHeaders = await headers();
@@ -15,4 +15,8 @@ export async function publicSiteUrlForCurrentRequest(path = "/") {
 
 export async function currentRequestIsStudio() {
   return isStudioRequest(await requestForCurrentHost());
+}
+
+export async function currentRequestIsLocalQa() {
+  return isLocalQaRequest(await requestForCurrentHost());
 }

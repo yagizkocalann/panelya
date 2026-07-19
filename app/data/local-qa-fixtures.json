@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "id": "qa_fixture_user_reader_a",
+      "email": "qa-reader-a@panelya.local",
+      "displayName": "QA Okuyucu A",
+      "verified": true
+    },
+    {
+      "id": "qa_fixture_user_reader_b",
+      "email": "qa-reader-b@panelya.local",
+      "displayName": "QA Okuyucu B",
+      "verified": true
+    },
+    {
+      "id": "qa_fixture_user_unverified",
+      "email": "qa-unverified@panelya.local",
+      "displayName": "QA Doğrulanmamış",
+      "verified": false
+    }
+  ],
+  "series": [
+    {
+      "slug": "qa-fixture-izmirde-son-vapur",
+      "title": "İzmir'de Son Vapur",
+      "eyebrow": "Kıyıda kalan iki yabancı",
+      "creator": "Çağrı Öztürk",
+      "description": "Son vapuru kaçıran iki yabancı, sabaha kadar aynı sırrı taşımak zorunda kalır.",
+      "longDescription": "İzmir gecesinde başlayan bu sentetik QA hikâyesi; Türkçe arama, romantik tür filtresi ve tamamlanmamış seri durumunu sınamak için hazırlanmıştır.",
+      "storyStatus": "ongoing",
+      "genres": ["Romantik", "Dram"],
+      "tone": "coral",
+      "rating": 4.9,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_01", "slug": "bolum-1", "number": 1, "title": "Son Sefer", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-golgeli-sehir",
+      "title": "Gölgeli Şehir",
+      "eyebrow": "Işıklar sönünce",
+      "creator": "İpek Şen",
+      "description": "Şehrin gölgeleri her gece başka birinin anısını saklar.",
+      "longDescription": "Gizem ve fantastik filtrelerini, Türkçe karakter normalizasyonunu ve puan sıralamasını sınayan sentetik seri.",
+      "storyStatus": "completed",
+      "genres": ["Gizem", "Fantastik"],
+      "tone": "violet",
+      "rating": 4.7,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_02", "slug": "bolum-1", "number": 1, "title": "İlk Gölge", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-cay-saati-gunlugu",
+      "title": "Çay Saati Günlüğü",
+      "eyebrow": "Her fincanda yeni bir hikâye",
+      "creator": "Güneş Akın",
+      "description": "Mahalle kafesinde kesişen küçük ve sıcak hikâyeler.",
+      "longDescription": "Günlük yaşam türünü ve başlık sıralamasını sınamak için hazırlanmış sentetik QA içeriği.",
+      "storyStatus": "ongoing",
+      "genres": ["Günlük Yaşam", "Komedi"],
+      "tone": "amber",
+      "rating": 4.5,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_03", "slug": "bolum-1", "number": 1, "title": "Demli Bir Başlangıç", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-kirik-pusula",
+      "title": "Kırık Pusula",
+      "eyebrow": "Kuzey her zaman doğruyu göstermez",
+      "creator": "Özgür Ekin",
+      "description": "Eski bir pusula üç arkadaşın yolculuğunu beklenmedik bir yere çevirir.",
+      "longDescription": "Macera ve dram filtreleri için kullanılan sentetik, bağımsız QA serisi.",
+      "storyStatus": "completed",
+      "genres": ["Macera", "Dram"],
+      "tone": "blue",
+      "rating": 4.3,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_04", "slug": "bolum-1", "number": 1, "title": "Yanlış Kuzey", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-yildiz-tozu-apartmani",
+      "title": "Yıldız Tozu Apartmanı",
+      "eyebrow": "Beş kat, yüzlerce sır",
+      "creator": "Şule Işık",
+      "description": "Eski bir apartmanın sakinleri gökten düşen bir anahtarla değişir.",
+      "longDescription": "Fantastik ve komedi türleri ile güncelleme sıralamasını sınayan sentetik QA içeriği.",
+      "storyStatus": "ongoing",
+      "genres": ["Fantastik", "Komedi"],
+      "tone": "mint",
+      "rating": 4.1,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_05", "slug": "bolum-1", "number": 1, "title": "Çatıdaki Işık", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-ucuncu-peron",
+      "title": "Üçüncü Peron",
+      "eyebrow": "Aynı tren, başka bir zaman",
+      "creator": "Barış Çetin",
+      "description": "Her gece üçüncü perona gelen tren yolcuları geçmişleriyle buluşturur.",
+      "longDescription": "Gizem ve romantik tür kesişimini sınamak için kullanılan sentetik QA serisi.",
+      "storyStatus": "completed",
+      "genres": ["Gizem", "Romantik"],
+      "tone": "rose",
+      "rating": 3.9,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_06", "slug": "bolum-1", "number": 1, "title": "Geciken Tren", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-sessiz-bahce",
+      "title": "Sessiz Bahçe",
+      "eyebrow": "Konuşmadan anlaşanlar",
+      "creator": "Ece Yağmur",
+      "description": "İki komşu, terk edilmiş bahçeyi birlikte hayata döndürür.",
+      "longDescription": "Romantik ve günlük yaşam filtrelerini sınayan sakin tempolu sentetik QA serisi.",
+      "storyStatus": "ongoing",
+      "genres": ["Romantik", "Günlük Yaşam"],
+      "tone": "mint",
+      "rating": 3.7,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_07", "slug": "bolum-1", "number": 1, "title": "İlk Fidan", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-oteki-ruya",
+      "title": "Öteki Rüya",
+      "eyebrow": "Uyandığında hikâye devam ediyor",
+      "creator": "Cemre Köse",
+      "description": "Aynı rüyayı gören dört kişi birbirini gerçek hayatta arar.",
+      "longDescription": "Sekizli yayın kümesinde cursor sayfalamasını ve başlık sıralamasını sınayan sentetik QA serisi.",
+      "storyStatus": "completed",
+      "genres": ["Fantastik", "Gizem"],
+      "tone": "violet",
+      "rating": 3.5,
+      "publicationStatus": "published",
+      "episode": { "id": "qa_fixture_episode_08", "slug": "bolum-1", "number": 1, "title": "Uyanış", "status": "published" }
+    },
+    {
+      "slug": "qa-fixture-kayip-mektup",
+      "title": "Kayıp Mektup",
+      "eyebrow": "Yayın öncesi taslak",
+      "creator": "Panelya QA",
+      "description": "Taslak içeriğin public alana sızmadığını sınayan seri.",
+      "longDescription": "Bu seri yalnız Studio içerik yayın akışında kullanılmak üzere oluşturulan sentetik bir taslaktır.",
+      "storyStatus": "ongoing",
+      "genres": ["Dram"],
+      "tone": "blue",
+      "rating": 0,
+      "publicationStatus": "draft",
+      "episode": { "id": "qa_fixture_episode_09", "slug": "bolum-1", "number": 1, "title": "Taslak Bölüm", "status": "draft" }
+    },
+    {
+      "slug": "qa-fixture-eski-defter",
+      "title": "Eski Defter",
+      "eyebrow": "Arşiv görünürlüğü testi",
+      "creator": "Panelya QA",
+      "description": "Arşivlenen içeriğin public alandan kalktığını sınayan seri.",
+      "longDescription": "Bu seri yalnız arşiv ve tekrar yayınlama akışlarını test etmek için kullanılan sentetik içeriktir.",
+      "storyStatus": "completed",
+      "genres": ["Dram"],
+      "tone": "amber",
+      "rating": 2.5,
+      "publicationStatus": "archived",
+      "episode": { "id": "qa_fixture_episode_10", "slug": "bolum-1", "number": 1, "title": "Arşiv Bölümü", "status": "archived" }
+    }
+  ],
+  "library": [
+    { "userId": "qa_fixture_user_reader_a", "seriesSlug": "qa-fixture-izmirde-son-vapur", "status": "reading", "favorite": true },
+    { "userId": "qa_fixture_user_reader_a", "seriesSlug": "qa-fixture-golgeli-sehir", "status": "completed", "favorite": false },
+    { "userId": "qa_fixture_user_reader_b", "seriesSlug": "qa-fixture-cay-saati-gunlugu", "status": "plan", "favorite": true }
+  ],
+  "subscriptions": [
+    { "userId": "qa_fixture_user_reader_a", "seriesSlug": "qa-fixture-izmirde-son-vapur", "notify": true },
+    { "userId": "qa_fixture_user_reader_b", "seriesSlug": "qa-fixture-izmirde-son-vapur", "notify": false }
+  ],
+  "progress": [
+    { "userId": "qa_fixture_user_reader_a", "seriesSlug": "qa-fixture-izmirde-son-vapur", "episodeSlug": "bolum-1", "episodeNumber": 1, "episodeTitle": "Son Sefer", "percent": 42 },
+    { "userId": "qa_fixture_user_reader_b", "seriesSlug": "qa-fixture-cay-saati-gunlugu", "episodeSlug": "bolum-1", "episodeNumber": 1, "episodeTitle": "Demli Bir Başlangıç", "percent": 78 }
+  ],
+  "reviews": [
+    { "id": "qa_fixture_review_a", "userId": "qa_fixture_user_reader_a", "seriesSlug": "qa-fixture-izmirde-son-vapur", "rating": 5, "comment": "Karakterlerin ilk karşılaşması çok doğal ilerliyor.", "spoiler": false, "status": "published" },
+    { "id": "qa_fixture_review_b", "userId": "qa_fixture_user_reader_b", "seriesSlug": "qa-fixture-izmirde-son-vapur", "rating": 4, "comment": "Finaldeki ayrıntı sonraki bölüm için iyi bir merak bıraktı.", "spoiler": true, "status": "published" },
+    { "id": "qa_fixture_review_hidden", "userId": "qa_fixture_user_reader_b", "seriesSlug": "qa-fixture-golgeli-sehir", "rating": 2, "comment": "Moderasyon görünürlüğünü sınayan gizli sentetik yorum.", "spoiler": false, "status": "hidden" }
+  ],
+  "replies": [
+    { "id": "qa_fixture_reply_a", "reviewId": "qa_fixture_review_a", "userId": "qa_fixture_user_reader_b", "body": "Ben de özellikle vapur iskelesi sahnesini sevdim.", "status": "published" },
+    { "id": "qa_fixture_reply_hidden", "reviewId": "qa_fixture_review_b", "userId": "qa_fixture_user_reader_a", "body": "Moderasyon kuyruğu için gizli sentetik yanıt.", "status": "hidden" }
+  ],
+  "likes": [
+    { "reviewId": "qa_fixture_review_a", "userId": "qa_fixture_user_reader_b" }
+  ],
+  "reports": [
+    { "id": "qa_fixture_report_a", "reviewId": "qa_fixture_review_b", "reporterUserId": "qa_fixture_user_reader_a", "reason": "spoiler", "details": "Spoiler etiketi ve rapor çözüm akışı için sentetik kayıt.", "status": "open" }
+  ],
+  "outbox": [
+    { "id": "qa_fixture_outbox_expired", "userId": "qa_fixture_user_reader_a", "recipient": "qa-reader-a@panelya.local", "kind": "security_notice", "subject": "Süresi dolmuş QA bildirimi", "body": "Outbox saklama testi için sentetik kayıt.", "dedupeKey": "qa-fixture:outbox:expired", "status": "opened", "ageHours": 30 },
+    { "id": "qa_fixture_outbox_active", "userId": "qa_fixture_user_reader_a", "recipient": "qa-reader-a@panelya.local", "kind": "security_notice", "subject": "Aktif QA bildirimi", "body": "Outbox temizliğinde korunması gereken sentetik kayıt.", "dedupeKey": "qa-fixture:outbox:active", "status": "queued", "ageHours": 1 },
+    { "id": "qa_fixture_outbox_episode", "userId": "qa_fixture_user_reader_a", "recipient": "qa-reader-a@panelya.local", "kind": "new_episode", "subject": "QA serisinde yeni bölüm", "body": "Yeni bölüm fan-out görünürlüğü için sentetik kayıt.", "dedupeKey": "qa-fixture:outbox:episode", "status": "queued", "ageHours": 2 }
+  ],
+  "messages": [
+    { "id": "qa_fixture_message_general", "name": "QA Okuyucu", "email": "qa-reader-a@panelya.local", "subject": "general", "message": "Mesaj kutusu durum değişikliği için sentetik kayıt.", "status": "new" },
+    { "id": "qa_fixture_message_technical", "name": "QA Teknik", "email": "qa-reader-b@panelya.local", "subject": "technical", "message": "İşlenmiş mesaj görünümü için sentetik kayıt.", "status": "handled" }
+  ]
+}
