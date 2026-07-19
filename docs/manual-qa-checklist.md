@@ -18,6 +18,7 @@ Durumlar:
 | QA-AUTH-02 | BEKLIYOR | E-posta dogrulama ve sifre sifirlama | Public auth ekranlari + Studio `/outbox` | Tek kullanim, suresi dolmus baglanti ve sifre sonrasi eski oturumlarin kapanmasi dogrulanmali. |
 | QA-CONT-01 | BEKLIYOR | Seri ve bolum yayin akisi | Studio `/content` | Taslak seri/bolum publicte gorunmemeli; yayinlandiginda katalog, seri ve okuyucuya gelmeli; arsivde tekrar kalkmali. |
 | QA-MED-01 | BEKLIYOR | Kapak/panel yukleme ve responsive turetme | Studio `/media` ve bolum editoru | Gecersiz dosya reddedilmeli; gecerli gorsel yuklenmeli; 480/768/1200 kuyrugu tamamlanmali ve okuyucu uygun `srcset` varligini kullanmali. |
+| QA-MED-02 | BEKLIYOR | Production responsive kuyruk teslimi | Studio `/media` + Cloudflare Queue test ortami | `cloudflare_queue` modunda is teslim edilmeli ve worker varyanti tamamlamali; eksik binding'de basarili gorunmemeli; yeniden gonderme ayni varyanti cogaltmamalidir. |
 | QA-PREV-01 | BEKLIYOR | Guvenli taslak onizleme | Studio seri/bolum editoru | Link taslagi gostermeli; kapsam disi medya acilmamali; iptal ve 30 dakika bitisinden sonra link calismamali. |
 | QA-COMM-01 | BEKLIYOR | Puan, yorum, spoiler ve raporlama | Public seri sayfasi + Studio `/moderation` | Yorum ekle/guncelle/sil, spoiler gizleme, rapor, gizleme/yayinlama ve rapor cozum akislarini iki farkli test hesapla dene. |
 | QA-ROLE-01 | BEKLIYOR | Kullanici rol yonetimi | Studio `/users` | Kendi rolunu degistirememe, son admin korumasi ve rol degisince hedef oturumlarin kapanmasi dogrulanmali. |
@@ -50,6 +51,7 @@ Durumlar:
 - [ ] `QA-STU-04` Audit filtreleri ve sayfalama calisiyor; token/parola/serbest hassas metadata gorunmuyor.
 - [ ] `QA-STU-05` Outbox dogrulama, sifirlama, guvenlik bildirimi ve yonetici davetini dogru etiketliyor.
 - [ ] `QA-STU-06` Outbox saklama ozeti dogru sayilari gosteriyor; yalniz politika suresi dolan sentetik kayitlar temizleniyor ve audit olayi olusuyor.
+- [ ] `QA-STU-07` Responsive kuyruk modu Studio'da dogru etiketleniyor; teslim hatasi hassas ayrinti sizdirmiyor ve yeniden gonderme yalniz gercek bekleyen production isleri varken gorunuyor.
 
 ## Test kaydi formati
 

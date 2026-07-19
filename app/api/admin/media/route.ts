@@ -59,8 +59,13 @@ export async function POST(request: Request) {
       throw error;
     }
     try {
-      const queued = await enqueueDerivativeJobs({ id, width: metadata.width });
-      await writeAudit(user.id, "media.derivatives_queued", { mediaId: id, jobs: queued });
+      const queued = await enqueueDerivativeJobs({ id, width: metadata.width, height: metadata.height });
+      await writeAudit(user.id, "media.derivatives_queued", {
+        mediaId: id,
+        jobs: queued.queued,
+        externallyDispatched: queued.sent,
+        dispatchFailed: queued.dispatchFailed,
+      });
     } catch {
       await writeAudit(user.id, "media.derivatives_enqueue_failed", { mediaId: id }).catch(() => undefined);
     }

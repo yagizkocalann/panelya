@@ -361,8 +361,10 @@ test("bildirim adaptörü ve outbox saklama politikası fail-closed yönetim sı
   assert.match(agents, /docs\/manual-qa-checklist\.md/);
   assert.match(manualQa, /QA-ADM-01/);
   assert.match(manualQa, /QA-STU-06/);
+  assert.match(manualQa, /QA-MED-02/);
   assert.match(qaPage, /docs\/manual-qa-checklist\.md/);
   assert.match(qaPage, /QA-ADM-01/);
+  assert.match(qaPage, /QA-MED-02/);
   assert.match(proxy, /"qa"/);
 
   const unauthenticatedStudioMutation = await request("/api/admin/outbox/retention", "text/html", "http://studio.localhost:3000", {
@@ -439,14 +441,18 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(episodeApi, /writeAudit/);
 });
 test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görünürlüğü sözleşmesini korur", async () => {
-  const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, derivatives, derivativeQueue, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy] = await Promise.all([
+  const [schema, hosting, mediaApi, mediaManageApi, derivativesApi, redispatchApi, derivatives, dispatch, derivativeQueue, consumer, worker, privateMedia, publicMedia, validation, storage, mediaPage, episodePage, reader, proxy, envExample] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/manage/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/derivatives/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/media/derivatives/dispatch/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/media/derivatives.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/media/derivative-dispatch.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/media/DerivativeQueue.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../worker/media-derivative-consumer.ts", import.meta.url), "utf8"),
+    readFile(new URL("../worker/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/media/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/media/[id]/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/media/image-validation.ts", import.meta.url), "utf8"),
@@ -455,6 +461,7 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
     readFile(new URL("../app/studio/content/[slug]/episodes/[episode]/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/[slug]/[episode]/ReaderExperience.tsx", import.meta.url), "utf8"),
     readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
   ]);
   assert.equal(JSON.parse(hosting).r2, "MEDIA");
   assert.match(schema, /sqliteTable\("media_assets"/);
@@ -477,14 +484,33 @@ test("Studio medya hattı R2, responsive kuyruk, host sınırı ve yayın görü
   assert.match(mediaPage, /multipart\/form-data/);
   assert.match(mediaPage, /Dosyayı doğrula ve yükle/);
   assert.match(mediaPage, /Türetme kuyruğu/);
-  assert.match(derivatives, /RESPONSIVE_WIDTHS = \[480, 768, 1200\]/);
+  assert.match(dispatch, /RESPONSIVE_WIDTHS = \[480, 768, 1200\]/);
   assert.match(derivatives, /INSERT OR IGNORE INTO media_derivative_jobs/);
+  assert.match(schema, /dispatchMode: text\("dispatch_mode"/);
+  assert.match(schema, /dispatchStatus: text\("dispatch_status"/);
+  assert.match(envExample, /MEDIA_DERIVATIVE_DISPATCH_MODE=local_browser/);
+  assert.match(dispatch, /MEDIA_DERIVATIVE_TASK_VERSION = 1/);
+  assert.match(dispatch, /MEDIA_DERIVATIVE_QUEUE_BINDING = "MEDIA_DERIVATIVE_QUEUE"/);
+  assert.match(dispatch, /Unsupported media derivative dispatch mode/);
+  assert.doesNotMatch(dispatch, /storageKey|token|cookie|secret/i);
   assert.match(derivativeQueue, /createImageBitmap/);
   assert.match(derivativeQueue, /image\/webp/);
+  assert.match(derivativeQueue, /Cloudflare üretim kuyruğu/);
+  assert.match(derivativeQueue, /\/api\/admin\/media\/derivatives\/dispatch/);
   assert.match(derivativesApi, /inspectDerivative/);
   assert.match(derivativesApi, /isStudioRequest\(request\)/);
   assert.match(derivativesApi, /assertSameOrigin/);
   assert.match(derivativesApi, /media\.derivative_completed/);
+  assert.match(redispatchApi, /isStudioRequest\(request\)/);
+  assert.match(redispatchApi, /assertSameOrigin/);
+  assert.match(redispatchApi, /user\.role !== "admin"/);
+  assert.match(consumer, /parseMediaDerivativeTask/);
+  assert.match(consumer, /INSERT OR IGNORE INTO media_variants/);
+  assert.match(consumer, /status = 'processing'/);
+  assert.match(consumer, /inspectDerivative/);
+  assert.match(consumer, /media\.derivative_worker_completed/);
+  assert.match(worker, /async queue\(batch: QueueBatch/);
+  assert.match(worker, /message\.retry\(\{ delaySeconds: 30 \}\)/);
   assert.match(publicMedia, /getMediaVariant/);
   assert.match(reader, /srcSet=/);
   assert.match(mediaPage, /cover_restore/);

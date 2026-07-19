@@ -1,4 +1,4 @@
-async function runtimeValue(name: string) {
+export async function runtimeValue(name: string) {
   const nodeValue = typeof process !== "undefined" ? process.env[name] : undefined;
   if (nodeValue) return nodeValue;
   try {
@@ -18,4 +18,10 @@ export type NotificationDeliveryMode = "local_outbox";
 
 export async function notificationDeliveryMode(): Promise<NotificationDeliveryMode | string> {
   return (await runtimeValue("NOTIFICATION_DELIVERY_MODE")).trim().toLowerCase() || "local_outbox";
+}
+
+export type MediaDerivativeDispatchMode = "local_browser" | "cloudflare_queue";
+
+export async function mediaDerivativeDispatchMode(): Promise<MediaDerivativeDispatchMode | string> {
+  return (await runtimeValue("MEDIA_DERIVATIVE_DISPATCH_MODE")).trim().toLowerCase() || "local_browser";
 }
