@@ -31,6 +31,7 @@ P1 (yerel dikey dilim basladi):
 - Tamamlanan: Studio bolum ekraninda panel siralama, yalniz Studio yuklemesi olan panel baglantisini kaynak R2 nesnesini silmeden kaldirma ve medya ekraninda kapak gecmisinden geri yukleme; tum mutation'lar audit kaydi uretir.
 - Tamamlanan: Studio seri veya tek bolum kapsamli, 30 dakika sureli ve iptal edilebilir taslak onizleme baglantisi; ham token saklanmaz, taslak medya yalniz no-store token endpoint'inden servis edilir.
 - Tamamlanan: kaynak R2 nesnesini degistirmeden 480/768/1200 px WebP islerini D1'e yazan responsive medya kuyrugu; yerel Studio tarayici isleyicisi sonucu tekrar dogrulayip hashli R2 varyanti olarak kaydeder, okuyucu `srcset` ile uygun varligi ister.
+- Tamamlanan: Studio kullanici/rol envanteri ve filtrelenebilir audit gunlugu. Yonetici kendi rolunu degistiremez, son admin dusurulemez ve rol degisikligi hedef hesabin oturumlarini kapatip audit olayi uretir.
 - Siradaki: production turetme isleyicisini Cloudflare Queue/Images adaptoru arkasina alma ve production olcekli dagitik rate limit.
 - D1 tablolarina gecis hesap ve katalog verisi icin tamamlandi. Medya yerelde R2 binding emulasyonu kullanir; production bucket yasam dongusu ve turetilmis format kuyrugu deployment oncesi tamamlanir.
 - Arama indeksi, moderasyon, telif bildirim sureci, analitik ve hata izleme.
@@ -84,7 +85,9 @@ Episode sirasinda gorunen etiket ile dahili `sequence` ayridir; prolog/0/ara bol
 - `POST /api/admin/media/derivatives`: Studio hostunda kuyruk isine ait tarayici-turetilmis WebP'yi boyut ve MIME dogrulamasindan sonra R2 varyanti olarak kaydetme.
 - `POST /api/admin/previews`: Studio hostunda seri/bolum kapsamli taslak onizleme baglantisi olusturma veya iptal etme.
 - `GET /preview/:token`, `GET /api/preview/media/:id`: sureli kapsami dogrulanan taslak sayfasi ve private/no-store medya servisi.
+- `POST /api/admin/users/:id/role`: Studio hostunda admin rol degisikligi; kendi rolunu/son admini korur ve hedef oturumlarini kapatir.
 - Studio UI ayri bir hostta (`studio.<ana-domain>`, yerelde `studio.localhost`) ve admin rol korumali calisir. Yonetici mutation'lari Studio hostundaki `/api/admin/*` altinda ayrilir.
+- Studio dis URL'lerine `/users` ve `/audit` eklenmistir; audit ekrani yalniz allowlist metadata gosterir.
 
 Liste endpoint'leri cursor tabanli sayfalama kullanir. API cevaplari surumlenebilir bir `schemaVersion` alani tasir.
 
@@ -154,3 +157,4 @@ Her ajan once bu dosyayi ve `AGENTS.md` dosyasini okur. Yeni mimari kararlar onc
 - ADR-020 / Ortak API sozlesmesi: Public katalog, seri detay ve bolum manifesti sekilleri JSON Schema 2020-12 ile `packages/contracts/schema.json` icinde tanimlanir; OpenAPI 3.1 dosyasi endpoint'leri bu semalara baglar. Web runtime cevaplari ve dil bagimsiz fixture'lar CI'da ayni semaya karsi dogrulanir. Mevcut zorunlu alanin kaldirilmasi veya tipinin degismesi breaking sayilir ve yeni `schemaVersion` gerektirir.
 - ADR-021 / Guvenli taslak onizleme: Studio 256 bit CSPRNG token uretir ve D1'de yalniz SHA-256 ozetini saklar. Grant seri veya tek bolum kapsamli, varsayilan 30 dakika sureli ve iptal edilebilirdir. Public taslak sayfasi `noindex`, `no-referrer` ve `private, no-store` basliklari kullanir; yayinlanmamis R2 nesneleri normal public medya ucundan degil tokeni ve guncel icerik baglantisini yeniden dogrulayan `/api/preview/media/:id` ucundan sunulur.
 - ADR-022 / Responsive medya turetme: Kaynak medya hicbir zaman yerinde degistirilmez. Upload, kaynaktan kucuk olan 480/768/1200 px WebP hedeflerini idempotent D1 isleri olarak kuyruga ekler. Yerel QA'da adminin Studio tarayicisi Canvas ile sirali isler; sunucu gelen WebP imzasini ve tam hedef boyutunu yeniden dogrular, hashli R2 anahtarina yazar ve varyant manifestini tamamlar. Public ve tokenli preview endpoint'leri yalniz uygun varyant hazirsa onu sunar; eksik varyant istegi kisa cache'li kaynaga geri duser. Production isleyicisi arayuzu bozmadan Cloudflare Queue/Images'a tasinabilir.
+- ADR-023 / Studio rol ve audit yonetimi: `/users` ve `/audit` yalniz Studio hostunda ve admin roluyle calisir. Rol mutation'i ayni-origin ister, aktorun kendi rolunu degistirmesini ve son adminin dusurulmesini engeller, hedef hesabin oturumlarini kapatir ve `admin.user_role_changed` olayi yazar. Audit UI ham metadata basmaz; token, parola/oturum bilgisi, e-posta degisiklik degeri ve serbest metin yerine yalniz tanimli operasyon alanlarini allowlist ile gosterir.

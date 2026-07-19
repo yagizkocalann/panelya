@@ -224,6 +224,41 @@ test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async 
   assert.equal(publicPreviewMutation.status, 404);
   const publicDerivativeMutation = await request("/api/admin/media/derivatives", "text/html", "http://localhost", { method: "POST" });
   assert.equal(publicDerivativeMutation.status, 404);
+  const publicRoleMutation = await request("/api/admin/users/example/role", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicRoleMutation.status, 404);
+
+  for (const path of ["/users", "/audit"]) {
+    const response = await request(path, "text/html", "http://studio.localhost:3000");
+    assert.ok([307, 308].includes(response.status), `${path} girişe yönlenmeli`);
+  }
+});
+
+test("Studio kullanıcı rolleri ve audit günlüğü güvenlik sınırlarını korur", async () => {
+  const [dashboard, usersPage, auditPage, adminRepository, roleApi, proxy] = await Promise.all([
+    readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/users/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/audit/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/studio-admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/users/[id]/role/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(dashboard, /href="\/users"/);
+  assert.match(dashboard, /href="\/audit"/);
+  assert.match(usersPage, /Kendi rolün bu ekrandan değiştirilemez/);
+  assert.match(usersPage, /son yönetici okuyucuya dönüştürülemez/i);
+  assert.match(auditPage, /Gizlilik:/);
+  assert.match(auditPage, /Daha eski kayıtlar/);
+  assert.match(adminRepository, /safeMetadata/);
+  assert.match(adminRepository, /const allowed = new Set/);
+  assert.doesNotMatch(adminRepository, /password_hash|token_hash|action_url/);
+  assert.match(roleApi, /isStudioRequest\(request\)/);
+  assert.match(roleApi, /assertSameOrigin/);
+  assert.match(roleApi, /targetUserId === actor\.id/);
+  assert.match(roleApi, /COUNT\(\*\) FROM users WHERE role = 'admin'/);
+  assert.match(roleApi, /DELETE FROM sessions WHERE user_id = \?/);
+  assert.match(roleApi, /admin\.user_role_changed/);
+  assert.match(proxy, /"users"/);
+  assert.match(proxy, /"audit"/);
 });
 
 test("taslak önizleme süreli, kapsamlı ve public yayından ayrıdır", async () => {

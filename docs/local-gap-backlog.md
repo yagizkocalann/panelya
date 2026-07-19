@@ -19,17 +19,19 @@
 
 ## P1 - Hesap ve guvenlik
 
-1. Admin daveti, rol yonetimi ve ilk-kullanici-admin kuralinin kaldirilmasi.
-2. Production kimlik ve e-posta saglayicisi ile KVKK/GDPR saklama politikasinin kesinlestirilmesi.
-3. Yerel sabit-pencere limitini edge/WAF veya dagitik rate-limit katmanina tasima.
-4. Idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasini kesinlestirme.
+1. Tamamlandi: Studio kullanici envanteri, guvenli admin/okuyucu rol degisikligi, kendi rolunu ve son admini koruma, rol degisikliginde oturum kapatma.
+2. Siradaki: admin daveti ve ilk-kullanici-admin kuralinin kaldirilmasi.
+3. Production kimlik ve e-posta saglayicisi ile KVKK/GDPR saklama politikasinin kesinlestirilmesi.
+4. Yerel sabit-pencere limitini edge/WAF veya dagitik rate-limit katmanina tasima.
+5. Idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasini kesinlestirme.
 
 ## P1 - Operasyon ve gelir
 
 1. Gercek reklam hesabi gecisinden once CMP/onay yonetimi ve canli/test ortam ayrimi.
 2. Analitik, hata izleme, performans butcesi ve reklam gorunurluk olcumleri.
-3. Studio audit ekranı, veri yedegi ve geri yukleme proseduru.
-4. Sitemap, robots, canonical ve Series JSON-LD.
+3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
+4. Siradaki: veri yedegi ve geri yukleme proseduru.
+5. Sitemap, robots, canonical ve Series JSON-LD.
 
 ## P2
 
@@ -44,6 +46,7 @@
 - Lokal iletisim formu ve Studio mesaj durumu yonetimi.
 - Studio seri/bolum icerik yonetimi, R2 medya yukleme, D1 yayin akisi ve reklam laboratuvari.
 - Studio medya ekraninda kalici responsive turetme kuyrugu, hata/yeniden deneme durumu ve varyant envanteri.
+- Studio kullanici/rol yonetimi ve guvenli metadata gosteren audit gunlugu.
 - Studio seri/bolum ekranindan guvenli taslak onizleme baglantisi uretme, durumunu gorme ve iptal etme.
 - Yerel e-posta outbox adaptoru, e-posta dogrulama ve sifre sifirlama.
 - E-posta degisikliginde yeniden dogrulama ve eski adrese guvenlik bildirimi.
