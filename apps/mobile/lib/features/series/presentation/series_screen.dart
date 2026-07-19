@@ -7,12 +7,13 @@ import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/episode_contract.dart';
 import '../../../core/contracts/series_detail_response.dart';
+import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'series_providers.dart';
 
 /// Seri detay ekranı (`/series/:slug`): `GET /api/series/:slug`'dan gelen
-/// meta veriyi ve bölüm listesini gösterir. Faz 1'de basit bir liste/detay
-/// taslağı; kapak görseli, yorum/puan ve favori Faz 2'nin işidir.
+/// kapak, meta veri ve bölüm listesini gösterir (bkz. PLAN Görev 3 ve
+/// production-bible.md §7).
 class SeriesScreen extends ConsumerWidget {
   const SeriesScreen({super.key, required this.slug});
 
@@ -23,7 +24,9 @@ class SeriesScreen extends ConsumerWidget {
     final detail = ref.watch(seriesDetailProvider(slug));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Seri')),
+      appBar: AppBar(
+        title: Text(detail.asData?.value.series.title ?? 'Seri'),
+      ),
       body: SafeArea(
         child: detail.when(
           loading: () => const AppLoadingView(label: 'Seri yükleniyor'),
@@ -33,11 +36,21 @@ class SeriesScreen extends ConsumerWidget {
                 : 'Beklenmeyen bir hata oluştu.',
             onRetry: () => ref.invalidate(seriesDetailProvider(slug)),
           ),
-          data: (response) => _SeriesDetailView(seriesSlug: slug, response: response),
+          data: (response) =>
+              _SeriesDetailView(seriesSlug: slug, response: response),
         ),
       ),
     );
   }
+}
+
+/// Bölümler arasında görünen numaraya (sequence etiketine) göre en küçük
+/// olanı bulur. Sunucu bölümleri yeni-en eski sıralı döndürür (bkz.
+/// `core/contracts/series_detail_response.dart`), ama "Okumaya başla" ilk
+/// bölüme (en düşük numaraya) götürmelidir (bkz. PLAN Görev 3); bu yüzden
+/// sıralamaya güvenmek yerine açıkça en küçük `number`'ı arar.
+EpisodeSummaryContract firstEpisodeOf(List<EpisodeSummaryContract> episodes) {
+  return episodes.reduce((a, b) => a.number <= b.number ? a : b);
 }
 
 class _SeriesDetailView extends StatelessWidget {
@@ -53,21 +66,73 @@ class _SeriesDetailView extends StatelessWidget {
     final episodes = response.episodes;
 
     if (episodes.isEmpty) {
-      return const AppEmptyView(message: 'Bu serinin henüz yayınlanmış bölümü yok.');
+      return const AppEmptyView(
+        message: 'Bu serinin henüz yayınlanmış bölümü yok.',
+      );
     }
 
-    // Bölümler sunucudan en yeniden en eskiye sıralı gelir (bkz.
-    // core/contracts/series_detail_response.dart); ilk öğe "devam et/başla"
-    // için en güncel bölümdür.
-    final latestEpisode = episodes.first;
+    final firstEpisode = firstEpisodeOf(episodes);
 
     return ListView(
       padding: EdgeInsets.all(tokens.spacing.md),
       children: [
-        Text(metadata.eyebrow, style: tokens.typography.bodySmall.copyWith(color: tokens.colors.mint)),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(tokens.radii.lg),
+          child: AspectRatio(
+            aspectRatio: 3 / 4,
+            child: CoverImage(
+              src: metadata.coverImage,
+              position: metadata.coverPosition,
+              semanticLabel: metadata.title,
+            ),
+          ),
+        ),
+        SizedBox(height: tokens.spacing.md),
+        Text(
+          metadata.eyebrow,
+          style: tokens.typography.bodySmall.copyWith(color: tokens.colors.mint),
+        ),
         SizedBox(height: tokens.spacing.xs),
         Text(metadata.title, style: tokens.typography.displayLarge),
+        SizedBox(height: tokens.spacing.xs),
+        Semantics(
+          label: 'Yaratıcı: ${metadata.creator}',
+          child: Text(
+            metadata.creator,
+            style: tokens.typography.bodyMedium,
+          ),
+        ),
         SizedBox(height: tokens.spacing.sm),
+        Semantics(
+          label:
+              '${metadata.rating.toStringAsFixed(1)} üzerinden puan, '
+              '${metadata.followers} takipçi, ${episodes.length} bölüm.',
+          child: Wrap(
+            spacing: tokens.spacing.md,
+            runSpacing: tokens.spacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.star_rounded, size: 16, color: tokens.colors.mint),
+                  SizedBox(width: tokens.spacing.xs / 2),
+                  Text(metadata.rating.toStringAsFixed(1), style: tokens.typography.bodyMedium),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.people_alt_outlined, size: 16, color: tokens.colors.muted),
+                  SizedBox(width: tokens.spacing.xs / 2),
+                  Text('${metadata.followers} takipçi', style: tokens.typography.bodyMedium),
+                ],
+              ),
+              Text('${episodes.length} bölüm', style: tokens.typography.bodyMedium),
+            ],
+          ),
+        ),
+        SizedBox(height: tokens.spacing.md),
         Wrap(
           spacing: tokens.spacing.xs,
           runSpacing: tokens.spacing.xs,
@@ -83,9 +148,9 @@ class _SeriesDetailView extends StatelessWidget {
           height: tokens.sizes.minTouchTarget,
           child: FilledButton(
             onPressed: () => context.push(
-              '/series/$seriesSlug/read/${latestEpisode.slug}',
+              '/series/$seriesSlug/read/${firstEpisode.slug}',
             ),
-            child: Text('Okumaya başla · Bölüm ${latestEpisode.number}'),
+            child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
           ),
         ),
         SizedBox(height: tokens.spacing.lg),
@@ -133,7 +198,7 @@ class _EpisodeTile extends StatelessWidget {
     final tokens = context.tokens;
     return Semantics(
       button: true,
-      label: 'Bölüm ${episode.number}: ${episode.title}. ${episode.readTime}.',
+      label: 'Bölüm ${episode.number}: ${episode.title}. ${episode.publishedAt}. ${episode.readTime}.',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(tokens.radii.md),
@@ -149,18 +214,24 @@ class _EpisodeTile extends StatelessWidget {
             ),
             child: Row(
               children: [
+                _SequenceBadge(number: episode.number, tokens: tokens),
+                SizedBox(width: tokens.spacing.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Bölüm ${episode.number} · ${episode.title}',
+                        episode.title,
                         style: tokens.typography.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: tokens.spacing.xs),
                       Text(
                         '${episode.publishedAt} · ${episode.readTime} · ${episode.panelCount} panel',
                         style: tokens.typography.bodySmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -170,6 +241,32 @@ class _EpisodeTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Bölümün görünür sıra etiketi ("Bölüm N"'in rozet biçimi).
+class _SequenceBadge extends StatelessWidget {
+  const _SequenceBadge({required this.number, required this.tokens});
+
+  final int number;
+  final AppTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = tokens.spacing.xl + tokens.spacing.sm;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tokens.colors.surface3,
+        borderRadius: BorderRadius.circular(tokens.radii.md),
+      ),
+      child: Text(
+        '$number',
+        style: tokens.typography.titleMedium.copyWith(color: tokens.colors.mint),
       ),
     );
   }

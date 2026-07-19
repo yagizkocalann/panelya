@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/api/media_url.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/episode_manifest_response.dart';
 import '../../../core/contracts/story_panel.dart';
@@ -117,9 +118,7 @@ class _PanelView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final image = panel.image;
-    final imageUrl = image == null
-        ? null
-        : (image.src.startsWith('http') ? image.src : '$apiOrigin${image.src}');
+    final imageUrl = image == null ? null : resolveMediaUrl(apiOrigin, image.src);
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),

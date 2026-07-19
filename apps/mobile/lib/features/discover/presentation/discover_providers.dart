@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/api/api_client.dart';
 import '../../../core/api/provider_retry_policy.dart';
@@ -20,3 +21,7 @@ final catalogProvider = FutureProvider<CatalogResponse>(
   (ref) => ref.watch(discoverRepositoryProvider).fetchCatalog(),
   retry: noAutomaticRetry,
 );
+
+/// Seçili tür filtresi (istemci tarafı, bkz. `discover_filters.dart`).
+/// `null` = "Tümü". Arama kapsam dışıdır (bkz. PLAN Görev 2).
+final selectedGenreProvider = StateProvider<String?>((ref) => null);

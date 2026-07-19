@@ -20,15 +20,23 @@ class _FakeDiscoverRepository implements DiscoverRepository {
   Future<CatalogResponse> fetchCatalog() => _result();
 }
 
-CatalogResponse _catalogWith(List<SeriesSummaryContract> series) {
+CatalogResponse _catalogWith(
+  List<SeriesSummaryContract> series, {
+  String? featuredSlug,
+}) {
   return CatalogResponse(
     schemaVersion: '1.0',
-    featuredSlug: series.isEmpty ? null : series.first.metadata.slug,
+    featuredSlug: featuredSlug ?? (series.isEmpty ? null : series.first.metadata.slug),
     series: series,
   );
 }
 
-SeriesSummaryContract _series(String slug, String title) {
+SeriesSummaryContract _series(
+  String slug,
+  String title, {
+  List<String> genres = const ['Gizem'],
+  bool? isNew,
+}) {
   return SeriesSummaryContract(
     metadata: SeriesMetadataContract(
       slug: slug,
@@ -38,11 +46,12 @@ SeriesSummaryContract _series(String slug, String title) {
       description: 'Description',
       longDescription: 'Long description',
       status: 'Devam Ediyor',
-      genres: const ['Gizem'],
+      genres: genres,
       tone: 'mint',
       updatedAt: 'Bugün',
       rating: 4.5,
       followers: '1 B',
+      isNew: isNew,
     ),
     episodeCount: 1,
     latestEpisode: const EpisodeContract(
@@ -68,10 +77,31 @@ Widget _wrap(DiscoverRepository repository) {
   );
 }
 
+/// Bir seri kartının kökü (`SeriesCard`'a `discover_screen.dart`'ta
+/// verilen `ValueKey('series-card-<slug>')`).
+Finder _seriesCard(String slug) => find.byKey(ValueKey('series-card-$slug'));
+
+/// Bir tür filtre chip'inin kökü.
+Finder _genreChip(String genre) => find.byKey(ValueKey('genre-chip-$genre'));
+
+const _heroFinder = ValueKey('featured-hero');
+
 void main() {
+  /// Keşif ekranının hero + tür şeridi + ızgara dikey akışı gerçekçi bir
+  /// telefon oranında anlamlıdır; varsayılan 800x600 masaüstü test tuvali
+  /// gerçek bir cihazı temsil etmez. Testleri gerçekçi bir telefon
+  /// boyutuna sabitler; yine de olası kaydırmaya karşı dayanıklı olmak
+  /// için etkileşimlerden önce `tester.ensureVisible` kullanılır.
+  void usePhoneViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+  }
+
   testWidgets('shows a loading indicator while the catalog loads', (
     tester,
   ) async {
+    usePhoneViewport(tester);
     final repository = _FakeDiscoverRepository(
       () => Future<CatalogResponse>.delayed(
         const Duration(seconds: 1),
@@ -88,26 +118,91 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('renders series cards once the catalog resolves', (
+  testWidgets('renders the featured hero and series grid once resolved', (
     tester,
   ) async {
+    usePhoneViewport(tester);
     final repository = _FakeDiscoverRepository(
       () async => _catalogWith([
-        _series('gece-vardiyasi', 'Gece Vardiyası'),
-        _series('yarinki-ses', 'Yarınki Ses'),
+        _series('gece-vardiyasi', 'Gece Vardiyası', genres: const ['Gizem', 'Dram']),
+        _series('yarinki-ses', 'Yarınki Ses', genres: const ['Romantizm']),
       ]),
     );
 
     await tester.pumpWidget(_wrap(repository));
     await tester.pumpAndSettle();
 
-    expect(find.text('Gece Vardiyası'), findsOneWidget);
-    expect(find.text('Yarınki Ses'), findsOneWidget);
+    // Featured series (first in the list) renders as a distinct hero with
+    // its own CTA, keyed separately from its (also present) grid card.
+    expect(find.byKey(_heroFinder), findsOneWidget);
+    expect(
+      find.descendant(of: find.byKey(_heroFinder), matching: find.text('Gece Vardiyası')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: find.byKey(_heroFinder), matching: find.text('Seriyi incele')),
+      findsOneWidget,
+    );
+
+    // Genre filter chips are derived from every series' `genres` field.
+    expect(_genreChip('all'), findsOneWidget);
+    expect(_genreChip('Gizem'), findsOneWidget);
+    expect(_genreChip('Dram'), findsOneWidget);
+    expect(_genreChip('Romantizm'), findsOneWidget);
+
+    // Both series appear as grid cards (mirrors the web home page, where
+    // the featured/index-0 series also reappears in the card feed below
+    // the hero — bkz. `app/page.tsx`).
+    await tester.ensureVisible(_seriesCard('gece-vardiyasi'));
+    await tester.ensureVisible(_seriesCard('yarinki-ses'));
+    expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
+    expect(_seriesCard('yarinki-ses'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: _seriesCard('yarinki-ses'),
+        matching: find.text('Yarınki Ses'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('filtering by genre hides the hero and non-matching cards', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final repository = _FakeDiscoverRepository(
+      () async => _catalogWith([
+        _series('gece-vardiyasi', 'Gece Vardiyası', genres: const ['Gizem']),
+        _series('yarinki-ses', 'Yarınki Ses', genres: const ['Romantizm']),
+      ]),
+    );
+
+    await tester.pumpWidget(_wrap(repository));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(_genreChip('Romantizm'));
+    await tester.tap(_genreChip('Romantizm'));
+    await tester.pumpAndSettle();
+
+    // Selecting a genre hides the featured hero (web parity, bkz.
+    // `app/page.tsx`'teki `!isFiltered` koşulu) and filters the grid down
+    // to matching series only.
+    expect(find.byKey(_heroFinder), findsNothing);
+    expect(_seriesCard('yarinki-ses'), findsOneWidget);
+    expect(_seriesCard('gece-vardiyasi'), findsNothing);
+
+    // Tapping the same chip again clears the filter back to "Tümü" and
+    // restores the hero.
+    await tester.tap(_genreChip('Romantizm'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_heroFinder), findsOneWidget);
+    expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
   });
 
   testWidgets('shows the empty state when the catalog has no series', (
     tester,
   ) async {
+    usePhoneViewport(tester);
     final repository = _FakeDiscoverRepository(
       () async => _catalogWith(const []),
     );
@@ -121,6 +216,7 @@ void main() {
   testWidgets('shows an error view with a working retry button', (
     tester,
   ) async {
+    usePhoneViewport(tester);
     var attempt = 0;
     final repository = _FakeDiscoverRepository(() async {
       attempt += 1;
@@ -134,11 +230,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tekrar dene'), findsOneWidget);
-    expect(find.text('Gece Vardiyası'), findsNothing);
+    expect(_seriesCard('gece-vardiyasi'), findsNothing);
 
     await tester.tap(find.text('Tekrar dene'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Gece Vardiyası'), findsOneWidget);
+    expect(find.byKey(_heroFinder), findsOneWidget);
+    expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
   });
 }

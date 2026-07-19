@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
 import '../../core/contracts/series_contract.dart';
+import 'cover_image.dart';
 
-/// Katalog listesinde bir seriyi özetleyen kart. Faz 1 iskeleti: kapak
-/// görseli yerine baş harf rozeti kullanır (gerçek kapak/poster görseli
-/// Faz 2'nin işi); tipografi ve renkler yalnız [AppTokens] üzerinden gelir.
+/// Keşif ızgarasında bir seriyi özetleyen poster kart (Faz 2): 3:4 kapak
+/// oranı, başlık ve tür/durum bilgisiyle keskin bir bilgi hiyerarşisi
+/// kurar (bkz. production-bible.md §7 — "Kartlar keskin bilgi
+/// hiyerarşisine, posterler 3:4 orana sahiptir").
 class SeriesCard extends StatelessWidget {
   const SeriesCard({super.key, required this.series, required this.onTap});
 
@@ -16,106 +18,79 @@ class SeriesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final metadata = series.metadata;
+    final primaryGenre = metadata.genres.isNotEmpty ? metadata.genres.first : null;
 
     return Semantics(
       button: true,
-      label: '${metadata.title}. ${metadata.status}. '
+      label: '${metadata.title}. ${metadata.eyebrow}. ${metadata.status}. '
           '${series.episodeCount} bölüm.',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(tokens.radii.lg),
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: tokens.sizes.minTouchTarget,
-          ),
-          child: Container(
-            padding: EdgeInsets.all(tokens.spacing.md),
-            decoration: BoxDecoration(
-              color: tokens.colors.surface2,
-              borderRadius: BorderRadius.circular(tokens.radii.lg),
-              border: Border.all(color: tokens.colors.line),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _CoverPlaceholder(title: metadata.title, tokens: tokens),
-                SizedBox(width: tokens.spacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        metadata.eyebrow,
-                        style: tokens.typography.bodySmall.copyWith(
-                          color: tokens.colors.mint,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          constraints: BoxConstraints(minHeight: tokens.sizes.minTouchTarget),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: 3 / 4,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(tokens.radii.lg),
+                      child: CoverImage(
+                        src: metadata.coverImage,
+                        position: metadata.coverPosition,
+                        semanticLabel: metadata.title,
                       ),
-                      SizedBox(height: tokens.spacing.xs),
-                      Text(
-                        metadata.title,
-                        style: tokens.typography.titleMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ),
+                    if (metadata.isNew == true)
+                      Positioned(
+                        top: tokens.spacing.sm,
+                        right: tokens.spacing.sm,
+                        child: _Chip(text: 'Yeni', tokens: tokens, highlight: true),
                       ),
-                      SizedBox(height: tokens.spacing.xs),
-                      Text(
-                        metadata.description,
-                        style: tokens.typography.bodyMedium,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: tokens.spacing.sm),
-                      Wrap(
-                        spacing: tokens.spacing.xs,
-                        runSpacing: tokens.spacing.xs,
-                        children: [
-                          _Chip(text: metadata.status, tokens: tokens),
-                          _Chip(
-                            text: '${series.episodeCount} bölüm',
-                            tokens: tokens,
-                          ),
-                          if (metadata.isNew == true)
-                            _Chip(
-                              text: 'Yeni',
-                              tokens: tokens,
-                              highlight: true,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              SizedBox(height: tokens.spacing.sm),
+              if (primaryGenre != null)
+                Text(
+                  primaryGenre,
+                  style: tokens.typography.bodySmall.copyWith(color: tokens.colors.mint),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              SizedBox(height: tokens.spacing.xs),
+              Text(
+                metadata.title,
+                style: tokens.typography.titleMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: tokens.spacing.xs),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      metadata.status,
+                      style: tokens.typography.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.star_rounded, size: 14, color: tokens.colors.mint),
+                  SizedBox(width: tokens.spacing.xs / 2),
+                  Text(
+                    metadata.rating.toStringAsFixed(1),
+                    style: tokens.typography.bodySmall,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _CoverPlaceholder extends StatelessWidget {
-  const _CoverPlaceholder({required this.title, required this.tokens});
-
-  final String title;
-  final AppTokens tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = title.trim().isEmpty ? '?' : title.trim()[0].toUpperCase();
-    return Container(
-      width: 56,
-      height: 56,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: tokens.colors.surface3,
-        borderRadius: BorderRadius.circular(tokens.radii.md),
-      ),
-      child: Text(
-        initial,
-        style: tokens.typography.titleLarge.copyWith(color: tokens.colors.mint),
       ),
     );
   }
