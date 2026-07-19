@@ -34,6 +34,7 @@ Durumlar:
 | QA-ADS-01 | BEKLIYOR | Google resmi test reklami | Public reklam alanlari + Studio `/ads` | Yalniz resmi Google test birimi gorunmeli; gercek publisher veya tiklama otomasyonu olmamali. |
 | QA-STU-06 | BEKLIYOR | Outbox saklama ve temizleme | Studio `/outbox` | Saklama sayilari dogru olmali; buton yalniz suresi dolan kayit varsa gorunmeli; temizlik aktif kaydi silmemeli ve audit olayi olusturmali. |
 | QA-RESP-01 | BEKLIYOR | Responsive genel tur | Public ana/seri/okuyucu, auth ve Studio; on kosul: public okuyucu ve ayri Studio admin oturumu | 1440, 1024, 768, 390 ve 360 px'te yatay tasma, kirpik kontrol, 44 px alti dokunma hedefi veya ulasilamayan aksiyon olmamali. 2026-07-19 otomatik/ajan turunda 41 public URL sablonu, authenticated public hesap/kutuphane, Studio girisi, linkler ve console temizdi; tablet ust menusu 44 px'e duzeltildi. Yetkili Studio ekranlarinin bes viewport turu kullanici testinde tamamlanacak. |
+| QA-READ-01 | BEKLIYOR | Uzun bolum performansi ve devam konumu | Public uzun okuyucu route'u; on kosul: en az 15 gorselli bolum ve tarayici ag yavaslatma profili | Ilk panel oncelikli, ekran disi paneller lazy kalmali; ayrilan oran nedeniyle gorsel geldikce sayfa sicrama yapmamali. Orta konumdan seri sayfasina donup mobil `Devam et` ile acinca ayni yuzdeye gelmeli. Yavas agda iskelet, eksik/404 panelde alt metin ve `Tekrar dene` gorunmeli; console hatasi ve yatay tasma olmamali. 2026-07-19 yerel 390 px turunda 18 panelin ilk ikisi yuklu, 16'si ertelenmis basladi; %33 konumu geri yuklendi ve 7 panel ekran disinda lazy kaldi. Gercek ag throttling ve 404 yaniti kullanici testinde tamamlanacak. |
 
 ## Tam feature matrisi
 
@@ -47,6 +48,7 @@ Durumlar:
 - [ ] `QA-PUB-06` Public canonical, robots, sitemap ve ComicSeries JSON-LD ayni production origin'ini kullaniyor; taslak, Studio, API, hesap ve okuyucu URL'leri sitemap'e sizmiyor.
 - [ ] `QA-PUB-07` Seri sayfasinda kutuphane/favori/takip aktif durumu hesaba gore server-render ediliyor; yeni bolum tercihi `/library` uzerinden de yonetiliyor ve ilk yayin bildirimi idempotent kaliyor.
 - [ ] `QA-PUB-08` Katalog kesfinde normalize arama, tur/durum filtresi, guncelleme/puan/ad siralamasi ve cursor sayfalama ayni D1 yayin kumesinde kararli kaliyor.
+- [ ] `QA-PUB-09` Uzun okuyucuda panel oranlari CLS'yi onluyor; lazy yukleme, eksik gorsel geri donusu ve cihaz devam konumu yavas agda calisiyor.
 
 ### Hesap ve guvenlik
 

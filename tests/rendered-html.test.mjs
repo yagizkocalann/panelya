@@ -90,6 +90,31 @@ test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => 
   assert.match(episodeHtml, /name="robots" content="noindex, follow"/i);
 });
 
+test("okuyucu uzun bölüm performansı ve hata dayanımı sözleşmesini korur", async () => {
+  const [reader, css] = await Promise.all([
+    readFile(new URL("../app/[slug]/[episode]/ReaderExperience.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(reader, /loading=\{priority \? "eager" : "lazy"\}/);
+  assert.match(reader, /fetchPriority=\{priority \? "high" : "auto"\}/);
+  assert.match(reader, /decoding="async"/);
+  assert.match(reader, /style=\{\{ aspectRatio: `\$\{image\.width\} \/ \$\{image\.height\}` \}\}/);
+  assert.match(reader, /onError=\{\(\) => setState\("error"\)\}/);
+  assert.match(reader, /element\?\.complete/);
+  assert.match(reader, /Panel görseli yüklenemedi/);
+  assert.match(reader, /localStorage\.getItem\(key\)/);
+  assert.match(reader, /window\.scrollTo\(\{ top: Math\.round\(total \* \(percent \/ 100\)\), behavior: "auto" \}\)/);
+  assert.match(reader, /restore\(\);\s*startTracking\(\)/);
+  assert.match(reader, /const restoreTimer = window\.setTimeout/);
+  assert.match(reader, /window\.requestAnimationFrame\(update\)/);
+  assert.doesNotMatch(reader, /document\.addEventListener\("visibilitychange", handleVisibility\);\s*scheduleUpdate\(\)/);
+  assert.match(reader, /window\.addEventListener\("pagehide", flush\)/);
+  assert.match(reader, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.match(css, /\.reader-panel-media[^}]*position:\s*relative[^}]*overflow:\s*hidden/);
+  assert.match(css, /@keyframes reader-image-loading/);
+  assert.match(css, /\.progress-promo \.inline-link[^}]*grid-column:\s*1 \/ -1[^}]*width:\s*100%/);
+});
+
 test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin politikasini kullanir", async () => {
   const jsonLdComponent = await readFile(new URL("../app/components/JsonLd.tsx", import.meta.url), "utf8");
   assert.match(jsonLdComponent, /JSON\.stringify\(data\)\.replace\(\/<\/g, "\\\\u003c"\)/);
