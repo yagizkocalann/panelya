@@ -221,7 +221,7 @@ test("bilinmeyen seri 404 döndürür", async () => {
 });
 
 test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
-  for (const path of ["/about", "/creators", "/publishing-principles", "/production-journal", "/contact", "/privacy", "/terms", "/copyright"]) {
+  for (const path of ["/about", "/creators", "/publishing-principles", "/production-journal", "/contact", "/privacy", "/terms", "/copyright", "/copyright/report"]) {
     const response = await request(path);
     assert.equal(response.status, 200, `${path} 200 dönmeli`);
   }
@@ -232,6 +232,48 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
   assert.match(home, /href="\/about"/);
   assert.match(home, /href="\/contact"/);
   assert.match(home, /href="\/privacy"/);
+});
+
+test("telif bildirimi genel iletisimden ayridir ve gizli durum erisimi korunur", async () => {
+  const [schema, repository, submitApi, adminApi, messagesPage, auditRepository, proxy] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/copyright-notices.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/copyright-notices/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/copyright-notices/[id]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/messages/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/studio-admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
+  ]);
+  const copyrightPage = await (await request("/copyright")).text();
+  const reportPage = await (await request("/copyright/report")).text();
+  assert.match(copyrightPage, /href="\/copyright\/report"/);
+  assert.match(reportPage, /action="\/api\/copyright-notices"/);
+  assert.match(reportPage, /name="good_faith"/);
+  assert.match(reportPage, /name="authorized"/);
+  assert.doesNotMatch(reportPage, /type="file"/);
+  assert.match(schema, /sqliteTable\("copyright_notices"/);
+  assert.match(repository, /createOpaqueToken\(\)/);
+  assert.match(repository, /hashOpaqueToken\(rawAccessToken\)/);
+  assert.match(repository, /COPYRIGHT_STATUS_ACCESS_MS = 90 \* 24 \* 60 \* 60 \* 1000/);
+  assert.doesNotMatch(repository, /rawAccessToken[^\n]*INSERT|INSERT[^\n]*rawAccessToken/);
+  assert.match(submitApi, /assertSameOrigin/);
+  assert.match(submitApi, /consumeRateLimit\("copyright-notice"/);
+  assert.match(adminApi, /isStudioRequest\(request\)/);
+  assert.match(adminApi, /assertSameOrigin/);
+  assert.match(adminApi, /copyright\.status_updated/);
+  assert.match(messagesPage, /\/api\/admin\/copyright-notices\//);
+  assert.match(auditRepository, /"noticeId", "previousStatus", "newStatus"/);
+  assert.doesNotMatch(auditRepository, /claimantEmail|rightsExplanation|workDescription/);
+  assert.match(proxy, /\/copyright\/status\//);
+
+  const invalidStatus = await request("/copyright/status/not-a-valid-token");
+  assert.equal(invalidStatus.status, 404);
+  assert.equal(invalidStatus.headers.get("referrer-policy"), "no-referrer");
+  assert.match(invalidStatus.headers.get("cache-control") ?? "", /no-store/);
+  assert.match(invalidStatus.headers.get("x-robots-tag") ?? "", /noindex/);
+
+  const publicAdminMutation = await request("/api/admin/copyright-notices/example", "text/html", "http://localhost", { method: "POST" });
+  assert.equal(publicAdminMutation.status, 404);
 });
 
 test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
@@ -268,6 +310,7 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(schema, /sqliteTable\("library_items"/);
   assert.match(schema, /sqliteTable\("reading_progress"/);
   assert.match(schema, /sqliteTable\("contact_messages"/);
+  assert.match(schema, /sqliteTable\("copyright_notices"/);
   assert.match(schema, /sqliteTable\("account_tokens"/);
   assert.match(schema, /sqliteTable\("notification_outbox"/);
   assert.match(schema, /sqliteTable\("rate_limit_buckets"/);

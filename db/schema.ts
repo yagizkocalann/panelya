@@ -118,6 +118,30 @@ export const contactMessages = sqliteTable("contact_messages", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const copyrightNotices = sqliteTable("copyright_notices", {
+  id: text("id").primaryKey(),
+  referenceCode: text("reference_code").notNull(),
+  accessTokenHash: text("access_token_hash").notNull(),
+  claimantName: text("claimant_name").notNull(),
+  claimantEmail: text("claimant_email").notNull(),
+  claimantRole: text("claimant_role", { enum: ["rights_holder", "authorized_representative"] }).notNull(),
+  workDescription: text("work_description").notNull(),
+  originalWorkUrl: text("original_work_url"),
+  contentUrl: text("content_url").notNull(),
+  rightsExplanation: text("rights_explanation").notNull(),
+  status: text("status", { enum: ["submitted", "under_review", "needs_information", "action_taken", "rejected"] }).notNull().default("submitted"),
+  publicResponse: text("public_response"),
+  accessExpiresAt: integer("access_expires_at").notNull(),
+  resolvedAt: integer("resolved_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  uniqueIndex("copyright_notices_reference_unique").on(table.referenceCode),
+  uniqueIndex("copyright_notices_access_token_unique").on(table.accessTokenHash),
+  index("copyright_notices_status_idx").on(table.status, table.createdAt),
+  index("copyright_notices_access_expiry_idx").on(table.accessExpiresAt),
+]);
+
 export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

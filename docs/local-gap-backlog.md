@@ -27,6 +27,7 @@
 
 ## P1 - Operasyon ve gelir
 
+0. Tamamlandi: genel iletisimden ayrilan, dosya/kimlik belgesi istemeyen telif bildirimi; 90 gunluk hashli gizli durum baglantisi; Studio durum/public yanit yonetimi ve audit kaydi. Kalan dis is: karsi bildirim, resmi tebligat, SLA ve production saklama/silme politikasini hukuk incelemesiyle kesinlestirmek.
 1. Gercek reklam hesabi gecisinden once CMP/onay yonetimi ve canli/test ortam ayrimi.
 2. Analitik, hata izleme, performans butcesi ve reklam gorunurluk olcumleri.
 3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
@@ -45,6 +46,7 @@
 - Giris/uyelik geri ve kapat kontrolleri.
 - Footer'daki tum kurumsal ve yasal rotalar.
 - Lokal iletisim formu ve Studio mesaj durumu yonetimi.
+- Lokal telif bildirimi, gizli durum takibi ve Studio vaka degerlendirmesi.
 - Studio seri/bolum icerik yonetimi, R2 medya yukleme, D1 yayin akisi ve reklam laboratuvari.
 - Studio medya ekraninda kalici responsive turetme kuyrugu, hata/yeniden deneme durumu ve varyant envanteri.
 - Studio kullanici/rol yonetimi ve guvenli metadata gosteren audit gunlugu.

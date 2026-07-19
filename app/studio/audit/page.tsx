@@ -7,7 +7,7 @@ import { AUDIT_GROUPS, listAuditEvents, listStudioUsers } from "../../lib/studio
 
 export const dynamic = "force-dynamic";
 
-const groupLabels: Record<string, string> = { account: "Hesap", admin: "Yönetim", contact: "İletişim", content: "İçerik", library: "Kütüphane", media: "Medya", moderation: "Moderasyon", preview: "Önizleme", review: "Yorum" };
+const groupLabels: Record<string, string> = { account: "Hesap", admin: "Yönetim", contact: "İletişim", content: "İçerik", copyright: "Telif", library: "Kütüphane", media: "Medya", moderation: "Moderasyon", preview: "Önizleme", review: "Yorum" };
 const actionLabels: Record<string, string> = {
   "admin.user_role_changed": "Kullanıcı rolü değiştirildi",
   "admin.invitation_created": "Yönetici daveti oluşturuldu",
@@ -32,10 +32,12 @@ const actionLabels: Record<string, string> = {
   "account.user_unblocked": "Kullanıcı engeli kaldırıldı",
   "moderation.reply_hide": "Yorum yanıtı gizlendi",
   "moderation.reply_publish": "Yorum yanıtı yeniden yayınlandı",
+  "copyright.received": "Telif bildirimi alındı",
+  "copyright.status_updated": "Telif bildirimi durumu güncellendi",
 };
 
 function metadataLabel(key: string) {
-  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", replyId: "Yanıt", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü" };
+  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", replyId: "Yanıt", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü", noticeId: "Telif bildirimi", previousStatus: "Eski durum", newStatus: "Yeni durum" };
   return labels[key] ?? key;
 }
 
