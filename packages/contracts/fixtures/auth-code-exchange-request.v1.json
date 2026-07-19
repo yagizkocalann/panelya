@@ -1,0 +1,6 @@
+{
+  "grantType": "authorization_code",
+  "authorizationCode": "fixture_authorization_code_never_valid",
+  "codeVerifier": "fixture_code_verifier_abcdefghijklmnopqrstuvwxyz_0123456789",
+  "redirectUri": "app.panelya.example://auth/callback"
+}

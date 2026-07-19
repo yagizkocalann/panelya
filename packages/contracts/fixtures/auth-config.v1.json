@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "provider": "auth0",
+  "flow": "authorization_code_pkce",
+  "issuer": "https://auth.panelya.example/",
+  "clientId": "panelya-mobile-public-client",
+  "audience": "https://api.panelya.example",
+  "scopes": [
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "read:library",
+    "write:library",
+    "write:progress",
+    "write:community"
+  ],
+  "authorizationEndpoint": "https://auth.panelya.example/authorize",
+  "tokenEndpoint": "https://auth.panelya.example/oauth/token",
+  "revocationEndpoint": "https://auth.panelya.example/oauth/revoke",
+  "accessTokenLifetimeSeconds": 900,
+  "refreshTokenRotation": true
+}

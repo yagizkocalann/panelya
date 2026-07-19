@@ -25,12 +25,29 @@ const validators = {
   series: validator("SeriesDetailResponse"),
   manifest: validator("EpisodeManifestResponse"),
   error: validator("ErrorResponse"),
+  authConfig: validator("AuthProviderConfigResponse"),
+  authCodeExchange: validator("AuthAuthorizationCodeExchangeRequest"),
+  authRefresh: validator("AuthRefreshTokenRequest"),
+  authRevoke: validator("AuthRevokeRequest"),
+  authToken: validator("AuthTokenResponse"),
+  authState: validator("AuthStateResponse"),
+  authError: validator("AuthErrorResponse"),
+  authLogout: validator("AuthLogoutResponse"),
 };
 
 const fixtureCases = [
   ["catalog.v1.json", validators.catalog],
   ["series-detail.v1.json", validators.series],
   ["episode-manifest.v1.json", validators.manifest],
+  ["auth-config.v1.json", validators.authConfig],
+  ["auth-code-exchange-request.v1.json", validators.authCodeExchange],
+  ["auth-refresh-request.v1.json", validators.authRefresh],
+  ["auth-revoke-request.v1.json", validators.authRevoke],
+  ["auth-token.v1.json", validators.authToken],
+  ["auth-state-authenticated.v1.json", validators.authState],
+  ["auth-state-anonymous.v1.json", validators.authState],
+  ["auth-error.v1.json", validators.authError],
+  ["auth-logout.v1.json", validators.authLogout],
 ];
 
 test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () => {
@@ -41,6 +58,10 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
   assert.deepEqual(
     Object.keys(openapi.paths).sort(),
     [
+      "/api/auth/config",
+      "/api/auth/me",
+      "/api/auth/mobile/revoke",
+      "/api/auth/mobile/token",
       "/api/catalog",
       "/api/series/{slug}",
       "/api/series/{slug}/episodes/{episodeSlug}",
@@ -53,6 +74,8 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
     const definition = ref.split("/").at(-1);
     assert.ok(contract.$defs[definition], `${ref} mevcut bir tanıma işaret etmeli`);
   }
+  assert.equal(openapi.components.securitySchemes.PanelyaAccessToken.scheme, "bearer");
+  assert.equal(openapi.components.securitySchemes.PanelyaWebSession.in, "cookie");
 });
 
 test("paylaşılan fixture'lar JSON Schema sözleşmesine uyar", async () => {
@@ -78,6 +101,23 @@ test("responsive medya fixture'lari yalniz hazir public varyantlari tasir", asyn
     assert.ok(variants.every((variant) => /^\/api\/media\/[A-Za-z0-9_-]+\?width=\d+$/.test(variant.src)));
     assert.ok(variants.every((variant) => !("storageKey" in variant) && !("jobId" in variant)));
   }
+});
+
+test("production auth fixture'lari secret veya gecerli token tasimaz", async () => {
+  const [config, token, error] = await Promise.all([
+    readFile(new URL("../packages/contracts/fixtures/auth-config.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/auth-token.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/auth-error.v1.json", import.meta.url), "utf8").then(JSON.parse),
+  ]);
+  assert.equal(config.provider, "auth0");
+  assert.equal(config.flow, "authorization_code_pkce");
+  assert.equal(config.refreshTokenRotation, true);
+  assert.ok(config.scopes.includes("offline_access"));
+  assert.ok(config.issuer.endsWith(".example/"));
+  assert.doesNotMatch(JSON.stringify(config), /clientSecret|privateKey|managementToken/i);
+  assert.match(token.accessToken, /^fixture_/);
+  assert.match(token.refreshToken, /^fixture_/);
+  assert.equal(error.reauthenticate, true);
 });
 
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -118,6 +158,36 @@ test("derlenmiş Worker public API cevapları ortak sözleşmeye uyar", async ()
         `GET /api/series/${catalogSeries.slug}/episodes/${episode.slug}`,
       );
     }
+  }
+});
+
+test("anonim auth/me cevabi ortak auth state sozlesmesine uyar", async () => {
+  const response = await request("/api/auth/me");
+  assert.equal(response.status, 200);
+  const state = await response.json();
+  assertContract(validators.authState, state, "GET /api/auth/me");
+  assert.equal(state.authenticated, false);
+  assert.equal(state.user, null);
+  assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+});
+
+test("production auth gateway yapilandirilmadan fail-closed kalir", async () => {
+  for (const [path, method] of [
+    ["/api/auth/config", "GET"],
+    ["/api/auth/mobile/token", "POST"],
+    ["/api/auth/mobile/revoke", "POST"],
+  ]) {
+    const response = await worker.fetch(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { accept: "application/json", "content-type": "application/json" },
+      }),
+      { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+      { waitUntil() {}, passThroughOnException() {} },
+    );
+    assert.equal(response.status, 503, `${method} ${path} fail-closed olmali`);
+    assertContract(validators.authError, await response.json(), `${method} ${path}`);
+    assert.match(response.headers.get("cache-control") ?? "", /no-store/);
   }
 });
 

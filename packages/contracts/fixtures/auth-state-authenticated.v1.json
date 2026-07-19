@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0",
+  "authenticated": true,
+  "user": {
+    "id": "user_fixture_01",
+    "displayName": "Deniz Kaya",
+    "email": "deniz@example.test",
+    "emailVerified": true,
+    "role": "reader"
+  }
+}

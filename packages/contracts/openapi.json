@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Panelya Public API",
-    "version": "1.1.0",
-    "description": "Public, read-only contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
+    "version": "1.2.0",
+    "description": "Public reading and production authentication contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
   },
   "servers": [
     { "url": "http://localhost:3000", "description": "Local web API" }
@@ -93,6 +93,160 @@
             }
           }
         }
+      }
+    },
+    "/api/auth/config": {
+      "get": {
+        "operationId": "getAuthConfig",
+        "summary": "Get public OIDC and native PKCE configuration",
+        "responses": {
+          "200": {
+            "description": "Public Auth0 tenant configuration without secrets",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthProviderConfigResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Production identity provider is not available",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/mobile/token": {
+      "post": {
+        "operationId": "exchangeOrRefreshMobileToken",
+        "summary": "Exchange a native PKCE authorization code or rotate a refresh token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  { "$ref": "./schema.json#/$defs/AuthAuthorizationCodeExchangeRequest" },
+                  { "$ref": "./schema.json#/$defs/AuthRefreshTokenRequest" }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Short-lived API access token and rotated refresh token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthTokenResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid grant, verifier, redirect URI or refresh token reuse",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity provider unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/mobile/revoke": {
+      "post": {
+        "operationId": "revokeMobileSession",
+        "summary": "Revoke the mobile refresh-token grant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AuthRevokeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grant revoked or already inactive",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthLogoutResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Identity provider unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "getAuthState",
+        "summary": "Get the current Panelya user for a web cookie or mobile bearer token",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "Authenticated user or anonymous state",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthStateResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Presented credentials expired or were revoked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "PanelyaAccessToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Short-lived Auth0 access token for the Panelya API audience. ID tokens are rejected."
+      },
+      "PanelyaWebSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "panelya_session",
+        "description": "Host-only HttpOnly web session. Mobile clients must not emulate this cookie."
       }
     }
   }
