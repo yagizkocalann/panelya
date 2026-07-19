@@ -16,7 +16,7 @@
         <!-- Panelya'nin tek (koyu) temasi vardir (bkz.
              lib/app/theme/theme.dart); sistemin acik-mod
              `?android:colorBackground` (beyaz) degerine degil, dogrudan
-             marka zeminine (#07100e) bagli -- ilk kare cizilmeden once
+             marka zeminine (#07100e) bagli; ilk kare cizilmeden once
              beyaz flash olusmasin diye. -->
         <item name="android:windowBackground">@color/brand_background</item>
     </style>

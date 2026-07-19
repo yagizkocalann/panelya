@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Panelya marka zemini (bkz. docs/mobile-handoff.md tasarim
-         token tablosu, app/globals.css --background). Adaptive icon
+         token tablosu, app/globals.css background degeri). Adaptive icon
          arka plani ve splash/launch ekrani zemini icin ortak kaynak. -->
     <color name="brand_background">#07100E</color>
 </resources>

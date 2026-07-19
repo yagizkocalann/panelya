@@ -2,7 +2,7 @@
 <!-- Android 12 (API 31)+ SplashScreen API: sistem, uygulama sureci
      baslar baslamaz `windowSplashScreenBackground` +
      `windowSplashScreenAnimatedIcon` degerlerini kullanarak yerel splash
-     ekranini cizer (ek bir kutuphane/paket gerektirmez -- bu attribute'lar
+     ekranini cizer (ek bir kutuphane/paket gerektirmez; bu attribute'lar
      dogrudan mevcut temaya eklenir). Foreground katmani, adaptive icon ile
      ayni mint isaret dosyasini (@mipmap/ic_launcher_foreground) yeniden
      kullanir; boylece ayri bir splash-ozel gorsel uretilmez. -->
