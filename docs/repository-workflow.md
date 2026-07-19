@@ -45,6 +45,10 @@ git merge origin/main
 Yeni bilgisayarda web/Studio devri icin tam operasyonel rehber
 `docs/web-development-handoff.md` dosyasidir.
 
+Ayni bilgisayarda Claude mobil ve Codex web isi paralel calisiyorsa ayri Git
+worktree'leri kullanilir. Ajanlar ayni working tree'de branch degistirmez, build veya
+format calistirmaz; ortak degisiklikleri `main` uzerinden alir.
+
 Çapraz branch merge yerine küçük pull request'lerle `main` üzerinden paylaşım tercih edilir. Veritabanı şeması, API cevap biçimi, auth sözleşmesi ve katalog modeli iki istemciyi de etkilediği için ortak değişiklik sayılır.
 
 ## Commit edilmeyen dosyalar
