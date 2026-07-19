@@ -48,6 +48,28 @@
 	     isteseydik `false` yapardık. -->
 	<key>FlutterDeepLinkingEnabled</key>
 	<true/>
+	<!-- Fiziksel cihazda test etme (bkz. apps/mobile/README.md "Fiziksel
+	     cihazda test etme"): burada KASITLI OLARAK `NSAppTransportSecurity`
+	     yok — ne `NSAllowsArbitraryLoads` (çok geniş, tüm HTTP'yi her yerde
+	     açar) ne de bir `NSExceptionDomains` girişi (geliştiricinin Mac'inin
+	     LAN IP'si ağdan ağa değişir; sabit bir IP'yi commit'lemek başka bir
+	     ağdaki geliştirici için yanlış/işe yaramaz olur ve her IP
+	     değişiminde Xcode'da yeniden derleme gerektirir).
+	     Gerekçe: Flutter'ın kendi ağ politikası (bkz. Flutter "Network
+	     policy" breaking change, docs.flutter.dev/release/breaking-changes/
+	     network-policy-ios-android) cleartext (http://) trafiği yalnız
+	     platformun host'u bir DOMAIN adı olarak sınıflandırdığı isteklerde
+	     engeller; loopback (`localhost`/`127.0.0.1`, Simulator'ın kullandığı)
+	     her zaman istisnadır. Fiziksel cihazda LAN IP'si üzerinden test
+	     etmek isteyen geliştirici, `env/local.json`'daki `API_ORIGIN`'i
+	     düz `http://192.168.x.x:3000` yerine web geliştirme sunucusuna
+	     giden bir HTTPS geliştirme tüneli (örn. `ngrok http 3000`,
+	     Cloudflare Tunnel) adresine ayarlamalıdır; bu, HİÇBİR Info.plist
+	     değişikliği gerektirmeden ATS/Flutter ağ politikasını doğal olarak
+	     karşılar (zaten HTTPS). Yalnız düz HTTP + LAN IP ısrar edilirse:
+	     geçici, KOMİTE EDİLMEYEN bir `NSExceptionDomains` girişi eklenip
+	     test sonrası geri alınabilir — bu depoya asla sabit bir IP veya
+	     `NSAllowsArbitraryLoads` commit edilmez. -->
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

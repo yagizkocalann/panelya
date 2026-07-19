@@ -119,6 +119,54 @@ Mac'in yerel ağ adresini `ipconfig getifaddr en0` (Wi-Fi) ile bulabilirsiniz.
 Telefon ve Mac aynı yerel ağda olmalı ve web geliştirme sunucusu
 (`npm run dev`, repo kökünde) çalışıyor olmalıdır.
 
+#### Cleartext (http://) izni: Android ve iOS farkı
+
+Flutter 1.23+ (bkz. Flutter "Network policy" breaking change,
+docs.flutter.dev/release/breaking-changes/network-policy-ios-android),
+Android 9 (API 28)+ ve iOS'un cleartext-engelleme varsayımını `dart:io`
+katmanına da taşıdı: yukarıdaki gibi düz `http://192.168.x.x:3000`
+kullanmak platform tarafından reddedilir ("Insecure HTTP is not allowed
+by platform"), açık bir izin gerekir. İki platform de aynı çözümü
+desteklemediği için davranış farklıdır:
+
+- **Android**: `android/app/src/debug/res/xml/network_security_config.xml`
+  ve aynı dizindeki `AndroidManifest.xml` (`android:networkSecurityConfig`)
+  yalnız DEBUG build variant'ında cleartext'e izin verir (bkz. bu iki
+  dosyadaki ayrıntılı yorumlar). Bu yüzden fiziksel Android cihazda yukarıdaki
+  `http://192.168.x.x:3000` origin'i `flutter run` ile doğrudan çalışır;
+  release derlemesine (`flutter build apk --release` / `appbundle`) hiçbir
+  cleartext izni sızmaz (doğrulandı: release APK'nin gömülü manifestinde
+  `networkSecurityConfig` özniteliği yok, `aapt2 dump xmltree` ile
+  kontrol edilebilir).
+- **iOS**: Xcode/Flutter tek bir `Info.plist` kullanır; Android'deki gibi
+  yalnız debug'a etki eden ayrı bir kaynak seti mekanizması yoktur. Bu
+  yüzden `ios/Runner/Info.plist`'e KASITLI OLARAK hiçbir
+  `NSAppTransportSecurity` istisnası eklenmedi (bkz. dosyadaki ayrıntılı
+  yorum): `NSAllowsArbitraryLoads` her yerde her HTTP'yi açar (release'e de
+  sızar, güvenlik açısından kabul edilemez); sabit bir IP için
+  `NSExceptionDomains` ise geliştiriciden geliştiriciye/ağdan ağa değişen
+  bir değeri repoya commit etmeyi gerektirir (yanlış/işe yaramaz hale
+  gelir) ve her IP değişiminde Xcode yeniden derlemesi ister — fiziksel
+  cihaz iterasyonunu Android'dekinden çok daha yavaşlatır. Bunun yerine
+  **fiziksel iOS cihazında test ederken `env/local.json`'daki
+  `API_ORIGIN`'i düz HTTP LAN IP'si yerine web geliştirme sunucusuna giden
+  bir HTTPS geliştirme tüneline (örn. `ngrok http 3000`, Cloudflare
+  Tunnel) ayarlayın**, örn.:
+
+  ```json
+  {
+    "API_ORIGIN": "https://<tunnel-alt-adi>.ngrok-free.app"
+  }
+  ```
+
+  Bu, zaten HTTPS olduğu için hiçbir Info.plist değişikliği gerektirmeden
+  ATS/Flutter ağ politikasını doğal olarak karşılar ve Simulator'daki
+  `localhost` (her zaman istisna, loopback) ile fiziksel cihazdaki
+  davranışı tutarlı kılar. Düz HTTP + LAN IP üzerinde ısrar edilirse
+  `Info.plist`'e geçici, **commit edilmeyen** bir `NSExceptionDomains`
+  girişi eklenip test sonrası geri alınabilir; bu depoya asla sabit bir
+  IP veya `NSAllowsArbitraryLoads` commit edilmez.
+
 ## Geliştirme
 
 ```sh

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
+import 'package:panelya_mobile/app/theme/tokens.dart';
+import 'package:panelya_mobile/app/theme/tone_gradients.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
@@ -36,6 +38,7 @@ SeriesSummary _series(
   String title, {
   List<String> genres = const ['Gizem'],
   bool? isNew,
+  PanelTone tone = PanelTone.mint,
 }) {
   return SeriesSummary(
     slug: slug,
@@ -46,7 +49,7 @@ SeriesSummary _series(
     longDescription: 'Long description',
     status: 'Devam Ediyor',
     genres: genres,
-    tone: PanelTone.mint,
+    tone: tone,
     updatedAt: 'Bugün',
     rating: 4.5,
     followers: '1 B',
@@ -163,6 +166,60 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'a cover-less series card renders the tone poster gradient in its '
+    'placeholder (mirrors app/globals.css .poster--<tone>)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoverRepository(
+        () async => _catalogWith([
+          _series('gece-vardiyasi', 'Gece Vardiyası', tone: PanelTone.violet),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      // `_series` never sets `coverImage`, so the card always renders the
+      // `CoverImage` placeholder — no separate "no cover" fixture needed.
+      final containerFinder = find.descendant(
+        of: _seriesCard('gece-vardiyasi'),
+        matching: find.byType(Container),
+      );
+      expect(containerFinder, findsOneWidget);
+      final decoration =
+          tester.widget<Container>(containerFinder).decoration as BoxDecoration;
+      expect(decoration.gradient, posterGradientForTone(PanelTone.violet));
+      expect(decoration.color, isNull);
+    },
+  );
+
+  testWidgets(
+    'a cover-less series card falls back to the flat surface3 color when '
+    'the tone is PanelTone.unknown (no gradient mapping)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoverRepository(
+        () async => _catalogWith([
+          _series('gece-vardiyasi', 'Gece Vardiyası', tone: PanelTone.unknown),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      final containerFinder = find.descendant(
+        of: _seriesCard('gece-vardiyasi'),
+        matching: find.byType(Container),
+      );
+      expect(containerFinder, findsOneWidget);
+      final decoration =
+          tester.widget<Container>(containerFinder).decoration as BoxDecoration;
+      expect(decoration.gradient, isNull);
+      expect(decoration.color, AppTokens.dark.colors.surface3);
+    },
+  );
 
   testWidgets('filtering by genre hides the hero and non-matching cards', (
     tester,

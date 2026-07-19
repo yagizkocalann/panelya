@@ -84,6 +84,7 @@ class _SeriesDetailView extends StatelessWidget {
               src: metadata.coverImage,
               position: metadata.coverPosition,
               semanticLabel: metadata.title,
+              tone: metadata.tone,
             ),
           ),
         ),

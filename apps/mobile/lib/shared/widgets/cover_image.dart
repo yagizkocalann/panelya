@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/tone_gradients.dart';
 import '../../core/api/media_url.dart';
 import '../../core/config/app_config.dart';
+import '../../core/contracts/generated/generated.dart';
 
 /// Seri kapağı/poster görseli için tek ortak widget. Keşif kartları, keşif
 /// hero'su ve seri detay ekranı bu widget'ı kullanır; her biri kendi
@@ -20,6 +22,10 @@ import '../../core/config/app_config.dart';
 ///   karşılığı olan [Alignment]'a çevrilir.
 /// - Yükleme ve hata durumları animasyonsuzdur (bkz. `disableAnimations`
 ///   uyumu — burada zaten hiçbir geçiş animasyonu kullanılmaz).
+/// - `tone` verilirse (bkz. `SeriesSummary.tone`/`SeriesMetadata.tone`) kapak
+///   yoksa/yüklenirken/hata durumunda düz `surface3` yerine web'deki
+///   `.poster--<tone>` gradyanı kullanılır (bkz. `tone_gradients.dart`).
+///   `tone` `null` veya `PanelTone.unknown` ise davranış değişmez.
 class CoverImage extends ConsumerWidget {
   const CoverImage({
     super.key,
@@ -27,6 +33,7 @@ class CoverImage extends ConsumerWidget {
     required this.semanticLabel,
     this.position,
     this.fit = BoxFit.cover,
+    this.tone,
   });
 
   /// Mutlak veya web origin'ine göre relative görsel yolu (varsa).
@@ -40,13 +47,21 @@ class CoverImage extends ConsumerWidget {
 
   final BoxFit fit;
 
+  /// Serinin tonu (varsa); placeholder gradyanı için kullanılır.
+  final PanelTone? tone;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
     final source = src;
+    final gradient = tone == null ? null : posterGradientForTone(tone!);
 
     if (source == null || source.isEmpty) {
-      return _CoverPlaceholder(tokens: tokens, semanticLabel: semanticLabel);
+      return _CoverPlaceholder(
+        tokens: tokens,
+        semanticLabel: semanticLabel,
+        gradient: gradient,
+      );
     }
 
     final apiOrigin = ref.watch(appConfigProvider).apiOrigin;
@@ -65,12 +80,14 @@ class CoverImage extends ConsumerWidget {
             tokens: tokens,
             semanticLabel: semanticLabel,
             loading: true,
+            gradient: gradient,
           );
         },
         errorBuilder: (context, error, stackTrace) => _CoverPlaceholder(
           tokens: tokens,
           semanticLabel: semanticLabel,
           isError: true,
+          gradient: gradient,
         ),
       ),
     );
@@ -83,12 +100,16 @@ class _CoverPlaceholder extends StatelessWidget {
     required this.semanticLabel,
     this.loading = false,
     this.isError = false,
+    this.gradient,
   });
 
   final AppTokens tokens;
   final String semanticLabel;
   final bool loading;
   final bool isError;
+
+  /// `null` ise (ton yok/`unknown`) mevcut düz `surface3` rengi kullanılır.
+  final LinearGradient? gradient;
 
   @override
   Widget build(BuildContext context) {
@@ -97,7 +118,10 @@ class _CoverPlaceholder extends StatelessWidget {
           ? '$semanticLabel. Kapak görseli yüklenemedi.'
           : semanticLabel,
       child: Container(
-        color: tokens.colors.surface3,
+        decoration: BoxDecoration(
+          color: gradient == null ? tokens.colors.surface3 : null,
+          gradient: gradient,
+        ),
         alignment: Alignment.center,
         child: loading
             ? SizedBox(

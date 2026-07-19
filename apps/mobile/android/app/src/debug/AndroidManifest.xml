@@ -4,4 +4,17 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- DEBUG-ONLY: fiziksel cihazda `API_ORIGIN` Mac'in LAN IP'sine
+         (http://192.168.x.x:3000) ayarlandığında Android 9+ varsayılan
+         olarak cleartext (http://) trafiği engeller (bkz.
+         apps/mobile/README.md "Fiziksel cihazda test etme" ve
+         res/xml/network_security_config.xml'deki ayrıntılı gerekçe).
+         Bu `<application>` öğesi yalnız bu dosyada (`src/debug/`)
+         bulunduğu için Gradle/Flutter yalnız DEBUG build variant'ında
+         `main`'deki `<application>` ile birleştirir; release derlemesi
+         bu dizini hiç görmez, `android:networkSecurityConfig`
+         release APK/AAB'ye SIZMAZ. -->
+    <application android:networkSecurityConfig="@xml/network_security_config">
+    </application>
 </manifest>

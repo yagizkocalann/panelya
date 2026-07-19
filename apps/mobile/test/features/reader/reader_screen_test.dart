@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
+import 'package:panelya_mobile/app/theme/tokens.dart';
+import 'package:panelya_mobile/app/theme/tone_gradients.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
@@ -49,6 +51,12 @@ const _panelWithoutImage = StoryPanel(
   id: 'panel-2',
   scene: 'Sokak lambası titriyor',
   tone: PanelTone.coral,
+);
+
+const _panelWithoutImageUnknownTone = StoryPanel(
+  id: 'panel-3',
+  scene: 'Bilinmeyen ton',
+  tone: PanelTone.unknown,
 );
 
 EpisodeManifestResponse _manifest({
@@ -298,6 +306,59 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Sokak lambası titriyor'), findsOneWidget);
+
+      // Görselsiz geri düşüş paneli, panelin tonuna göre web'deki
+      // `.story-panel--coral` gradyanını aynalar (bkz. tone_gradients.dart).
+      final container = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text('Sokak lambası titriyor'),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final decoration = container.decoration as BoxDecoration;
+      expect(decoration.gradient, storyPanelGradientForTone(PanelTone.coral));
+      expect(decoration.color, isNull);
+    },
+  );
+
+  testWidgets(
+    'renders the no-image fallback with the flat surface2 background '
+    'when the panel tone is PanelTone.unknown (no gradient mapping)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeReaderRepository(
+        (seriesSlug, episodeSlug) async => _manifest(
+          episodeSlug: episodeSlug,
+          number: 1,
+          panels: const [_panelWithoutImageUnknownTone],
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          repository,
+          seriesSlug: 'gece-vardiyasi',
+          episodeSlug: 'bolum-1',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bilinmeyen ton'), findsOneWidget);
+
+      final container = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text('Bilinmeyen ton'),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final decoration = container.decoration as BoxDecoration;
+      final tokens = AppTokens.dark;
+      expect(decoration.gradient, isNull);
+      expect(decoration.color, tokens.colors.surface2);
     },
   );
 

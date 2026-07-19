@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/tone_gradients.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/api/media_url.dart';
@@ -335,12 +336,17 @@ class _PanelBlock extends StatelessWidget {
     final image = panel.image;
 
     if (image == null) {
+      // Görselsiz geri düşüş: panelin `tone`'una göre web'deki
+      // `.story-panel--<tone>` gradyanı (bkz. tone_gradients.dart).
+      // `PanelTone.unknown` için `storyPanelGradientForTone` `null` döner ve
+      // `_TextLayer` mevcut düz `surface2` zeminine düşer.
       return _TextLayer(
         tokens: tokens,
         semanticLabel: panel.scene,
         sceneText: panel.scene,
         caption: panel.caption,
         dialogue: panel.dialogue,
+        backgroundGradient: storyPanelGradientForTone(panel.tone),
       );
     }
 
@@ -384,6 +390,7 @@ class _TextLayer extends StatelessWidget {
     required this.sceneText,
     required this.caption,
     required this.dialogue,
+    this.backgroundGradient,
   });
 
   final AppTokens tokens;
@@ -392,11 +399,19 @@ class _TextLayer extends StatelessWidget {
   final String? caption;
   final String? dialogue;
 
+  /// Yalnız görselsiz geri düşüş panelinde (bkz. `_PanelBlock`) tona göre
+  /// doldurulur; görseli olan panellerin altındaki metin katmanında `null`
+  /// kalır ve mevcut düz `surface2` zemin değişmez.
+  final LinearGradient? backgroundGradient;
+
   @override
   Widget build(BuildContext context) {
     final content = Container(
       width: double.infinity,
-      color: tokens.colors.surface2,
+      decoration: BoxDecoration(
+        color: backgroundGradient == null ? tokens.colors.surface2 : null,
+        gradient: backgroundGradient,
+      ),
       padding: EdgeInsets.all(tokens.spacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
