@@ -3,7 +3,7 @@
 ## Branch sahipliği
 
 - `main`: Web ve mobilin ortak, doğrulanmış başlangıç noktasıdır. Doğrudan günlük geliştirme yapılmaz.
-- `codex/web`: Windows tarafındaki aktif web geliştirme branch'idir.
+- `codex/web-*`: Her web/Studio teslimi icin `origin/main` tabanli, kisa omurlu is branch'idir. Eski uzun omurlu `codex/web` yeni islerin tabani olmaz.
 - `codex/mobile`: MacBook tarafındaki Flutter/mobil geliştirme branch'idir (ADR-019). MacBook'ta güncel `origin/main` üzerinden oluşturulur.
 
 Uzun süreli iki branch aynı dosyaları gereksiz yere değiştirmemelidir. Web'e özgü değişiklikler mevcut kök uygulamada; mobil uygulama kodu ileride `apps/mobile` altında tutulur. Ortak API sözleşmesi veya domain tipi gerektiğinde önce küçük ve bağımsız bir değişiklik olarak `main` üzerinde uzlaştırılır.
@@ -12,18 +12,24 @@ Uzun süreli iki branch aynı dosyaları gereksiz yere değiştirmemelidir. Web'
 
 1. Kalite kapıları `main` üzerinde çalıştırılır.
 2. Temiz başlangıç commit'i `main` olarak GitHub'a gönderilir.
-3. Windows'ta `codex/web`, `origin/main` üzerinden oluşturulur ve web geliştirmesi burada sürer.
-4. MacBook'ta repository clone edildikten sonra `codex/mobile`, `origin/main` üzerinden oluşturulur.
+3. Web isi `codex/web-<kisa-is-adi>` branch'inde, `origin/main` uzerinden baslatilir ve PR sonunda main'e birlestirilir.
+4. Mobil gelistirme mevcut `codex/mobile` branch'inde surer; branch yoksa ilk kez `origin/main` uzerinden olusturulur.
 
 ## MacBook başlangıcı
 
 ```bash
 git clone <GITHUB_REPO_URL>
-cd webtoon
-git switch -c codex/mobile origin/main
+cd panelya
+git fetch origin --prune
+git switch codex/mobile
+git merge origin/main
 npm ci
 npm test
 ```
+
+`codex/mobile` henuz yoksa yalniz ilk kurulumda
+`git switch -c codex/mobile origin/main` kullanilir. Var olan remote branch varken ayni
+isimle yeni ve bos bir mobil branch olusturulmaz.
 
 Mobil branch ilk aşamada web kökünü taşımamalıdır. Flutter uygulaması `apps/mobile` altında yaşar; API/domain ortaklaştırması gerçek ihtiyaç çıktıkça dil bağımsız `packages/contracts` (JSON Schema/OpenAPI) ve `packages/domain` sınırlarına taşınır.
 
@@ -35,6 +41,9 @@ Her iki çalışma hattı düzenli olarak doğrulanmış `main` değişiklikleri
 git fetch origin
 git merge origin/main
 ```
+
+Yeni bilgisayarda web/Studio devri icin tam operasyonel rehber
+`docs/web-development-handoff.md` dosyasidir.
 
 Çapraz branch merge yerine küçük pull request'lerle `main` üzerinden paylaşım tercih edilir. Veritabanı şeması, API cevap biçimi, auth sözleşmesi ve katalog modeli iki istemciyi de etkilediği için ortak değişiklik sayılır.
 

@@ -44,7 +44,7 @@ npm run build
 
 Ilk kaydedilen yerel hesap otomatik olarak `admin`, sonraki hesaplar `reader` olur. Bu sadece gelistirme ve test kolayligidir; production yetkilendirme modeli degildir. Yerel D1 durumu `.wrangler/` altinda tutulur ve git'e eklenmez.
 
-Studio public siteden ayri `studio.localhost` hostunda calisir. Ayni uygulama ve D1 verisi kullanilir; ancak oturum cookie'si host-only oldugu icin Studio'ya ayrica yonetici girisi gerekir. Production hedefi `studio.<ana-domain>` seklindedir. Studio seri ve bolum CRUD akisini yonetir; `/media` ekraninda JPEG/PNG/WebP kapak veya paneller dosya imzasi, byte ve piksel sinirlariyla dogrulanip yerel R2 binding'ine yazilir. Public katalog yalniz yayindaki icerigi, public medya endpoint'i ise halen yayindaki icerige bagli asset'i sunar. Panel siralama/kaldirma ve turetilmis responsive format kuyrugu sonraki fazdir.
+Studio public siteden ayri `studio.localhost` hostunda calisir. Ayni uygulama ve D1 verisi kullanilir; ancak oturum cookie'si host-only oldugu icin Studio'ya ayrica yonetici girisi gerekir. Production hedefi `studio.<ana-domain>` seklindedir. Studio seri ve bolum CRUD akisini yonetir; `/media` ekraninda JPEG/PNG/WebP kapak veya paneller dosya imzasi, byte ve piksel sinirlariyla dogrulanip yerel R2 binding'ine yazilir. Public katalog yalniz yayindaki icerigi, public medya endpoint'i ise halen yayindaki icerige bagli asset'i sunar. Panel siralama/kaldirma, 480/768/1200 px responsive WebP kuyrugu ve guvenli taslak onizleme akisi tamamlanmistir; production Queue/Images kaynaklari ayrica provision edilmelidir.
 
 Ana sayfa ve seri sayfasindaki reklam alanlari Google Publisher Tag'in resmi ornek test agina baglidir. Panelya publisher kimligi, gercek kampanya, gelir veya tiklama simulasyonu yoktur. Ayrinti: [docs/ads-test-plan.md](./docs/ads-test-plan.md).
 
@@ -55,5 +55,7 @@ Siradaki lokal eksikler ve oncelik sirasi [docs/local-gap-backlog.md](./docs/loc
 ## Repository ve mobil devralma
 
 GitHub branch düzeni, büyük görsel politikası ve MacBook başlangıç adımları [docs/repository-workflow.md](./docs/repository-workflow.md) içindedir. Mobil uygulama mimarisi ve API devralma sınırları [docs/mobile-handoff.md](./docs/mobile-handoff.md) dosyasında hazırlanmıştır.
+
+Yeni bilgisayarda veya yeni Codex gorevinde web/Studio gelistirmesine devam etmek icin guncel durum, kurulum, sahiplik ve siradaki isler [docs/web-development-handoff.md](./docs/web-development-handoff.md) dosyasinda toplanmistir.
 
 `artifacts/` altındaki ağır görsel üretim çıktıları GitHub'a gönderilmez. Web'in gerçekten kullandığı görseller optimize edilmiş WebP olarak `public/images` altında tutulur; yerel PNG/JPEG kaynaklar `scripts/optimize_public_images.py` ile yeniden dönüştürülebilir.
