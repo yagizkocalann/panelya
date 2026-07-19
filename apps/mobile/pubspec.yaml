@@ -58,6 +58,17 @@ dependencies:
   # etmek olurdu. Daha agir bir cozum (hive/isar/sqflite) bu basit
   # seri->bolum kaydi icin gerekli degil.
   shared_preferences: ^2.5.3
+  # PKCE (RFC 7636) `code_challenge` uretimi icin SHA-256 (bkz.
+  # lib/features/auth/data/pkce.dart, ADR-039). Gerekce (AGENTS.md'nin
+  # gerekcesiz dependency yasagina gerekceli istisna): proje zaten bu paketi
+  # `flutter_test`/`coverage` uzerinden GECISLI (transitive) olarak
+  # cozuyordu (bkz. pubspec.lock); burada yalniz dogrudan bagimlilik olarak
+  # tasrih ediliyor. dart:crypto standart kutuphanede yok; SHA-256'yi elle
+  # yazmak (sabitler, padding, endianness) test edilmesi zor, guvenlik
+  # acisindan riskli bir kod yolunu yeniden icat etmek olurdu. Paket
+  # yalnizca hash hesaplar; ag/depolama/gomulu tarayici gibi baska hicbir
+  # yetenek eklemez.
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

@@ -147,5 +147,80 @@ void main() {
         '/',
       );
     });
+
+    test(
+      'an auth callback link (panelya://auth/callback) is not a '
+      'navigation route either — it has no screen, so it falls back to '
+      'discover just like any other unrecognized path (bkz. '
+      'isAuthCallbackUri)',
+      () {
+        expect(
+          resolveCustomSchemeRoute(
+            Uri.parse('panelya://auth/callback?code=x&state=y'),
+          ),
+          '/',
+        );
+      },
+    );
+  });
+
+  group('isAuthCallbackUri', () {
+    // Auth0 sistem tarayıcı Authorization Code + PKCE geri dönüş adresini
+    // tanır (bkz. ADR-039, `features/auth/data/auth_repository.dart`'ın
+    // ikinci savunma katmanı olarak kullanımı). `resolveCustomSchemeRoute`
+    // gibi güvenli düşüşü YOKTUR — yalnız true/false döner.
+
+    test('recognizes the callback URI regardless of query parameters', () {
+      expect(
+        isAuthCallbackUri(
+          Uri.parse('panelya://auth/callback?code=abc&state=xyz'),
+        ),
+        isTrue,
+      );
+      expect(isAuthCallbackUri(Uri.parse('panelya://auth/callback')), isTrue);
+    });
+
+    test('recognizes the triple-slash (explicit empty host) form too', () {
+      expect(
+        isAuthCallbackUri(Uri.parse('panelya:///auth/callback?code=abc')),
+        isTrue,
+      );
+    });
+
+    test(authCallbackRedirectUri, () {
+      // `authCallbackRedirectUri` sabitinin kendisi de geçerli bir auth
+      // callback URI'si olarak tanınmalı (sözleşme kendi kendiyle
+      // tutarlı).
+      expect(isAuthCallbackUri(Uri.parse(authCallbackRedirectUri)), isTrue);
+    });
+
+    test('rejects the series/reader routes', () {
+      expect(
+        isAuthCallbackUri(Uri.parse('panelya://series/gece-vardiyasi')),
+        isFalse,
+      );
+      expect(
+        isAuthCallbackUri(
+          Uri.parse('panelya://series/gece-vardiyasi/read/bolum-1'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects a different scheme even with the same path', () {
+      expect(
+        isAuthCallbackUri(Uri.parse('https://panelya.app/auth/callback')),
+        isFalse,
+      );
+    });
+
+    test('rejects unrelated panelya:// links', () {
+      expect(isAuthCallbackUri(Uri.parse('panelya://')), isFalse);
+      expect(isAuthCallbackUri(Uri.parse('panelya://auth')), isFalse);
+      expect(
+        isAuthCallbackUri(Uri.parse('panelya://auth/callback/extra')),
+        isFalse,
+      );
+    });
   });
 }

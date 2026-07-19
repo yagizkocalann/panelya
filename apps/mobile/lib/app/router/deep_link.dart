@@ -1,6 +1,5 @@
 /// Deep-link taslağı (bkz. docs/mobile-handoff.md İlk mobil kapsam #5,
-/// apps/mobile/README.md "Deep-link"). İki ayrı sorumluluk burada
-/// birleşir:
+/// apps/mobile/README.md "Deep-link"). Üç ayrı sorumluluk burada birleşir:
 ///
 /// 1. [resolveCustomSchemeRoute] — bugün canlı olan `panelya://` custom
 ///    scheme linklerini go_router rota path'ine çevirir.
@@ -13,6 +12,11 @@
 ///    adım"). Mobil rota şeması o zaman değişmeyecek — yalnız bu
 ///    fonksiyon yeni bir intent-filter/associated domain'den gelen
 ///    path'leri besleyecek.
+/// 3. [isAuthCallbackUri] / [authCallbackRedirectUri] — production auth
+///    sözleşmesinin (ADR-039) sistem tarayıcı Authorization Code + PKCE
+///    geri dönüş adresini aynı `panelya://` şeması altında tanımlar (bkz.
+///    `features/auth/`). Bu üçüncü sorumluluk go_router'ın gezinme
+///    rotalarından bağımsızdır — auth callback'inin bir ekranı yoktur.
 library;
 
 /// Web tarafının ürün rotası olmayan kök segmentleri (bkz. `app/`
@@ -126,5 +130,49 @@ String resolveCustomSchemeRoute(Uri uri) {
     return '/series/$slug/read/$episodeSlug';
   }
 
+  // `panelya://auth/callback` (bkz. [isAuthCallbackUri] ve
+  // [authCallbackRedirectUri]) bu üç mobil rotadan biri DEĞİLDİR — hiçbir
+  // ekranı yok, bu yüzden burada da güvenli düşüş rotasına (`/`) çevrilir.
+  // Gerçek Auth0 sistem tarayıcı oturumu (bkz.
+  // `features/auth/data/auth_browser.dart`) bu URI'yi zaten go_router'a
+  // ulaşmadan doğrudan yakalar (`ASWebAuthenticationSession`/Custom Tabs
+  // callback yakalama); bu fonksiyon yalnız işletim sisteminin linki genel
+  // deep-link kanalına da dağıttığı durumda çökme/boş ekran olmamasını
+  // garanti eder.
   return '/';
+}
+
+/// Auth0 sistem tarayıcı Authorization Code + PKCE akışının geri dönüş
+/// adresi (bkz. ADR-039, docs/production-auth-session.md). Native public
+/// client olarak Auth0 tenant'ına KAYITLI OLACAK sabit bir değerdir (tenant
+/// provision edildiğinde bu URI, Auth0 Application ayarlarındaki "Allowed
+/// Callback URLs" listesine eklenir); ortama/cihaza göre değişmediği için
+/// `env/` dart-define katmanından değil buradan, tek bir sabit olarak
+/// okunur (bkz. `AppConfig.apiOrigin` ile karşılaştır — o gerçekten
+/// ortama göre değişir, bu değişmez).
+const authCallbackRedirectUri = 'panelya://auth/callback';
+
+/// [uri] `panelya://auth/callback` biçiminde bir Auth0 sistem tarayıcı
+/// callback'i mi (query'de `code`/`state` ya da `error` taşır).
+///
+/// Bu, [resolveCustomSchemeRoute]'un tanıdığı üç navigasyon rotasından
+/// (`/`, `/series/:slug`, `/series/:slug/read/:episodeSlug`) FARKLI bir
+/// sınıftır: bir ekranı yoktur, bu yüzden [resolveCustomSchemeRoute] onu
+/// (bugün olduğu gibi) her zaman güvenli düşüş rotasına (`/`) çevirir. Bu
+/// fonksiyon `panelya://` şemasının ikinci bir tüketicisi için —
+/// `AuthRepository.completeSignIn` içinde, sistem tarayıcısından dönen
+/// URI'nin gerçekten beklenen callback şeklinde olduğunu ikinci bir
+/// savunma katmanı olarak doğrulamak için — ayrı bir pure fonksiyon olarak
+/// dışa açılır.
+bool isAuthCallbackUri(Uri uri) {
+  if (uri.scheme != 'panelya') return false;
+
+  final segments = [
+    if (uri.host.isNotEmpty) uri.host,
+    ...uri.path.split('/').where((segment) => segment.isNotEmpty),
+  ];
+
+  return segments.length == 2 &&
+      segments[0] == 'auth' &&
+      segments[1] == 'callback';
 }

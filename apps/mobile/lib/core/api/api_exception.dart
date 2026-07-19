@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../contracts/generated/generated.dart';
+
 /// Merkezi API client'ın fırlattığı tüm hataların ortak tipi.
 ///
 /// Ekranlar hata durumunu göstermek için yalnız [ApiException] ve alt
@@ -60,4 +62,27 @@ class ParseException extends ApiException {
 /// schema_version.dart`).
 class SchemaMismatchException extends ApiException {
   const SchemaMismatchException(super.message);
+}
+
+/// `/api/auth/*` uçlarından dönen, `{"error": "...", "reauthenticate": ...}`
+/// şeklindeki (bkz. `AuthErrorResponse`) yapılandırılmış hata.
+///
+/// Kasıtlı olarak [ApiException]'ı GENİŞLETMEZ (o `sealed`; bu tip onun bir
+/// alt tipi olsaydı, `describeApiException` gibi mevcut, auth'tan bağımsız
+/// `switch` ifadeleri de bu yeni dalı ele almak zorunda kalırdı — bkz.
+/// `api_error_presenter.dart`, yalnız discover/series/reader ekranları
+/// için). Genel [HttpStatusException]'dan da ayrı tutulur çünkü çağıran
+/// (bkz. `features/auth/data/http_auth_repository.dart`) `error` koduna
+/// göre (`token_reused`, `session_revoked`, `rate_limited`, ...) farklı
+/// davranmak zorundadır (bkz. ADR-039 "Oturum ve hata kuralları");
+/// statusCode tek başına bu ayrımı taşımaz.
+@immutable
+class AuthApiException implements Exception {
+  const AuthApiException(this.error);
+
+  final AuthErrorResponse error;
+
+  @override
+  String toString() =>
+      'AuthApiException: ${error.errorDescription ?? error.error}';
 }

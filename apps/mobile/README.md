@@ -167,6 +167,49 @@ desteklemediği için davranış farklıdır:
   girişi eklenip test sonrası geri alınabilir; bu depoya asla sabit bir
   IP veya `NSAllowsArbitraryLoads` commit edilmez.
 
+## Auth (adapter sınırı — henüz canlı bir login akışı DEĞİL)
+
+ADR-039 production kimlik sözleşmesini (Auth0, sistem tarayıcılı
+Authorization Code + PKCE) tanımlar ve ortak schema/OpenAPI/fixture'lar
+`packages/contracts` altında hazırdır; ama gerçek Auth0 tenant, token
+gateway ve JWKS doğrulaması henüz sağlanmadı (bkz.
+docs/production-auth-session.md "Kalan deployment kapıları"). Bu yüzden
+`lib/features/auth/` bugün yalnız SINIR mimarisini kurar:
+
+- `domain/` — `AuthRepository` (soyut: `beginSignIn`/`completeSignIn`/
+  `refresh`/`logout` + `currentState`/`stateChanges`) ve `AuthSessionState`
+  (`AuthAnonymous`/`AuthAuthenticated`), yalnız
+  `lib/core/contracts/generated/auth_*.dart` DTO'larını kullanır.
+- `data/pkce.dart` — RFC 7636 `code_verifier`/`code_challenge` (S256)
+  üretimi (`package:crypto`, SHA-256 için — bkz. pubspec.yaml gerekçesi).
+- `data/auth_browser.dart` — sistem tarayıcısı açma soyutlaması
+  (`AuthBrowser`); tek implementasyon `SystemAuthBrowser` bilerek bir
+  STUB'tır (`url_launcher` henüz eklenmedi).
+- `data/fake_auth_repository.dart` — in-memory sahte; Riverpod
+  provider'ları (`presentation/auth_providers.dart`) BUGÜN BUNU bağlar.
+- `data/http_auth_repository.dart` — gerçek `/api/auth/*` uçlarına
+  konuşan iskelet; hiçbir provider'dan bağlanmaz, canlıda çağrılmaz.
+- `lib/core/storage/token_store.dart` — token saklama sınırı
+  (`TokenStore`); tek implementasyon `InMemoryTokenStore`
+  (`flutter_secure_storage` henüz eklenmedi, arayüz onu bekleyecek şekilde
+  async tasarlandı).
+- `lib/core/config/auth_feature_config.dart` — `AUTH_ENABLED` dart-define
+  anahtarı (varsayılan `false`). `false` iken `authSessionProvider` hiçbir
+  repository örneklemeden her zaman anonim kalır (ADR-010: görünür auth
+  butonu/placeholder yok). Gerçek tenant/gateway/JWKS entegrasyonu
+  tamamlanana kadar bu bayrak `true` yapılmaz.
+- `panelya://auth/callback` — Auth0 sistem tarayıcı geri dönüş adresi
+  (bkz. `app/router/deep_link.dart` — `authCallbackRedirectUri`,
+  `isAuthCallbackUri`); bir ekranı yoktur, `resolveCustomSchemeRoute`
+  onu tanımadığı için (bilerek) her zaman keşfe düşer.
+
+Bu pakette bir login/hesap ekranı YOKTUR (kapsam dışı, bkz.
+docs/mobile-handoff.md "Şimdilik sonraya bırakılanlar"). Gerçek tenant
+sağlandığında geçiş tek noktadan yapılır: `authRepositoryProvider` ve
+`authBrowserProvider` içindeki örneklemeler `HttpAuthRepository`/gerçek
+bir `AuthBrowser` ile değiştirilir, `AUTH_ENABLED=true` dart-define'ı
+verilir.
+
 ## Geliştirme
 
 ```sh
