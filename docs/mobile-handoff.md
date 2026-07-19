@@ -16,7 +16,7 @@ Mobil geliştirme `codex/mobile` branch'inde ve `apps/mobile` dizininde başlar.
 4. API hata/boş/yükleniyor durumları
 5. Deep-link taslağı
 
-Hesap, kütüphane, çevrimdışı okuma ve bildirimler; API kimlik modeli ve mobil oturum stratejisi kesinleştikten sonra eklenir.
+Hesap ve kütüphane entegrasyonu, ADR-039 ortak auth sözleşmesi `main` dalına girdikten ve gerçek Auth0 tenant/gateway değerleri sağlandıktan sonra eklenir. Çevrimdışı okuma ve bildirimler sonraki mobil fazlarda kalır.
 
 ## Mevcut API başlangıç noktaları
 
@@ -31,7 +31,7 @@ Mobil istemci D1 veya R2'ye doğrudan bağlanmaz. Bütün veri erişimi web depl
 
 ## Kimlik doğrulama uyarısı
 
-Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimlik sağlayıcısı değildir. Mobil branch bu cookie davranışını kalıcı sözleşme kabul etmemelidir. İlk mobil dikey dilimde public katalog/okuyucu önceliklidir; production auth adaptörü daha sonra web ve mobil için ortak bir sözleşmeyle seçilir.
+Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimlik sağlayıcısı değildir. Mobil branch bu cookie davranışını kalıcı sözleşme kabul etmemelidir. ADR-039 production sağlayıcısını Auth0, mobil akışı sistem tarayıcılı Authorization Code + PKCE olarak seçer; ortak contract hazır olsa da gerçek tenant/gateway/JWKS entegrasyonu ayrı runtime teslimidir.
 
 ## Web → mobil entegrasyon kapıları
 
@@ -40,7 +40,7 @@ Mobil taraf aşağıdaki iki ortak teslim `main` dalına girene kadar geçici ad
 | Teslim | Durum | Main'e giriş koşulu | Mobil tarafa bildirilecek çıktı |
 | --- | --- | --- | --- |
 | Responsive medya varyantları | HAZIR | Public katalog, seri ve bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | Merge commit'i, `PublicMediaVariant` ile değişen `StoryPanelImage`/`SeriesMetadataFields` tanımları, response `schemaVersion: 1.0` (geriye uyumlu opsiyonel alanlar), OpenAPI `1.1.0` ve üç v1 fixture |
-| Production auth/session | KARAR BEKLİYOR | Yönetilen kimlik sağlayıcısı ve mobil oturum stratejisi ADR ile seçilir; giriş, token yenileme, çıkış/iptal, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme yapılmaz. Güvenlik review'u ile web ve mobil contract testleri geçer. | Merge commit'i, auth ADR'si, endpoint/akış özeti, token saklama ve yenileme kuralları |
+| Production auth/session | PR HAZIR | ADR-039 Auth0'yu, sistem tarayıcılı Authorization Code + PKCE'yi, 15 dakikalık access tokenini ve 30 günlük dönen refresh tokenini seçer. Giriş/code exchange, refresh, revoke, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme değildir. Bu PR `main` dalına merge edilip web/mobil contract testleri geçmeden entegrasyon başlamaz. | Merge commit'i, OpenAPI `1.2.0`, ADR-039, `AuthProviderConfigResponse`/token/state/error tanımları ve sentetik `auth-*.v1.json` fixture listesi |
 
 Bir teslim yalnız pull request `main` dalına merge edildiğinde ve zorunlu CI kontrolleri geçtiğinde hazır sayılır. Web tarafı bu noktada mobil tarafa merge commit'ini ve yukarıdaki değişiklik özetini gönderir; mobil taraf `origin/main` aldıktan sonra codegen/adapter entegrasyonunu ayrı committe yapar.
 
@@ -90,7 +90,7 @@ Yeni veya bağımsız renk paleti oluşturulmaz. Mobil birebir web kopyası olma
 
 ## Şimdilik sonraya bırakılanlar
 
-Production auth, favori/kütüphane hesabı, push bildirimleri, çevrimdışı indirme, abonelik/ödeme ve Studio/admin ekranları ilk mobil kapsamın dışındadır.
+Production auth sözleşmesi ADR-039 ile hazırdır; gerçek Auth0 tenant değerleri ve runtime gateway/JWKS entegrasyonu gelene kadar mobil yalnız contract/codegen ve adapter sınırını hazırlayabilir. Favori/kütüphane hesabı, push bildirimleri, çevrimdışı indirme, abonelik/ödeme ve Studio/admin ekranları ilk mobil kapsamın dışındadır.
 
 ## Ortak değişiklik sınırı
 

@@ -1,0 +1,4 @@
+{
+  "grantType": "refresh_token",
+  "refreshToken": "fixture_rotating_refresh_token_never_valid"
+}

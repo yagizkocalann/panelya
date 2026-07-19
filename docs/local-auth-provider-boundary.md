@@ -16,12 +16,12 @@
 
 ## Production oncesi zorunlu kararlar
 
-1. Uygulama-ici yerel auth yerine yonetilen identity saglayicisi veya sertlestirilmis auth servisi secimi.
-2. PBKDF2 parametreleri ve parola gecis stratejisi icin guvenlik incelemesi; gerekirse Argon2id saglayan servis/runtime.
+1. Tamamlandi: Yonetilen identity saglayicisi Auth0; web host-only BFF oturumu ve Flutter Authorization Code + PKCE stratejisi ADR-039 ile secildi. Ortak schema/OpenAPI/fixture'lar `packages/contracts` altindadir. Runtime tenant/gateway/JWKS entegrasyonu siradaki teslimdir.
+2. Yerel PBKDF2 yalniz localhost QA icin kalir. Production parola, e-posta dogrulama ve sifre kurtarma Auth0'ya devredilir; mevcut hesabin baglanmasi sessiz e-posta eslesmesiyle yapilmaz.
 3. Tamamlandi: D1 kesin kotayi atomiklestirme ve production'da Cloudflare Rate Limiting binding'ini ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter. Binding/namespace deployment ortaminda ayrica provision edilir.
 4. Dogrulanmis gonderen domain, SPF/DKIM/DMARC, bounce/complaint isleme ve teslimat gozlemi.
 5. Outbox ham action URL saklamasini production'da kapatma; gercek saglayiciya gonderim sonrasi yalniz operasyonel metadata tutma.
-6. Session idle/absolute timeout, cihaz adlandirma ve yuksek riskli aksiyonlarda yeniden kimlik dogrulama politikasi.
+6. Tamamlandi: web session idle/absolute timeout ve yuksek riskli aksiyonlarda yeniden kimlik dogrulama politikasi. Production Auth0 tenantinda admin MFA ve native refresh-token rotation ayarlari ayrica smoke test edilir.
 
 ## Guvenlik notlari
 
