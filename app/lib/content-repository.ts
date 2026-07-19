@@ -1,4 +1,4 @@
-import { seriesCatalog, type Episode, type PanelTone, type Series, type StoryPanel } from "../data/catalog";
+import { seriesCatalog, type Episode, type PanelTone, type PublicMediaVariant, type Series, type StoryPanel } from "../data/catalog";
 import { getDatabase } from "./database";
 
 export type PublicationStatus = "draft" | "published" | "archived";
@@ -79,6 +79,13 @@ type EpisodeRow = {
   created_at: number;
   updated_at: number;
   published_at: number | null;
+};
+
+type PublicMediaVariantRow = {
+  asset_id: string;
+  mime_type: "image/webp";
+  width: number;
+  height: number;
 };
 
 export type SeriesInput = {
@@ -286,13 +293,73 @@ function toPublicSeries(series: StudioSeries): Series {
   };
 }
 
+function publicMediaAssetId(src: string | undefined) {
+  const match = src?.match(/^\/api\/media\/([A-Za-z0-9_-]{1,80})$/);
+  return match?.[1] ?? null;
+}
+
+function mediaSources(series: Series[]) {
+  const sources = new Map<string, string>();
+  for (const item of series) {
+    const coverId = publicMediaAssetId(item.coverImage);
+    if (coverId && item.coverImage) sources.set(coverId, item.coverImage);
+    for (const episode of item.episodes) {
+      for (const panel of episode.panels) {
+        const assetId = publicMediaAssetId(panel.image?.src);
+        if (assetId && panel.image) sources.set(assetId, panel.image.src);
+      }
+    }
+  }
+  return sources;
+}
+
+async function attachPublicMediaVariants(series: Series[]) {
+  const sources = mediaSources(series);
+  if (!sources.size) return series;
+  try {
+    const db = await getDatabase();
+    const rows: PublicMediaVariantRow[] = [];
+    const assetIds = Array.from(sources.keys());
+    for (let offset = 0; offset < assetIds.length; offset += 100) {
+      const chunk = assetIds.slice(offset, offset + 100);
+      const placeholders = chunk.map(() => "?").join(", ");
+      const result = await db.prepare(`SELECT asset_id, mime_type, width, height FROM media_variants
+        WHERE asset_id IN (${placeholders}) AND mime_type = 'image/webp' ORDER BY asset_id, width`).bind(...chunk).all<PublicMediaVariantRow>();
+      rows.push(...result.results);
+    }
+    const variantsBySource = new Map<string, PublicMediaVariant[]>();
+    for (const row of rows) {
+      const source = sources.get(row.asset_id);
+      if (!source) continue;
+      const variants = variantsBySource.get(source) ?? [];
+      variants.push({ src: `${source}?width=${Number(row.width)}`, width: Number(row.width), height: Number(row.height), mimeType: row.mime_type });
+      variantsBySource.set(source, variants);
+    }
+    return series.map((item): Series => ({
+      ...item,
+      ...(item.coverImage && variantsBySource.has(item.coverImage) ? { coverImageVariants: variantsBySource.get(item.coverImage) } : {}),
+      episodes: item.episodes.map((episode) => ({
+        ...episode,
+        panels: episode.panels.map((panel) => panel.image && variantsBySource.has(panel.image.src)
+          ? { ...panel, image: { ...panel.image, variants: variantsBySource.get(panel.image.src) } }
+          : panel),
+      })),
+    }));
+  } catch {
+    // Responsive metadata is an optimization. Published originals remain readable
+    // through their source URL if the variant lookup is temporarily unavailable.
+    return series;
+  }
+}
+
 export async function listPublishedSeries(): Promise<Series[]> {
   try {
     const rows = await listSeriesRows();
-    return rows
+    const published = rows
       .filter((series) => series.publicationStatus === "published")
       .map(toPublicSeries)
       .filter((series) => series.episodes.length > 0);
+    return attachPublicMediaVariants(published);
   } catch {
     // Public reads remain available during build probes or a transient D1 outage.
     return seriesCatalog;
@@ -415,7 +482,7 @@ export async function searchPublishedSeries(input: CatalogSearchInput = {}): Pro
         bySeries.set(row.series_slug, list);
       }
     }
-    const items = pageRows.map((row) => toPublicSeries(seriesFromRow(row, bySeries.get(row.slug) ?? [])));
+    const items = await attachPublicMediaVariants(pageRows.map((row) => toPublicSeries(seriesFromRow(row, bySeries.get(row.slug) ?? []))));
     const lastRow = pageRows.at(-1);
     let nextCursor: string | null = null;
     if (result.results.length > filters.limit && lastRow) {

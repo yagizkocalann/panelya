@@ -19,10 +19,24 @@
         "tone": "blue",
         "align": "left",
         "image": {
-          "src": "/images/gece-denemesi/panel-1.webp",
+          "src": "/api/media/fixture-panel-1",
           "alt": "Gece vakti boş bir durakta bekleyen özgün bir karakter.",
           "width": 1080,
-          "height": 1920
+          "height": 1920,
+          "variants": [
+            {
+              "src": "/api/media/fixture-panel-1?width=480",
+              "width": 480,
+              "height": 853,
+              "mimeType": "image/webp"
+            },
+            {
+              "src": "/api/media/fixture-panel-1?width=768",
+              "width": 768,
+              "height": 1365,
+              "mimeType": "image/webp"
+            }
+          ]
         }
       }
     ]

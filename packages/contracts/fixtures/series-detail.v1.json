@@ -14,7 +14,21 @@
     "rating": 4.5,
     "followers": "1,2 B",
     "isNew": true,
-    "coverImage": "/images/gece-denemesi.webp"
+    "coverImage": "/api/media/fixture-cover-1",
+    "coverImageVariants": [
+      {
+        "src": "/api/media/fixture-cover-1?width=480",
+        "width": 480,
+        "height": 640,
+        "mimeType": "image/webp"
+      },
+      {
+        "src": "/api/media/fixture-cover-1?width=768",
+        "width": 768,
+        "height": 1024,
+        "mimeType": "image/webp"
+      }
+    ]
   },
   "episodes": [
     {

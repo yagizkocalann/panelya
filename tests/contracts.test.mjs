@@ -64,6 +64,22 @@ test("paylaşılan fixture'lar JSON Schema sözleşmesine uyar", async () => {
   }
 });
 
+test("responsive medya fixture'lari yalniz hazir public varyantlari tasir", async () => {
+  const [catalog, manifest] = await Promise.all([
+    readFile(new URL("../packages/contracts/fixtures/catalog.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/episode-manifest.v1.json", import.meta.url), "utf8").then(JSON.parse),
+  ]);
+  const coverVariants = catalog.series[0].coverImageVariants;
+  const panelVariants = manifest.episode.panels[0].image.variants;
+  for (const variants of [coverVariants, panelVariants]) {
+    assert.ok(Array.isArray(variants) && variants.length > 0);
+    assert.deepEqual(variants.map((variant) => variant.width), [...variants].map((variant) => variant.width).sort((a, b) => a - b));
+    assert.ok(variants.every((variant) => variant.mimeType === "image/webp"));
+    assert.ok(variants.every((variant) => /^\/api\/media\/[A-Za-z0-9_-]+\?width=\d+$/.test(variant.src)));
+    assert.ok(variants.every((variant) => !("storageKey" in variant) && !("jobId" in variant)));
+  }
+});
+
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("contracts-test", `${process.pid}-${Date.now()}`);
 const { default: worker } = await import(workerUrl.href);
