@@ -255,6 +255,50 @@ test("atomik D1 ve Cloudflare edge rate-limit adaptörü fail-closed güvenlik s
   assert.match(rateLimitError, /Çok fazla giriş denemesi/);
 });
 
+test("production platform readiness kapısı binding durumunu secret sızdırmadan raporlar", async () => {
+  const [readiness, readinessApi, qaPage, deployment, manualQa, hosting] = await Promise.all([
+    readFile(new URL("../app/lib/platform-readiness.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/platform-readiness/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/qa/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../docs/platform-deployment-readiness.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(readiness, /PLATFORM_READINESS_SCHEMA_VERSION = "1\.0"/);
+  assert.match(readiness, /local_browser/);
+  assert.match(readiness, /cloudflare_queue/);
+  assert.match(readiness, /d1_strict/);
+  assert.match(readiness, /cloudflare_hybrid/);
+  assert.match(readiness, /binding-db/);
+  assert.match(readiness, /binding-media/);
+  assert.match(readiness, /binding-images/);
+  assert.match(readiness, /MEDIA_DERIVATIVE_QUEUE_BINDING/);
+  assert.match(readiness, /EDGE_RATE_LIMITER_BINDING/);
+  assert.match(readiness, /queue-consumer-dlq/);
+  assert.match(readiness, /status: profile === "production" \? "manual" : "not_required"/);
+  assert.doesNotMatch(readiness, /ADMIN_BOOTSTRAP_TOKEN|password|token|namespace_id/);
+  assert.doesNotMatch(readiness, /modes: \{ media: input\.mediaMode/);
+  assert.match(readiness, /\? input\.mediaMode : "invalid"/);
+  assert.match(readinessApi, /isStudioRequest\(request\)/);
+  assert.match(readinessApi, /user\.role !== "admin"/);
+  assert.match(readinessApi, /readiness\.automatedReady \? 200 : 503/);
+  assert.match(readinessApi, /private, no-store/);
+  assert.match(qaPage, /Platform hazırlığı/);
+  assert.match(qaPage, /QA-OPS-01/);
+  assert.match(manualQa, /QA-OPS-01/);
+  assert.match(manualQa, /QA-STU-08/);
+  assert.match(deployment, /max_batch_size=3/);
+  assert.match(deployment, /max_retries=5/);
+  assert.match(deployment, /dead-letter/);
+  assert.deepEqual(JSON.parse(hosting), { d1: "DB", r2: "MEDIA" });
+
+  const publicResponse = await request("/api/admin/platform-readiness", "application/json", "http://localhost");
+  assert.equal(publicResponse.status, 404);
+  const unauthenticatedStudio = await request("/api/admin/platform-readiness", "application/json", "http://studio.localhost:3000");
+  assert.equal(unauthenticatedStudio.status, 401);
+  assert.match(unauthenticatedStudio.headers.get("cache-control") ?? "", /no-store/);
+});
+
 test("Studio public siteden ayrı hostta ve temiz URL'lerle çalışır", async () => {
   const publicStudio = await request("/studio", "text/html", "http://localhost:3000");
   assert.ok([307, 308].includes(publicStudio.status));

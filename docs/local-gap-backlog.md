@@ -32,6 +32,7 @@
 3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
 4. Siradaki: veri yedegi ve geri yukleme proseduru.
 5. Sitemap, robots, canonical ve Series JSON-LD.
+6. Tamamlandi: D1/R2/Images/Queue/rate-limit binding ve runtime modlarini secret sizdirmadan denetleyen Studio platform readiness kapisi. Kalan dis is: gercek Queue consumer/DLQ ve edge namespace provision/smoke testi.
 
 ## P2
 

@@ -10,7 +10,7 @@ Bu dokuman Queue kaynagi production ortaminda provision edilirken uygulanacak op
 - Mod: `MEDIA_DERIVATIVE_DISPATCH_MODE=cloudflare_queue`
 - Consumer: `worker/index.ts` icindeki `queue()` handler'i
 
-Cloudflare Queue producer ve consumer baglantisi deployment platformunda yapilir. Queue tek aktif consumer kullanir; retry siniri ve dead-letter queue ayrica tanimlanir. Repository'deki `.openai/hosting.json` yalniz Sites'in destekledigi D1/R2 mantiksal binding'lerini tutar, Queue adini veya hesap kimligini tahminle icine almaz.
+Cloudflare Queue producer ve consumer baglantisi deployment platformunda yapilir. Queue tek aktif consumer kullanir; baslangic politikasi `max_batch_size=3`, `max_batch_timeout=5`, `max_retries=5`, `retry_delay=30` ve ayri dead-letter queue'dur. `max_concurrency`, Images kota ve gozlem sonucu olmadan tahminle sabitlenmez. Repository'deki `.openai/hosting.json` yalniz Sites'in destekledigi D1/R2 mantiksal binding'lerini tutar, Queue adini veya hesap kimligini tahminle icine almaz. Tam provision sirasi `docs/platform-deployment-readiness.md` icindedir.
 
 ## Mesaj ve guvenlik
 
@@ -25,5 +25,6 @@ V1 mesaj yalniz `version`, `jobId`, `assetId`, `targetWidth`, `targetHeight` ve 
 5. Ayni mesaji tekrar gonder; yeni bir `media_variants` satiri veya farkli kopya olusmamali.
 6. Queue binding'ini test ortaminda gecici kaldir; yeni yuklemenin teslim hatasi gosterdigini ve sessizce yerel isleyiciye dusmedigini dogrula.
 7. Binding'i geri getirip `Yeniden gonder` aksiyonunu calistir; is tamamlanmali ve audit'te yalniz kimlik/sayisal metadata bulunmali.
+8. Studio `/qa` ve admin-only `/api/admin/platform-readiness` otomatik binding kontrolunu gecmeli; consumer/DLQ ayari deployment kaynaginda ayrica dogrulanmali.
 
 Bu test `docs/manual-qa-checklist.md` icindeki `QA-MED-02` ve `QA-STU-07` kayitlariyla birlikte kapatilir.

@@ -24,3 +24,5 @@ Cloudflare hibrit modu seciliyken binding yoksa, bilinmeyen mod girilirse veya l
 6. Modu `d1_strict` yap; yerel/CI davranisi binding olmadan atomik D1 kotasiyla devam etmeli.
 
 Sonuc `docs/manual-qa-checklist.md` icindeki `QA-SEC-01` ve `QA-ACC-05` kayitlarina tarih/notla yazilir.
+
+Tum platform binding'leri birlikte `docs/platform-deployment-readiness.md` sirasiyla provision edilir. Studio `/qa` ile admin-only `/api/admin/platform-readiness` edge binding'inin varligini degerlerini aciklamadan kontrol eder.

@@ -23,6 +23,7 @@ Durumlar:
 | QA-COMM-01 | BEKLIYOR | Puan, yorum, spoiler ve raporlama | Public seri sayfasi + Studio `/moderation` | Yorum ekle/guncelle/sil, spoiler gizleme, rapor, gizleme/yayinlama ve rapor cozum akislarini iki farkli test hesapla dene. |
 | QA-ROLE-01 | BEKLIYOR | Kullanici rol yonetimi | Studio `/users` | Kendi rolunu degistirememe, son admin korumasi ve rol degisince hedef oturumlarin kapanmasi dogrulanmali. |
 | QA-SEC-01 | BEKLIYOR | Atomik ve dagitik rate-limit | Studio `/qa`; public `/login`, `/register`, `/forgot-password`; Studio yonetici mutation'lari | Yerelde `d1_strict` etiketi gorunmeli ve kota tam sinirda reddetmeli. Production testinde `cloudflare_hybrid` etiketi gorunmeli; eksik binding fail-closed olmali ve hesap varligi sizmamali. |
+| QA-OPS-01 | BEKLIYOR | Production platform hazirligi | Studio `/qa` + `/api/admin/platform-readiness` + Cloudflare deployment kaynagi | Production profili otomatik D1/R2/Images/Queue/rate-limit kontrollerini gecmeli; consumer retry ve DLQ ayari ayrica gorulmeli; eksik binding 503 vermeli. |
 | QA-ADS-01 | BEKLIYOR | Google resmi test reklami | Public reklam alanlari + Studio `/ads` | Yalniz resmi Google test birimi gorunmeli; gercek publisher veya tiklama otomasyonu olmamali. |
 | QA-STU-06 | BEKLIYOR | Outbox saklama ve temizleme | Studio `/outbox` | Saklama sayilari dogru olmali; buton yalniz suresi dolan kayit varsa gorunmeli; temizlik aktif kaydi silmemeli ve audit olayi olusturmali. |
 | QA-RESP-01 | BEKLIYOR | Responsive genel tur | Public ana/seri/okuyucu, auth ve Studio | 1440, 1024, 768, 390 ve 360 px'te yatay tasma, kirpik kontrol, 44 px alti dokunma hedefi veya ulasilamayan aksiyon olmamali. |
@@ -54,6 +55,7 @@ Durumlar:
 - [ ] `QA-STU-05` Outbox dogrulama, sifirlama, guvenlik bildirimi ve yonetici davetini dogru etiketliyor.
 - [ ] `QA-STU-06` Outbox saklama ozeti dogru sayilari gosteriyor; yalniz politika suresi dolan sentetik kayitlar temizleniyor ve audit olayi olusuyor.
 - [ ] `QA-STU-07` Responsive kuyruk modu Studio'da dogru etiketleniyor; teslim hatasi hassas ayrinti sizdirmiyor ve yeniden gonderme yalniz gercek bekleyen production isleri varken gorunuyor.
+- [ ] `QA-STU-08` Platform readiness ucu public hostta 404, oturumsuz Studio isteginde 401, eksik zorunlu binding'de 503 ve otomatik kontroller hazirken 200 donuyor; cevap secret veya hesap kaynak kimligi icermiyor.
 
 ## Test kaydi formati
 
