@@ -4,6 +4,7 @@ import { SeriesCard } from "../components/SeriesCard";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { listPublishedGenres, searchPublishedSeries, type CatalogSearchResult } from "../lib/content-repository";
+import { CatalogFilterForm } from "./CatalogFilterForm";
 
 export const metadata: Metadata = {
   title: "Tüm seriler — Panelya",
@@ -51,13 +52,7 @@ export default async function CatalogPage({ searchParams }: CatalogProps) {
       <main id="main-content" className="wrap content-wrap route-page">
         <section className="catalog-results" aria-labelledby="results-title">
           <div className="section-heading"><div><p className="section-kicker">Katalog keşfi</p><h1 id="results-title">{filters.genre || (filters.query ? `“${filters.query}”` : "Tüm seriler")}</h1><p>Yayınlanmış hikâyeleri ada, üreticiye, türe ve yayın durumuna göre keşfet.</p></div><Link className="inline-link" href="/catalog">Filtreleri temizle</Link></div>
-          <form className="catalog-filter-form" action="/catalog" method="get" role="search">
-            <label><span>Seri ara</span><input name="q" type="search" defaultValue={filters.query} placeholder="Başlık, üretici veya tür" maxLength={80} /></label>
-            <label><span>Tür</span><select name="genre" defaultValue={filters.genre}><option value="">Tüm türler</option>{genres.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
-            <label><span>Durum</span><select name="status" defaultValue={filters.status}><option value="">Tümü</option><option value="ongoing">Devam ediyor</option><option value="completed">Tamamlandı</option></select></label>
-            <label><span>Sırala</span><select name="sort" defaultValue={filters.sort}><option value="updated">Son güncellenen</option><option value="rating">Puana göre</option><option value="title">Ada göre</option></select></label>
-            <button className="button button--primary" type="submit">Sonuçları getir</button>
-          </form>
+          <CatalogFilterForm genres={genres} filters={filters} />
           {catalogResult.cursorWasInvalid && <p className="catalog-notice" role="status">Geçersiz veya eski sayfa bağlantısı yok sayıldı; ilk sonuçlar gösteriliyor.</p>}
           {items.length ? <><div className="catalog-result-meta" aria-live="polite"><span>Bu sayfada {items.length} seri</span><span>{filters.sort === "rating" ? "Puana göre" : filters.sort === "title" ? "Ada göre" : "Son güncellenen"}</span></div><div className="card-grid">{items.map((series) => <SeriesCard key={series.slug} series={series} />)}</div><nav className="catalog-pagination" aria-label="Katalog sayfaları">{query.cursor && <Link className="button button--ghost" href={catalogUrl(filters)}>İlk sayfa</Link>}{catalogResult.nextCursor && <Link className="button button--primary" href={catalogUrl(filters, catalogResult.nextCursor)}>Sonraki sonuçlar →</Link>}</nav></> : <div className="empty-state"><strong>Bu filtrelerde henüz bir hikâye yok.</strong><p>Başka bir ad, tür veya yayın durumu deneyebilirsin.</p><Link className="button button--primary" href="/catalog">Tüm serileri göster</Link></div>}
         </section>

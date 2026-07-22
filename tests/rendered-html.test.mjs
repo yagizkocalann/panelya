@@ -32,11 +32,12 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
 });
 
 test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sınırını korur", async () => {
-  const [schema, database, repository, page, header, css, migration, manualQa] = await Promise.all([
+  const [schema, database, repository, page, filterForm, header, css, migration, manualQa] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/catalog/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/catalog/CatalogFilterForm.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/SiteHeader.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0012_round_mulholland_black.sql", import.meta.url), "utf8"),
@@ -56,7 +57,12 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sın
   assert.match(repository, /decodeCatalogCursor/);
   assert.match(repository, /catalogCursorScope/);
   assert.match(repository, /cursorWasInvalid/);
-  assert.match(page, /className="catalog-filter-form"/);
+  assert.match(page, /<CatalogFilterForm genres=\{genres\} filters=\{filters\}/);
+  assert.match(filterForm, /"use client"/);
+  assert.match(filterForm, /event\.target instanceof HTMLSelectElement/);
+  assert.match(filterForm, /event\.currentTarget\.requestSubmit\(\)/);
+  assert.match(filterForm, />Ara<\/button>/);
+  assert.match(filterForm, /seçimleri otomatik uygulanır/);
   assert.match(page, /Sonraki sonuçlar/);
   assert.match(header, /listPublishedGenres/);
   assert.match(css, /\.catalog-filter-form[^}]*grid-template-columns/);
@@ -64,6 +70,8 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sın
 
   const catalogHtml = await (await request("/catalog?q=ses&sort=title")).text();
   assert.match(catalogHtml, /class="catalog-filter-form"/);
+  assert.match(catalogHtml, /Tür, durum ve sıralama seçimleri otomatik uygulanır/);
+  assert.match(catalogHtml, /<button[^>]*type="submit"[^>]*>Ara<\/button>/);
   assert.match(catalogHtml, /name="q"[^>]*value="ses"/);
   assert.match(catalogHtml, /option value="title" selected/);
   assert.match(catalogHtml, /Yarınki Ses/);
