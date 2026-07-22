@@ -1,5 +1,6 @@
 import { seriesCatalog, type Episode, type PanelTone, type PublicMediaVariant, type Series, type StoryPanel } from "../data/catalog";
 import { getDatabase } from "./database";
+import { isRecentlyPublished } from "./series-recency";
 
 export type PublicationStatus = "draft" | "published" | "archived";
 
@@ -100,7 +101,6 @@ export type SeriesInput = {
   tone: PanelTone;
   updatedAt: string;
   followers: string;
-  isNew: boolean;
   coverImage?: string;
   coverPosition?: string;
   publicationStatus: PublicationStatus;
@@ -170,7 +170,7 @@ async function ensureContentSeed() {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?)`)
       .bind(series.slug, series.title, series.eyebrow, series.creator, catalogSearchText(series), series.description, series.longDescription,
         series.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(series.genres), series.tone,
-        series.updatedAt, series.rating, series.followers, series.isNew ? 1 : 0, series.coverImage ?? null,
+        series.updatedAt, series.rating, series.followers, 0, series.coverImage ?? null,
         series.coverPosition ?? null, seriesIndex === 0 ? 1 : 0, now, now, now));
     for (const episode of series.episodes) {
       statements.push(db.prepare(`INSERT OR IGNORE INTO content_episodes (
@@ -231,7 +231,7 @@ function seriesFromRow(row: SeriesRow, episodes: StudioEpisode[]): StudioSeries 
     updatedAt: row.updated_label,
     rating: Number(row.rating),
     followers: row.followers,
-    isNew: Boolean(row.is_new),
+    isNew: isRecentlyPublished(row.published_at == null ? null : Number(row.published_at)),
     coverImage: row.cover_image ?? undefined,
     coverPosition: row.cover_position ?? undefined,
     publicationStatus: row.publication_status,
@@ -291,6 +291,12 @@ function toPublicSeries(series: StudioSeries): Series {
         panels: episode.panels,
       })),
   };
+}
+
+function bundledPublicFallback(): Series[] {
+  // Bundled originals do not carry a trustworthy first-publication timestamp.
+  // During a D1 outage, keep them readable without guessing that they are new.
+  return seriesCatalog.map((series) => ({ ...series, isNew: false }));
 }
 
 function publicMediaAssetId(src: string | undefined) {
@@ -362,7 +368,7 @@ export async function listPublishedSeries(): Promise<Series[]> {
     return attachPublicMediaVariants(published);
   } catch {
     // Public reads remain available during build probes or a transient D1 outage.
-    return seriesCatalog;
+    return bundledPublicFallback();
   }
 }
 
@@ -398,7 +404,7 @@ export async function listPublishedEpisodeUpdates(limit = 24): Promise<Published
         return series && episode ? [{ series, episode, publishedAtTimestamp: item.publishedAtTimestamp }] : [];
       });
   } catch {
-    return seriesCatalog
+    return bundledPublicFallback()
       .flatMap((series, seriesIndex) => series.episodes.map((episode) => ({
         series,
         episode,
@@ -448,7 +454,7 @@ function catalogCursorScope(filters: ReturnType<typeof normalizedCatalogFilters>
 }
 
 function fallbackCatalogSearch(filters: ReturnType<typeof normalizedCatalogFilters>): Series[] {
-  const items = seriesCatalog.filter((series) => {
+  const items = bundledPublicFallback().filter((series) => {
     const matchesSearch = !filters.normalizedQuery || catalogSearchText(series).includes(filters.normalizedQuery);
     const matchesGenre = !filters.genre || series.genres.some((genre) => genre.localeCompare(filters.genre, "tr", { sensitivity: "base" }) === 0);
     const storyStatus = series.status === "Tamamland\u0131" ? "completed" : "ongoing";
@@ -595,10 +601,10 @@ export async function createContentSeries(input: SeriesInput) {
     slug, title, eyebrow, creator, search_text, description, long_description, story_status, genres_json, tone,
     updated_label, rating, followers, is_new, cover_image, cover_position, publication_status,
     is_featured, created_at, updated_at, published_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(input.slug, input.title, input.eyebrow, input.creator, catalogSearchText(input), input.description, input.longDescription,
       input.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(input.genres), input.tone,
-      input.updatedAt, input.followers, input.isNew ? 1 : 0, input.coverImage ?? null, input.coverPosition ?? null,
+      input.updatedAt, input.followers, input.coverImage ?? null, input.coverPosition ?? null,
       input.publicationStatus, input.isFeatured ? 1 : 0, now, now, input.publicationStatus === "published" ? now : null));
   await db.batch(statements);
 }
@@ -611,12 +617,12 @@ export async function updateContentSeries(slug: string, input: SeriesInput) {
   if (input.isFeatured) statements.push(db.prepare("UPDATE content_series SET is_featured = 0"));
   statements.push(db.prepare(`UPDATE content_series SET
     title = ?, eyebrow = ?, creator = ?, search_text = ?, description = ?, long_description = ?, story_status = ?, genres_json = ?,
-    tone = ?, updated_label = ?, followers = ?, is_new = ?, cover_image = ?, cover_position = ?, publication_status = ?,
+    tone = ?, updated_label = ?, followers = ?, cover_image = ?, cover_position = ?, publication_status = ?,
     is_featured = ?, updated_at = ?, published_at = CASE WHEN ? = 'published' THEN COALESCE(published_at, ?) ELSE published_at END
     WHERE slug = ?`)
     .bind(input.title, input.eyebrow, input.creator, catalogSearchText(input), input.description, input.longDescription,
       input.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(input.genres), input.tone,
-      input.updatedAt, input.followers, input.isNew ? 1 : 0, input.coverImage ?? null, input.coverPosition ?? null,
+      input.updatedAt, input.followers, input.coverImage ?? null, input.coverPosition ?? null,
       input.publicationStatus, input.isFeatured ? 1 : 0, now, input.publicationStatus, now, slug));
   await db.batch(statements);
 }

@@ -36,7 +36,6 @@ function parseInput(form: FormData): SeriesInput | null {
     tone: toneValue as SeriesInput["tone"],
     updatedAt: text(form, "updated_label", 60) || "Bugün",
     followers: text(form, "followers", 30) || "Yeni",
-    isNew: form.get("is_new") === "yes",
     coverImage: text(form, "cover_image", 500) || undefined,
     coverPosition: text(form, "cover_position", 50) || undefined,
     publicationStatus: publicationValue,

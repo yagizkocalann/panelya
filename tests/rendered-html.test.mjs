@@ -858,13 +858,18 @@ test("şifre sıfırlama ve doğrulama sayfaları herkese açıktır", async () 
   assert.match(login, /href="\/forgot-password"/);
 });
 
-test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => {
-  const [schema, repository, contentPage, seriesApi, episodeApi] = await Promise.all([
+test("Studio içerik CRUD, D1 yayın sınırı ve otomatik yeni seri penceresi kaynakta korunur", async () => {
+  const [schema, repository, recencySource, recency, contentPage, contentForms, homePage, seriesApi, episodeApi, manualQa] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/series-recency.ts", import.meta.url), "utf8"),
+    import(new URL("../app/lib/series-recency.ts", import.meta.url)),
     readFile(new URL("../app/studio/content/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/ContentForms.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/content/series/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /sqliteTable\("content_series"/);
   assert.match(schema, /sqliteTable\("content_episodes"/);
@@ -872,6 +877,20 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(repository, /publicationStatus === "published"/);
   assert.match(repository, /function toPublicSeries/);
   assert.match(repository, /function toPublicSeries[\s\S]*publishedAt: episode\.publishedAt/);
+  assert.match(recencySource, /NEW_SERIES_WINDOW_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(recencySource, /publishedAt <= now && now - publishedAt < NEW_SERIES_WINDOW_MS/);
+  assert.match(repository, /isNew: isRecentlyPublished\(row\.published_at/);
+  assert.match(repository, /function bundledPublicFallback[\s\S]*isNew: false/);
+  const now = Date.UTC(2026, 6, 23, 12);
+  assert.equal(recency.isRecentlyPublished(null, now), false);
+  assert.equal(recency.isRecentlyPublished(now + 1, now), false);
+  assert.equal(recency.isRecentlyPublished(now - recency.NEW_SERIES_WINDOW_MS + 1, now), true);
+  assert.equal(recency.isRecentlyPublished(now - recency.NEW_SERIES_WINDOW_MS, now), false);
+  assert.doesNotMatch(seriesApi, /form\.get\("is_new"\)/);
+  assert.doesNotMatch(contentForms, /name="is_new"/);
+  assert.match(contentForms, /ilk public yayın tarihinden itibaren 30 gün boyunca otomatik gösterilir/);
+  assert.match(homePage, /newSeries\.length > 0/);
+  assert.match(manualQa, /QA-NEW-01/);
   assert.match(seriesApi, /isStudioRequest\(request\)/);
   assert.match(episodeApi, /isStudioRequest\(request\)/);
   assert.match(seriesApi, /writeAudit/);
