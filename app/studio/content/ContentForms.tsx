@@ -30,8 +30,9 @@ export function SeriesForm({ series }: { series?: StudioSeries }) {
         <label>Kapak konumu<input name="cover_position" defaultValue={series?.coverPosition ?? "center"} maxLength={50} placeholder="50% 50%" /></label>
         <label className="span-3">Kapak görsel yolu<input name="cover_image" defaultValue={series?.coverImage ?? ""} maxLength={500} placeholder="/images/kapak.webp" /></label>
       </div>
-      <div className="studio-checks"><label><input type="checkbox" name="is_new" value="yes" defaultChecked={series?.isNew ?? true} /> Yeni seri bölümünde göster</label><label><input type="checkbox" name="is_featured" value="yes" defaultChecked={series?.isFeatured ?? false} /> Ana sayfada öne çıkar</label></div>
-      {!series && <p className="studio-inline-note">Yeni seri güvenlik için daima taslak oluşturulur. Bir bölüm yayınladıktan sonra seri düzenleme ekranından yayına alınabilir.</p>}
+      <div className="studio-checks"><label><input type="checkbox" name="is_featured" value="yes" defaultChecked={series?.isFeatured ?? false} /> Ana sayfada öne çıkar</label></div>
+      <p className="studio-inline-note">Yeni seri etiketi, ilk public yayın tarihinden itibaren 30 gün boyunca otomatik gösterilir.</p>
+      {!series && <p className="studio-inline-note">Yeni kayıt güvenlik için daima taslak oluşturulur. Bir bölüm yayınladıktan sonra seri düzenleme ekranından yayına alınabilir.</p>}
     </section>
     <div className="studio-editor__actions"><button className="button button--primary" type="submit">{series ? "Değişiklikleri kaydet" : "Taslak seriyi oluştur"}</button></div>
   </form>;

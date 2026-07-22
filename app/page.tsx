@@ -39,6 +39,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
   const [seriesCatalog, genres] = await Promise.all([listPublishedSeries(), listPublishedGenres()]);
   const featuredSeries = seriesCatalog[0];
+  const newSeries = seriesCatalog.filter((series) => series.isNew);
 
   if (!featuredSeries) {
     return <div className="site-shell"><SiteHeader /><main id="main-content" className="wrap content-wrap"><div className="empty-state"><strong>Henüz yayınlanmış seri yok.</strong><p>Studio üzerinden ilk seriyi ve bölümünü yayınla.</p></div></main><SiteFooter /></div>;
@@ -76,10 +77,10 @@ export default async function Home({ searchParams }: HomeProps) {
             <div><span className="manifesto-mark" aria-hidden="true">P</span><p className="section-kicker">Panelya Originals</p><h2>Burada hikâyeler<br />telefona göre doğar.</h2></div>
             <p>Kaydırma ritmi, sessiz anlar ve bölüm sonu kancaları tek bir dikey tuval için tasarlanır. <Link className="inline-link" href="/production-journal">İlk özgün serimizin üretim günlüğünü oku →</Link></p>
           </section>
-          <section id="new-series" aria-labelledby="new-title">
+          {newSeries.length > 0 && <section id="new-series" aria-labelledby="new-title">
             <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div></div>
-            <div className="card-grid card-grid--three">{seriesCatalog.filter((series) => series.isNew).map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
-          </section>
+            <div className="card-grid card-grid--three">{newSeries.map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
+          </section>}
         </div>
         <section className="home-seo wrap" aria-labelledby="home-seo-title">
           <p className="section-kicker">Türkçe dikey hikâyeler</p>
