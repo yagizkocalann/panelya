@@ -14,22 +14,23 @@ export async function SiteHeader({ compact = false, homeHref = "/", studioHref =
         </Link>
         {!compact && (
           <details className="genre-menu">
-            <summary><span>Keşfet</span><strong>Tüm türler</strong></summary>
+            <summary><span>Keşfet</span><strong>Katalog ve türler</strong></summary>
             <div className="genre-menu__panel">
-              <Link href="/">Tümü</Link>
-              {genres.map((genre) => <Link key={genre} href={`/?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}
+              <Link href="/catalog">Tüm seriler</Link>
+              <Link href="/updates">Yeni bölümler</Link>
+              {genres.map((genre) => <Link key={genre} href={`/catalog?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}
             </div>
           </details>
         )}
         {!compact && (
-          <form className="search" action="/" role="search">
+          <form className="search" action="/catalog" role="search">
             <label className="sr-only" htmlFor="series-search">Seri ara</label>
             <input id="series-search" name="q" type="search" placeholder="Bir hikâye ara..." autoComplete="off" />
             <button type="submit" aria-label="Ara">Ara</button>
           </form>
         )}
         <nav className="header-actions" aria-label="Hesap">
-          {!compact && <Link className="text-link" href="/#new-series">Yeni seriler</Link>}
+          {!compact && <Link className="text-link" href="/updates">Yeni bölümler</Link>}
           <AuthActions compact={compact} studioHref={studioHref} />
         </nav>
       </div>

@@ -117,7 +117,7 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
             <h1 id="series-title">{series.title}</h1>
             <p className="creator-line">{series.creator}</p>
             <div className="series-stats"><span>{series.status}</span><span>★ {(community.average ?? series.rating).toFixed(1)}</span><span>{series.followers} takipçi</span></div>
-            <div className="genre-pills">{series.genres.map((genre) => <Link key={genre} href={`/?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}</div>
+            <div className="genre-pills">{series.genres.map((genre) => <Link key={genre} href={`/catalog?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}</div>
             <p className="series-description">{series.longDescription}</p>
             <div className="series-actions">
               <Link className="button button--primary button--large" href={`/${series.slug}/${first.slug}`}>▶ İlk bölümü oku</Link>
