@@ -5,6 +5,7 @@ import { publicSiteUrlForCurrentRequest } from "./lib/server-site-origins";
 const staticRoutes = [
   { path: "/", changeFrequency: "daily", priority: 1 },
   { path: "/catalog", changeFrequency: "daily", priority: 0.9 },
+  { path: "/new-series", changeFrequency: "daily", priority: 0.9 },
   { path: "/updates", changeFrequency: "daily", priority: 0.9 },
   { path: "/about", changeFrequency: "monthly", priority: 0.5 },
   { path: "/contact", changeFrequency: "yearly", priority: 0.3 },

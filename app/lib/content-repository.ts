@@ -65,6 +65,20 @@ export type CatalogSearchResult = {
   filters: { query: string; genre: string; status: CatalogStatus | ""; sort: CatalogSort };
 };
 
+export type CatalogPageInput = Omit<CatalogSearchInput, "cursor" | "limit"> & {
+  page?: number;
+  pageSize?: number;
+};
+
+export type CatalogPageResult = {
+  items: Series[];
+  page: number;
+  pageSize: 8 | 16 | 32;
+  totalItems: number;
+  totalPages: number;
+  filters: CatalogSearchResult["filters"];
+};
+
 type CatalogCursor = { version: 1; sort: CatalogSort; scope: string; value: string | number; slug: string };
 
 type EpisodeRow = {
@@ -544,6 +558,89 @@ export async function searchPublishedSeries(input: CatalogSearchInput = {}): Pro
       items: fallbackCatalogSearch(filters),
       nextCursor: null,
       cursorWasInvalid,
+      filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort },
+    };
+  }
+}
+
+export async function searchPublishedSeriesPage(input: CatalogPageInput = {}): Promise<CatalogPageResult> {
+  const filters = normalizedCatalogFilters(input);
+  const requestedPage = typeof input.page === "number" && Number.isFinite(input.page)
+    ? Math.max(1, Math.min(10_000, Math.trunc(input.page)))
+    : 1;
+  const pageSize: 8 | 16 | 32 = input.pageSize === 16 || input.pageSize === 32 ? input.pageSize : 8;
+  try {
+    await ensureReady();
+    const db = await getDatabase();
+    const where = [
+      "publication_status = 'published'",
+      "EXISTS (SELECT 1 FROM content_episodes ce WHERE ce.series_slug = catalog.slug AND ce.publication_status = 'published')",
+    ];
+    const bindings: Array<string | number> = [];
+    if (filters.normalizedQuery) {
+      where.push("search_text LIKE ?");
+      bindings.push(`%${filters.normalizedQuery}%`);
+    }
+    if (filters.genre) {
+      where.push("EXISTS (SELECT 1 FROM json_each(catalog.genres_json) genre WHERE genre.value = ? COLLATE NOCASE)");
+      bindings.push(filters.genre);
+    }
+    if (filters.status) {
+      where.push("story_status = ?");
+      bindings.push(filters.status);
+    }
+    const catalogCte = `WITH catalog AS (
+      SELECT cs.*, COALESCE(
+        (SELECT MAX(COALESCE(ce.published_at, ce.updated_at)) FROM content_episodes ce
+          WHERE ce.series_slug = cs.slug AND ce.publication_status = 'published'),
+        cs.published_at, cs.updated_at
+      ) AS discovery_updated_at
+      FROM content_series cs
+    )`;
+    const countRow = await db.prepare(`${catalogCte} SELECT COUNT(*) AS count FROM catalog WHERE ${where.join(" AND ")}`)
+      .bind(...bindings).first<{ count: number }>();
+    const totalItems = Number(countRow?.count ?? 0);
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const page = totalPages ? Math.min(requestedPage, totalPages) : 1;
+    const orderBy = filters.sort === "rating"
+      ? "rating DESC, slug ASC"
+      : filters.sort === "title"
+        ? "title COLLATE NOCASE ASC, slug ASC"
+        : "discovery_updated_at DESC, slug ASC";
+    const result = await db.prepare(`${catalogCte} SELECT * FROM catalog WHERE ${where.join(" AND ")}
+      ORDER BY ${orderBy} LIMIT ? OFFSET ?`).bind(...bindings, pageSize, (page - 1) * pageSize).all<CatalogQueryRow>();
+    const bySeries = new Map<string, StudioEpisode[]>();
+    if (result.results.length) {
+      const placeholders = result.results.map(() => "?").join(", ");
+      const episodes = await db.prepare(`SELECT * FROM content_episodes
+        WHERE publication_status = 'published' AND series_slug IN (${placeholders})
+        ORDER BY series_slug, number DESC`).bind(...result.results.map((row) => row.slug)).all<EpisodeRow>();
+      for (const row of episodes.results) {
+        const list = bySeries.get(row.series_slug) ?? [];
+        list.push(episodeFromRow(row));
+        bySeries.set(row.series_slug, list);
+      }
+    }
+    const items = await attachPublicMediaVariants(result.results.map((row) => toPublicSeries(seriesFromRow(row, bySeries.get(row.slug) ?? []))));
+    return {
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort },
+    };
+  } catch {
+    const allItems = fallbackCatalogSearch(filters);
+    const totalItems = allItems.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const page = totalPages ? Math.min(requestedPage, totalPages) : 1;
+    return {
+      items: allItems.slice((page - 1) * pageSize, page * pageSize),
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
       filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort },
     };
   }
