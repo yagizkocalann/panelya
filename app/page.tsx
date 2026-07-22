@@ -78,7 +78,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <p>Kaydırma ritmi, sessiz anlar ve bölüm sonu kancaları tek bir dikey tuval için tasarlanır. <Link className="inline-link" href="/production-journal">İlk özgün serimizin üretim günlüğünü oku →</Link></p>
           </section>
           {newSeries.length > 0 && <section id="new-series" aria-labelledby="new-title">
-            <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div></div>
+            <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div><Link className="inline-link inline-link--persistent" href="/new-series">Tüm yeni serileri gör →</Link></div>
             <div className="card-grid card-grid--three">{newSeries.map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
           </section>}
         </div>
