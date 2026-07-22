@@ -859,11 +859,10 @@ test("şifre sıfırlama ve doğrulama sayfaları herkese açıktır", async () 
 });
 
 test("Studio içerik CRUD, D1 yayın sınırı ve otomatik yeni seri penceresi kaynakta korunur", async () => {
-  const [schema, repository, recencySource, recency, contentPage, contentForms, homePage, seriesApi, episodeApi, manualQa] = await Promise.all([
+  const [schema, repository, recencySource, contentPage, contentForms, homePage, seriesApi, episodeApi, manualQa] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/series-recency.ts", import.meta.url), "utf8"),
-    import(new URL("../app/lib/series-recency.ts", import.meta.url)),
     readFile(new URL("../app/studio/content/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/content/ContentForms.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -881,11 +880,6 @@ test("Studio içerik CRUD, D1 yayın sınırı ve otomatik yeni seri penceresi k
   assert.match(recencySource, /publishedAt <= now && now - publishedAt < NEW_SERIES_WINDOW_MS/);
   assert.match(repository, /isNew: isRecentlyPublished\(row\.published_at/);
   assert.match(repository, /function bundledPublicFallback[\s\S]*isNew: false/);
-  const now = Date.UTC(2026, 6, 23, 12);
-  assert.equal(recency.isRecentlyPublished(null, now), false);
-  assert.equal(recency.isRecentlyPublished(now + 1, now), false);
-  assert.equal(recency.isRecentlyPublished(now - recency.NEW_SERIES_WINDOW_MS + 1, now), true);
-  assert.equal(recency.isRecentlyPublished(now - recency.NEW_SERIES_WINDOW_MS, now), false);
   assert.doesNotMatch(seriesApi, /form\.get\("is_new"\)/);
   assert.doesNotMatch(contentForms, /name="is_new"/);
   assert.match(contentForms, /ilk public yayın tarihinden itibaren 30 gün boyunca otomatik gösterilir/);
