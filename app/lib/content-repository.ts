@@ -366,6 +366,49 @@ export async function listPublishedSeries(): Promise<Series[]> {
   }
 }
 
+export type PublishedEpisodeUpdate = {
+  series: Series;
+  episode: Episode;
+  publishedAtTimestamp: number;
+};
+
+export async function listPublishedEpisodeUpdates(limit = 24): Promise<PublishedEpisodeUpdate[]> {
+  const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+  try {
+    const rows = await listSeriesRows();
+    const publishedRows = rows.filter((series) => series.publicationStatus === "published");
+    const publicSeries = await attachPublicMediaVariants(publishedRows.map(toPublicSeries));
+    const seriesBySlug = new Map(publicSeries.map((series) => [series.slug, series]));
+
+    return publishedRows
+      .flatMap((series) => series.episodes
+        .filter((episode) => episode.publicationStatus === "published")
+        .map((episode) => ({
+          seriesSlug: series.slug,
+          episodeSlug: episode.slug,
+          publishedAtTimestamp: episode.publishedAtTimestamp ?? episode.updatedAt,
+        })))
+      .sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp
+        || a.seriesSlug.localeCompare(b.seriesSlug)
+        || a.episodeSlug.localeCompare(b.episodeSlug))
+      .slice(0, safeLimit)
+      .flatMap((item) => {
+        const series = seriesBySlug.get(item.seriesSlug);
+        const episode = series?.episodes.find((candidate) => candidate.slug === item.episodeSlug);
+        return series && episode ? [{ series, episode, publishedAtTimestamp: item.publishedAtTimestamp }] : [];
+      });
+  } catch {
+    return seriesCatalog
+      .flatMap((series, seriesIndex) => series.episodes.map((episode) => ({
+        series,
+        episode,
+        publishedAtTimestamp: (seriesCatalog.length - seriesIndex) * 1_000_000 + episode.number,
+      })))
+      .sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp)
+      .slice(0, safeLimit);
+  }
+}
+
 function encodeCatalogCursor(cursor: CatalogCursor) {
   const bytes = new TextEncoder().encode(JSON.stringify(cursor));
   let binary = "";

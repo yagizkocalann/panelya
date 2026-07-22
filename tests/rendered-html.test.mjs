@@ -36,7 +36,7 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sın
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/catalog/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/SiteHeader.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0012_round_mulholland_black.sql", import.meta.url), "utf8"),
@@ -62,13 +62,22 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sın
   assert.match(css, /\.catalog-filter-form[^}]*grid-template-columns/);
   assert.match(manualQa, /QA-CAT-01/);
 
-  const catalogHtml = await (await request("/?view=catalog&q=ses&sort=title")).text();
+  const catalogHtml = await (await request("/catalog?q=ses&sort=title")).text();
   assert.match(catalogHtml, /class="catalog-filter-form"/);
   assert.match(catalogHtml, /name="q"[^>]*value="ses"/);
   assert.match(catalogHtml, /option value="title" selected/);
   assert.match(catalogHtml, /Yarınki Ses/);
-  const invalidCursorHtml = await (await request("/?view=catalog&cursor=bozuk")).text();
+  const invalidCursorHtml = await (await request("/catalog?cursor=bozuk")).text();
   assert.match(invalidCursorHtml, /Geçersiz veya eski sayfa bağlantısı/);
+
+  const legacyCatalog = await request("/?view=catalog&q=ses&sort=title");
+  assert.equal(legacyCatalog.status, 307);
+  assert.equal(new URL(legacyCatalog.headers.get("location")).pathname + new URL(legacyCatalog.headers.get("location")).search, "/catalog?q=ses&sort=title");
+
+  const updatesHtml = await (await request("/updates")).text();
+  assert.match(updatesHtml, /Yeni bölümler/);
+  assert.match(updatesHtml, /class="update-list"/);
+  assert.match(updatesHtml, /href="\/gece-vardiyasi\/bolum-3"/);
 
   const catalogApi = await (await request("/api/catalog", "application/json")).json();
   assert.deepEqual(Object.keys(catalogApi).sort(), ["featuredSlug", "schemaVersion", "series"]);
@@ -124,6 +133,10 @@ test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin polit
   assert.match(jsonLdComponent, /JSON\.stringify\(data\)\.replace\(\/<\/g, "\\\\u003c"\)/);
   const homeHtml = await (await request("/")).text();
   assert.match(homeHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/"/i);
+  const catalogHtml = await (await request("/catalog?q=ses")).text();
+  assert.match(catalogHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/catalog"/i);
+  const updatesHtml = await (await request("/updates")).text();
+  assert.match(updatesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/updates"/i);
 
   const seriesHtml = await (await request("/gece-vardiyasi")).text();
   assert.match(seriesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/gece-vardiyasi"/i);
@@ -155,6 +168,8 @@ test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin polit
   const sitemapResponse = await request("/sitemap.xml", "application/xml");
   assert.equal(sitemapResponse.status, 200);
   const sitemap = await sitemapResponse.text();
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/catalog<\/loc>/);
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/updates<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/gece-vardiyasi<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/publishing-principles<\/loc>/);
   assert.doesNotMatch(sitemap, /\/gece-vardiyasi\/bolum-1|\/api\/|\/preview\/|studio\.localhost/);
@@ -267,7 +282,7 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
 
 test("görünür public bağlantılar kırık route üretmez", async () => {
   const pages = [
-    "/", "/?view=catalog", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
+    "/", "/catalog", "/updates", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
     "/privacy", "/terms", "/copyright", "/copyright/report", "/login", "/register", "/forgot-password",
     "/reset-password", "/verify-email", "/gece-vardiyasi", "/gece-vardiyasi/bolum-1",
     "/gece-vardiyasi/bolum-2", "/gece-vardiyasi/bolum-3", "/bir-bilet-uzaginda", "/bir-bilet-uzaginda/bolum-1",
