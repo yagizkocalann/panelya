@@ -19,6 +19,14 @@ import '../../../app/theme/tokens.dart';
 /// döner (bkz. web `listPublishedGenres` -> `localeCompare(a,b,"tr")`).
 /// Bir tür seçilince `/catalog` rotasına [CatalogRouteArgs.initialGenre] ile
 /// o tür seçili şekilde gidilir.
+///
+/// Açılan listenin İLK öğesi her zaman "Tüm Seriler" olur (bkz. web
+/// `app/components/GenreDirectoryLinks.tsx` — filtresiz `/catalog` linki en
+/// başta gelir). Bu, eski/yeni ayrımı olmaksızın tüm kataloğa filtresiz
+/// erişilebilen tek giriş noktasıdır; tıklanınca `/catalog`'a `extra`
+/// vermeden gidilir, bu da router'da (`extra is CatalogRouteArgs ? ... :
+/// null`) güvenle `initialGenre: null`'a düşer ve `CatalogScreen` tam,
+/// filtrelenmemiş listeyi gösterir.
 class GenreDisclosure extends StatefulWidget {
   const GenreDisclosure({super.key, required this.genres});
 
@@ -89,18 +97,29 @@ class _GenreDisclosureState extends State<GenreDisclosure> {
             child: Wrap(
               spacing: tokens.spacing.sm,
               runSpacing: tokens.spacing.sm,
-              children: widget.genres
-                  .map(
-                    (genre) => _GenreDisclosureChip(
-                      key: ValueKey('genre-disclosure-chip-$genre'),
-                      genre: genre,
-                      onTap: () => context.push(
-                        '/catalog',
-                        extra: CatalogRouteArgs(initialGenre: genre),
-                      ),
+              children: [
+                _GenreDisclosureChip(
+                  key: const ValueKey('genre-disclosure-all-series-chip'),
+                  label: 'Tüm Seriler',
+                  semanticsLabel: 'Tüm serileri katalogda göster',
+                  highlighted: true,
+                  // Extra vermeden `/catalog`'a gidilir; router bunu
+                  // güvenle `initialGenre: null`'a düşürür (bkz.
+                  // `router.dart`), böylece katalog tam/filtresiz açılır.
+                  onTap: () => context.push('/catalog'),
+                ),
+                ...widget.genres.map(
+                  (genre) => _GenreDisclosureChip(
+                    key: ValueKey('genre-disclosure-chip-$genre'),
+                    label: genre,
+                    semanticsLabel: '$genre türünü katalogda göster',
+                    onTap: () => context.push(
+                      '/catalog',
+                      extra: CatalogRouteArgs(initialGenre: genre),
                     ),
-                  )
-                  .toList(),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -111,20 +130,30 @@ class _GenreDisclosureState extends State<GenreDisclosure> {
 class _GenreDisclosureChip extends StatelessWidget {
   const _GenreDisclosureChip({
     super.key,
-    required this.genre,
+    required this.label,
+    required this.semanticsLabel,
     required this.onTap,
+    this.highlighted = false,
   });
 
-  final String genre;
+  final String label;
+  final String semanticsLabel;
   final VoidCallback onTap;
+
+  /// "Tüm Seriler" girişini diğer tür chip'lerinden mevcut `mint` vurgu
+  /// token'ıyla hafifçe ayırır (yeni renk icat edilmez, bkz.
+  /// docs/mobile-handoff.md Tasarım token'ları).
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    final accentColor = highlighted ? tokens.colors.mint : tokens.colors.line;
+    final textColor = highlighted ? tokens.colors.mint : tokens.colors.ink;
 
     return Semantics(
       button: true,
-      label: '$genre türünü katalogda göster',
+      label: semanticsLabel,
       child: Material(
         color: tokens.colors.surface2,
         borderRadius: BorderRadius.circular(tokens.radii.pill),
@@ -137,11 +166,14 @@ class _GenreDisclosureChip extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(tokens.radii.pill),
-              border: Border.all(color: tokens.colors.line),
+              border: Border.all(
+                color: accentColor,
+                width: highlighted ? 1.5 : 1,
+              ),
             ),
             child: Text(
-              genre,
-              style: tokens.typography.label.copyWith(color: tokens.colors.ink),
+              label,
+              style: tokens.typography.label.copyWith(color: textColor),
             ),
           ),
         ),
