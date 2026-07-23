@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdSlot } from "./components/AdSlot";
+import { GenreDirectoryLinks } from "./components/GenreDirectoryLinks";
 import { SeriesCard } from "./components/SeriesCard";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
-import { listPublishedGenres, listPublishedSeries } from "./lib/content-repository";
+import { listPublishedEpisodeUpdates, listPublishedGenres, listPublishedSeries } from "./lib/content-repository";
 
 export const metadata: Metadata = {
   title: "Panelya — Kaydır, keşfet, hikâyeye gir",
@@ -37,9 +38,19 @@ export default async function Home({ searchParams }: HomeProps) {
     redirect(legacyCatalogUrl(query));
   }
 
-  const [seriesCatalog, genres] = await Promise.all([listPublishedSeries(), listPublishedGenres()]);
+  const [seriesCatalog, genres, episodeUpdates] = await Promise.all([
+    listPublishedSeries(),
+    listPublishedGenres(),
+    listPublishedEpisodeUpdates(24),
+  ]);
   const featuredSeries = seriesCatalog[0];
   const newSeries = seriesCatalog.filter((series) => series.isNew);
+  const seenSeries = new Set<string>();
+  const latestSeriesUpdates = episodeUpdates.filter(({ series }) => {
+    if (seenSeries.has(series.slug)) return false;
+    seenSeries.add(series.slug);
+    return true;
+  }).slice(0, 4);
 
   if (!featuredSeries) {
     return <div className="site-shell"><SiteHeader /><main id="main-content" className="wrap content-wrap"><div className="empty-state"><strong>Henüz yayınlanmış seri yok.</strong><p>Studio üzerinden ilk seriyi ve bölümünü yayınla.</p></div></main><SiteFooter /></div>;
@@ -51,6 +62,12 @@ export default async function Home({ searchParams }: HomeProps) {
     <div className="site-shell">
       <SiteHeader />
       <main id="main-content">
+        <section className="home-directory wrap" aria-label="Seri türleri">
+          <details className="home-genre-directory" open>
+            <summary><span>Türler</span><small>Aç / Kapat</small></summary>
+            <GenreDirectoryLinks genres={genres} className="home-genre-directory__grid" />
+          </details>
+        </section>
         <section className="hero wrap" aria-labelledby="featured-title">
           <div className="hero-art hero-art--generated" aria-hidden="true" />
           <div className="hero-shade" />
@@ -64,13 +81,28 @@ export default async function Home({ searchParams }: HomeProps) {
           <div className="hero-index" aria-label="Birinci öne çıkan seri"><strong>01</strong><span>/</span><span>04</span></div>
         </section>
 
-        <div className="wrap content-wrap">
-          <section className="genre-strip" aria-label="Türlere göre keşfet">
-            <span>Hızlı keşif</span>{genres.slice(0, 8).map((item) => <Link key={item} href={`/catalog?genre=${encodeURIComponent(item)}`}>{item}</Link>)}
-          </section>
+        <div className="wrap content-wrap home-content">
           <section aria-labelledby="recent-title">
-            <div className="section-heading"><div><p className="section-kicker">Okuma akışı</p><h2 id="recent-title">Yeni bölüm eklenenler</h2><p>Hikâyeye kaldığın yerden değil, merak ettiğin yerden gir.</p></div><Link className="inline-link" href="/updates">Tüm güncellemeleri gör →</Link></div>
-            <div className="card-grid">{seriesCatalog.slice(0, 4).map((series, index) => <SeriesCard key={series.slug} series={series} badge={index === 0 ? "Yeni bölüm" : undefined} />)}</div>
+            <div className="section-heading"><div><p className="section-kicker">Okuma akışı</p><h2 id="recent-title">Yeni Eklenen Bölümler</h2><p>Son eklenen bölümlerden okumaya hemen başla.</p></div><Link className="inline-link inline-link--persistent" href="/new-episodes">Tümünü Gör →</Link></div>
+            <div className="home-update-grid">
+              {latestSeriesUpdates.map(({ series, episode }) => {
+                const coverStyle = series.coverImage
+                  ? { backgroundImage: `url("${series.coverImage}")`, backgroundPosition: series.coverPosition ?? "center" }
+                  : undefined;
+                return (
+                  <article className="home-update-card" key={`${series.slug}/${episode.slug}`}>
+                    <Link className={`home-update-card__cover poster--${series.tone}${series.coverImage ? " poster--image" : ""}`} style={coverStyle} href={`/${series.slug}/${episode.slug}`} aria-label={`${series.title}, Bölüm ${episode.number}: ${episode.title}`}>
+                      <span>Bölüm {episode.number}</span>
+                    </Link>
+                    <div>
+                      <p>{series.genres[0]}</p>
+                      <h3><Link href={`/${series.slug}`}>{series.title}</Link></h3>
+                      <span>{episode.title} · {episode.readTime}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </section>
           <AdSlot placement="home-feed-01" />
           <section className="manifesto-banner" aria-label="Panelya Originals">
@@ -78,8 +110,8 @@ export default async function Home({ searchParams }: HomeProps) {
             <p>Kaydırma ritmi, sessiz anlar ve bölüm sonu kancaları tek bir dikey tuval için tasarlanır. <Link className="inline-link" href="/production-journal">İlk özgün serimizin üretim günlüğünü oku →</Link></p>
           </section>
           {newSeries.length > 0 && <section id="new-series" aria-labelledby="new-title">
-            <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div><Link className="inline-link inline-link--persistent" href="/new-series">Tüm yeni serileri gör →</Link></div>
-            <div className="card-grid card-grid--three">{newSeries.map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
+            <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni Seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div><Link className="inline-link inline-link--persistent" href="/new-series">Tümünü Gör →</Link></div>
+            <div className="card-grid home-card-grid">{newSeries.slice(0, 4).map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
           </section>}
         </div>
         <section className="home-seo wrap" aria-labelledby="home-seo-title">

@@ -21,7 +21,10 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
   const html = await response.text();
   assert.match(html, /<title>Panelya/);
   assert.match(html, /Gece Vardiyası/);
-  assert.match(html, /Yeni bölüm eklenenler/);
+  assert.match(html, /Yeni Eklenen Bölümler/);
+  assert.match(html, /class="home-genre-directory"/);
+  assert.match(html, /href="\/new-episodes"[^>]*>Tümünü Gör/);
+  assert.doesNotMatch(html, /Hızlı keşif|Katalog ve türler/);
   assert.match(html, /href="\/gece-vardiyasi\/bolum-1"/);
   assert.match(html, /data-ad-test-slot="home-feed-01"/);
   assert.doesNotMatch(html, /<script[^>]+securepubads\.g\.doubleclick\.net/i);
@@ -32,14 +35,15 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
 });
 
 test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalama sınırını korur", async () => {
-  const [schema, database, repository, page, filterForm, header, genreMenu, css, migration, manualQa] = await Promise.all([
+  const [schema, database, repository, page, filterForm, header, genreDirectory, footer, css, migration, manualQa] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/catalog/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/catalog/CatalogFilterForm.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/SiteHeader.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/components/GenreMenu.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/GenreDirectoryLinks.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/SiteFooter.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0012_round_mulholland_black.sql", import.meta.url), "utf8"),
     readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
@@ -72,12 +76,10 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalam
   assert.match(page, /\(\[8, 16, 32\] as const\)/);
   assert.match(page, /visiblePages\(catalogResult\.page, catalogResult\.totalPages\)/);
   assert.doesNotMatch(page, /İlk sayfa|Sonraki sonuçlar/);
-  assert.match(header, /listPublishedGenres/);
-  assert.match(header, /<GenreMenu genres=\{genres\}/);
-  assert.match(genreMenu, /document\.addEventListener\("pointerdown", closeWhenOutside\)/);
-  assert.match(genreMenu, /event\.key === "Escape"/);
-  assert.match(genreMenu, /href="\/new-series"/);
-  assert.doesNotMatch(genreMenu, /href="\/updates"/);
+  assert.doesNotMatch(header, /GenreMenu|listPublishedGenres|Yeni bölümler/);
+  assert.match(genreDirectory, /href="\/catalog"/);
+  assert.match(genreDirectory, /catalog\?genre=/);
+  assert.match(footer, /GenreDirectoryLinks genres=\{genres\}/);
   assert.match(css, /\.catalog-filter-form[^}]*grid-template-columns/);
   assert.match(manualQa, /QA-CAT-01/);
 
@@ -101,14 +103,18 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalam
   assert.equal(legacyCatalog.status, 307);
   assert.equal(new URL(legacyCatalog.headers.get("location")).pathname + new URL(legacyCatalog.headers.get("location")).search, "/catalog?q=ses&sort=title");
 
-  const updatesHtml = await (await request("/updates")).text();
-  assert.match(updatesHtml, /Yeni bölümler/);
-  assert.match(updatesHtml, /class="update-list"/);
-  assert.match(updatesHtml, /href="\/gece-vardiyasi\/bolum-3"/);
+  const newEpisodesHtml = await (await request("/new-episodes")).text();
+  assert.match(newEpisodesHtml, /Yeni Eklenen Bölümler/);
+  assert.match(newEpisodesHtml, /class="update-list"/);
+  assert.match(newEpisodesHtml, /href="\/gece-vardiyasi\/bolum-3"/);
+
+  const legacyUpdates = await request("/updates");
+  assert.equal(legacyUpdates.status, 307);
+  assert.equal(new URL(legacyUpdates.headers.get("location")).pathname, "/new-episodes");
 
   const newSeriesHtml = await (await request("/new-series")).text();
-  assert.match(newSeriesHtml, /<h1[^>]*>Yeni seriler<\/h1>/);
-  assert.match(newSeriesHtml, /Yeni seri/);
+  assert.match(newSeriesHtml, /<h1[^>]*>Yeni Seriler<\/h1>/);
+  assert.match(newSeriesHtml, /Yeni Seri|yeni seri/);
 
   const catalogApi = await (await request("/api/catalog", "application/json")).json();
   assert.deepEqual(Object.keys(catalogApi).sort(), ["featuredSlug", "schemaVersion", "series"]);
@@ -166,8 +172,8 @@ test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin polit
   assert.match(homeHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/"/i);
   const catalogHtml = await (await request("/catalog?q=ses")).text();
   assert.match(catalogHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/catalog"/i);
-  const updatesHtml = await (await request("/updates")).text();
-  assert.match(updatesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/updates"/i);
+  const newEpisodesHtml = await (await request("/new-episodes")).text();
+  assert.match(newEpisodesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/new-episodes"/i);
   const newSeriesHtml = await (await request("/new-series")).text();
   assert.match(newSeriesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/new-series"/i);
 
@@ -203,7 +209,8 @@ test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin polit
   const sitemap = await sitemapResponse.text();
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/catalog<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/new-series<\/loc>/);
-  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/updates<\/loc>/);
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/new-episodes<\/loc>/);
+  assert.doesNotMatch(sitemap, /<loc>http:\/\/localhost:3000\/updates<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/gece-vardiyasi<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/publishing-principles<\/loc>/);
   assert.doesNotMatch(sitemap, /\/gece-vardiyasi\/bolum-1|\/api\/|\/preview\/|studio\.localhost/);
@@ -316,7 +323,7 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
 
 test("görünür public bağlantılar kırık route üretmez", async () => {
   const pages = [
-    "/", "/catalog", "/new-series", "/updates", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
+    "/", "/catalog", "/new-series", "/new-episodes", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
     "/privacy", "/terms", "/copyright", "/copyright/report", "/login", "/register", "/forgot-password",
     "/reset-password", "/verify-email", "/gece-vardiyasi", "/gece-vardiyasi/bolum-1",
     "/gece-vardiyasi/bolum-2", "/gece-vardiyasi/bolum-3", "/bir-bilet-uzaginda", "/bir-bilet-uzaginda/bolum-1",
@@ -400,7 +407,7 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
   assert.match(css, /@media \(max-width: 960px\)[\s\S]*\.card-grid[^}]*repeat\(2, 1fr\)/);
   assert.match(css, /\.reader-tools button[^}]*width:\s*44px[^}]*height:\s*44px/);
   assert.match(css, /\.reader-dock a, \.reader-dock > span[^}]*min-width:\s*44px[^}]*min-height:\s*44px/);
-  assert.match(css, /\.genre-strip a, \.genre-pills a[^}]*min-height:\s*44px/);
+  assert.match(css, /\.home-genre-directory__grid a[^}]*min-height:\s*44px/);
   assert.match(css, /\.catalog-filter-form input, \.catalog-filter-form select[^}]*min-height:\s*48px/);
   assert.match(css, /\.text-link[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
   assert.match(authActions, /library-nav-link/);

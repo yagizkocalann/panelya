@@ -1,10 +1,7 @@
 import Link from "next/link";
-import { listPublishedGenres } from "../lib/content-repository";
 import { AuthActions } from "./AuthActions";
-import { GenreMenu } from "./GenreMenu";
 
 export async function SiteHeader({ compact = false, homeHref = "/", studioHref = "/studio" }: { compact?: boolean; homeHref?: string; studioHref?: string }) {
-  const genres = compact ? [] : await listPublishedGenres();
   return (
     <header className={`site-header${compact ? " site-header--compact" : ""}`}>
       <a className="skip-link" href="#main-content">İçeriğe geç</a>
@@ -13,7 +10,6 @@ export async function SiteHeader({ compact = false, homeHref = "/", studioHref =
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span>panelya</span>
         </Link>
-        {!compact && <GenreMenu genres={genres} />}
         {!compact && (
           <form className="search" action="/catalog" role="search">
             <label className="sr-only" htmlFor="series-search">Seri ara</label>
@@ -22,7 +18,6 @@ export async function SiteHeader({ compact = false, homeHref = "/", studioHref =
           </form>
         )}
         <nav className="header-actions" aria-label="Hesap">
-          {!compact && <Link className="text-link" href="/updates">Yeni bölümler</Link>}
           <AuthActions compact={compact} studioHref={studioHref} />
         </nav>
       </div>
