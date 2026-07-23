@@ -64,7 +64,7 @@ export default async function Home({ searchParams }: HomeProps) {
       <main id="main-content">
         <section className="home-directory wrap" aria-label="Seri türleri">
           <details className="home-genre-directory" open>
-            <summary><span>Türler</span><small>Aç / Kapat</small></summary>
+            <summary aria-label="Türleri aç veya kapat"><span>Türler</span></summary>
             <GenreDirectoryLinks genres={genres} className="home-genre-directory__grid" />
           </details>
         </section>
