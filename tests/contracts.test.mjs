@@ -22,6 +22,7 @@ function assertContract(validate, value, label) {
 
 const validators = {
   catalog: validator("CatalogResponse"),
+  discovery: validator("DiscoveryResponse"),
   series: validator("SeriesDetailResponse"),
   manifest: validator("EpisodeManifestResponse"),
   error: validator("ErrorResponse"),
@@ -37,6 +38,7 @@ const validators = {
 
 const fixtureCases = [
   ["catalog.v1.json", validators.catalog],
+  ["discovery.v1.json", validators.discovery],
   ["series-detail.v1.json", validators.series],
   ["episode-manifest.v1.json", validators.manifest],
   ["auth-config.v1.json", validators.authConfig],
@@ -63,6 +65,7 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       "/api/auth/mobile/revoke",
       "/api/auth/mobile/token",
       "/api/catalog",
+      "/api/discovery",
       "/api/series/{slug}",
       "/api/series/{slug}/episodes/{episodeSlug}",
     ],
@@ -168,6 +171,18 @@ test("derlenmiş Worker public API cevapları ortak sözleşmeye uyar", async ()
   assertContract(validators.catalog, catalog, "GET /api/catalog");
 
   assert.ok(catalog.series.length > 0, "fixture/seed kataloğunda en az bir yayınlanmış seri olmalı");
+
+  const discoveryResponse = await request("/api/discovery");
+  assert.equal(discoveryResponse.status, 200);
+  const discovery = await discoveryResponse.json();
+  assertContract(validators.discovery, discovery, "GET /api/discovery");
+  assert.equal(discovery.featuredSeries?.slug, catalog.featuredSlug);
+  assert.ok(discovery.genres.length > 0);
+  assert.ok(discovery.latestEpisodes.length > 0);
+  assert.ok(discovery.latestEpisodes.length <= 100);
+  assert.ok(discovery.latestEpisodes.every((item) => !("panels" in item.episode)));
+  assert.doesNotMatch(JSON.stringify(discovery), /publishedAtTimestamp|storageKey|jobId/);
+  assert.match(discoveryResponse.headers.get("cache-control") ?? "", /max-age=60/);
 
   for (const catalogSeries of catalog.series) {
     const seriesResponse = await request(`/api/series/${catalogSeries.slug}`);

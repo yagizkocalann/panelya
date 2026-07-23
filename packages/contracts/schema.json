@@ -177,6 +177,71 @@
       ],
       "unevaluatedProperties": false
     },
+    "DiscoverySeriesSummary": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/SeriesMetadataFields" },
+        {
+          "type": "object",
+          "required": ["episodeCount"],
+          "properties": {
+            "episodeCount": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "DiscoveryEpisodeUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["series", "episode"],
+      "properties": {
+        "series": { "$ref": "#/$defs/DiscoverySeriesSummary" },
+        "episode": { "$ref": "#/$defs/EpisodeSummary" }
+      }
+    },
+    "DiscoveryResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "featuredSeries",
+        "featuredFirstEpisode",
+        "genres",
+        "newSeries",
+        "latestEpisodes"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "featuredSeries": {
+          "oneOf": [
+            { "$ref": "#/$defs/DiscoverySeriesSummary" },
+            { "type": "null" }
+          ]
+        },
+        "featuredFirstEpisode": {
+          "oneOf": [
+            { "$ref": "#/$defs/EpisodeSummary" },
+            { "type": "null" }
+          ]
+        },
+        "genres": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "newSeries": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/DiscoverySeriesSummary" }
+        },
+        "latestEpisodes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/DiscoveryEpisodeUpdate" }
+        }
+      }
+    },
     "CatalogResponse": {
       "type": "object",
       "additionalProperties": false,
