@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/series_card.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../../discover/presentation/discover_screen.dart'
@@ -25,7 +26,10 @@ class NewSeriesScreen extends ConsumerWidget {
     final discovery = ref.watch(discoveryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Yeni Seriler')),
+      appBar: AppBar(
+        title: const Text('Yeni Seriler'),
+        actions: const [HomeButton()],
+      ),
       body: SafeArea(
         child: discovery.when(
           loading: () => const AppLoadingView(label: 'Yeni seriler yükleniyor'),

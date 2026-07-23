@@ -67,6 +67,10 @@ Widget _wrap(DiscoveryRepository repository) {
     initialLocation: '/new-episodes',
     routes: [
       GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text('HOME')),
+      ),
+      GoRoute(
         path: '/new-episodes',
         builder: (context, state) => const NewEpisodesScreen(),
       ),
@@ -249,4 +253,28 @@ void main() {
 
     expect(find.text('SERIES:gece-vardiyasi'), findsOneWidget);
   });
+
+  testWidgets(
+    'the app bar offers a home button that navigates to "/" and meets the '
+    '44x44 touch target minimum (PLAN Görev 3)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(const []),
+      );
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      final homeButton = find.byTooltip('Ana sayfa');
+      expect(homeButton, findsOneWidget);
+      expect(tester.getSize(homeButton).width, greaterThanOrEqualTo(44));
+      expect(tester.getSize(homeButton).height, greaterThanOrEqualTo(44));
+
+      await tester.tap(homeButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('HOME'), findsOneWidget);
+    },
+  );
 }

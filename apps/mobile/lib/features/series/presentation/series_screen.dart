@@ -10,6 +10,7 @@ import '../../../features/progress/domain/reading_progress.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/cover_image.dart';
+import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'series_providers.dart';
 
@@ -26,7 +27,10 @@ class SeriesScreen extends ConsumerWidget {
     final detail = ref.watch(seriesDetailProvider(slug));
 
     return Scaffold(
-      appBar: AppBar(title: Text(detail.asData?.value.series.title ?? 'Seri')),
+      appBar: AppBar(
+        title: Text(detail.asData?.value.series.title ?? 'Seri'),
+        actions: const [HomeButton()],
+      ),
       body: SafeArea(
         child: detail.when(
           loading: () => const AppLoadingView(label: 'Seri yükleniyor'),

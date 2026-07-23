@@ -6,6 +6,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../shared/widgets/episode_update_card.dart';
+import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'discovery_providers.dart';
 
@@ -24,7 +25,10 @@ class NewEpisodesScreen extends ConsumerWidget {
     final discovery = ref.watch(discoveryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Yeni Eklenen Bölümler')),
+      appBar: AppBar(
+        title: const Text('Yeni Eklenen Bölümler'),
+        actions: const [HomeButton()],
+      ),
       body: SafeArea(
         child: discovery.when(
           loading: () =>

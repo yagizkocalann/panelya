@@ -179,6 +179,10 @@ Widget _wrapWithRouter(
     initialLocation: '/series/$slug',
     routes: [
       GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text('HOME')),
+      ),
+      GoRoute(
         path: '/series/:slug',
         builder: (context, state) =>
             SeriesScreen(slug: state.pathParameters['slug']!),
@@ -329,6 +333,37 @@ void main() {
 
     expect(find.text('READER:gece-vardiyasi/bolum-2'), findsOneWidget);
   });
+
+  testWidgets(
+    'the app bar offers a home button that navigates to "/" and meets the '
+    '44x44 touch target minimum (PLAN Görev 3 — kullanıcı bir seriye/bölüme '
+    'girince anasayfaya dönecek bir yol yoktu)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeSeriesRepository(
+        (slug) async => SeriesDetailResponse(
+          schemaVersion: '1.0',
+          series: _metadata(),
+          episodes: _episodesNewestFirst(),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrapWithRouter(repository, slug: 'gece-vardiyasi'),
+      );
+      await tester.pumpAndSettle();
+
+      final homeButton = find.byTooltip('Ana sayfa');
+      expect(homeButton, findsOneWidget);
+      expect(tester.getSize(homeButton).width, greaterThanOrEqualTo(44));
+      expect(tester.getSize(homeButton).height, greaterThanOrEqualTo(44));
+
+      await tester.tap(homeButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('HOME'), findsOneWidget);
+    },
+  );
 
   testWidgets('shows the empty state when the series has no episodes', (
     tester,

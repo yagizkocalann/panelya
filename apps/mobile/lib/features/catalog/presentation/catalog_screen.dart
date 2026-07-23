@@ -7,6 +7,7 @@ import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/utils/turkish_search.dart';
+import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/series_card.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../../discover/presentation/discover_filters.dart';
@@ -76,7 +77,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final discovery = ref.watch(discoveryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Katalog')),
+      appBar: AppBar(
+        title: const Text('Katalog'),
+        actions: const [HomeButton()],
+      ),
       body: SafeArea(
         child: catalog.when(
           loading: () => const AppLoadingView(label: 'Katalog yükleniyor'),

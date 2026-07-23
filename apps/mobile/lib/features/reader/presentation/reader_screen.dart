@@ -13,6 +13,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/layout/content_max_width.dart';
+import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import 'reader_providers.dart';
 
@@ -75,6 +76,7 @@ class _ReaderChromeScaffold extends StatelessWidget {
       appBar: AppBar(
         leading: _SeriesReturnButton(seriesSlug: seriesSlug),
         title: const Text('Bölüm'),
+        actions: const [HomeButton()],
       ),
       body: SafeArea(child: body),
     );
@@ -91,8 +93,29 @@ class _SeriesReturnButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Icons.arrow_back_rounded),
       tooltip: 'Seriye dön',
-      onPressed: () => context.go('/series/$seriesSlug'),
+      onPressed: () => _returnToSeries(context, seriesSlug),
     );
+  }
+}
+
+/// Okuyucudan seriye dönüş: yığında gerçekten önceki bir sayfa varsa (normal
+/// akış — seri ekranından `push()` ile buraya girildi) gerçek bir `pop()`
+/// yapılır; bu, sistem geri tuşu/kaydırmasıyla BİREBİR aynı sonucu verir ve
+/// altındaki yığını (seri, keşif, katalog — nereden gelindiyse) korur.
+/// `context.go(...)` (eski davranış) bunun yerine yığını yeniden kurar ve
+/// altındaki geçmişi kaybettirirdi — kullanıcı şikayetinin kök nedeni buydu.
+///
+/// Yığında hiçbir şey yoksa (`canPop()` false — örn.
+/// `panelya://series/x/read/y` deep-link ile doğrudan buraya girildi, bkz.
+/// `app/router/deep_link.dart`) `pop()` çağrılamaz; bu durumda mevcut
+/// güvenli düşüş korunur ve seri sayfasına `go()` ile gidilir (ADR-010 —
+/// gidecek "geri" yoksa en azından seriye götür, boş bir davranış
+/// bırakılmaz).
+void _returnToSeries(BuildContext context, String seriesSlug) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/series/$seriesSlug');
   }
 }
 
@@ -287,16 +310,19 @@ class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             icon: const Icon(Icons.skip_previous_rounded),
             tooltip: 'Önceki bölüm: Bölüm ${previous!.number}',
-            onPressed: () =>
-                context.go('/series/$seriesSlug/read/${previous!.slug}'),
+            onPressed: () => context.pushReplacement(
+              '/series/$seriesSlug/read/${previous!.slug}',
+            ),
           ),
         if (next != null)
           IconButton(
             icon: const Icon(Icons.skip_next_rounded),
             tooltip: 'Sonraki bölüm: Bölüm ${next!.number}',
-            onPressed: () =>
-                context.go('/series/$seriesSlug/read/${next!.slug}'),
+            onPressed: () => context.pushReplacement(
+              '/series/$seriesSlug/read/${next!.slug}',
+            ),
           ),
+        const HomeButton(),
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(3),
@@ -637,13 +663,14 @@ class _ReaderEndNav extends StatelessWidget {
                 : 'Önceki bölüm: Bölüm ${previous!.number}',
             onTap: previous == null
                 ? null
-                : () =>
-                      context.go('/series/$seriesSlug/read/${previous!.slug}'),
+                : () => context.pushReplacement(
+                    '/series/$seriesSlug/read/${previous!.slug}',
+                  ),
           ),
           SizedBox(height: tokens.spacing.sm),
           _NavLink(
             label: '$seriesTitle seri sayfasına dön',
-            onTap: () => context.go('/series/$seriesSlug'),
+            onTap: () => _returnToSeries(context, seriesSlug),
           ),
           SizedBox(height: tokens.spacing.sm),
           _NavLink(
@@ -652,7 +679,9 @@ class _ReaderEndNav extends StatelessWidget {
                 : 'Sonraki bölüm: Bölüm ${next!.number}',
             onTap: next == null
                 ? null
-                : () => context.go('/series/$seriesSlug/read/${next!.slug}'),
+                : () => context.pushReplacement(
+                    '/series/$seriesSlug/read/${next!.slug}',
+                  ),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -222,9 +223,21 @@ Widget _wrapWithRouter(
     initialLocation: '/series/$seriesSlug/read/$episodeSlug',
     routes: [
       GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text('HOME')),
+      ),
+      GoRoute(
         path: '/series/:slug',
-        builder: (context, state) =>
-            Scaffold(body: Text('SERIES:${state.pathParameters['slug']}')),
+        // `canPop()` metinde taşınır ki testler gerçek `pop()` ile güvenli
+        // `go()` düşüşünü ayırt edebilsin (bkz. "seriye dön" testleri):
+        // yığında bu rotanın ALTINDA başka bir şey yoksa (bu helper'ın
+        // `initialLocation`'ı zaten doğrudan okuyucu olduğu için) `false`
+        // olur.
+        builder: (context, state) => Scaffold(
+          body: Text(
+            'SERIES:${state.pathParameters['slug']} canPop=${context.canPop()}',
+          ),
+        ),
       ),
       GoRoute(
         path: '/series/:slug/read/:episodeSlug',
@@ -548,8 +561,9 @@ void main() {
   });
 
   testWidgets(
-    'tapping "seriye dön" (app bar leading) navigates to the series screen '
-    'via go_router',
+    'tapping "seriye dön" when the reader was reached directly (no back '
+    'stack beneath it, e.g. a panelya:// deep link) falls back to a safe '
+    'go() navigate to the series screen',
     (tester) async {
       usePhoneViewport(tester);
       final repository = _FakeReaderRepository(
@@ -557,6 +571,10 @@ void main() {
             _manifest(episodeSlug: episodeSlug, number: 1),
       );
 
+      // `_wrapWithRouter`'ın `initialLocation`'ı doğrudan okuyucu rotasıdır
+      // (bkz. yukarıdaki tanım) — yığında ALTINDA hiçbir şey yok, yani
+      // `canPop()` false. Bu, `_returnToSeries`'in `pop()` dalını DEĞİL,
+      // güvenli `go()` düşüşünü tetiklemesi gereken senaryo.
       await tester.pumpWidget(
         _wrapWithRouter(
           repository,
@@ -569,7 +587,10 @@ void main() {
       await tester.tap(find.byTooltip('Seriye dön'));
       await tester.pumpAndSettle();
 
-      expect(find.text('SERIES:gece-vardiyasi'), findsOneWidget);
+      expect(
+        find.text('SERIES:gece-vardiyasi canPop=false'),
+        findsOneWidget,
+      );
     },
   );
 
@@ -627,9 +648,219 @@ void main() {
       await tester.tap(find.text('Gece Vardiyası seri sayfasına dön'));
       await tester.pumpAndSettle();
 
-      expect(find.text('SERIES:gece-vardiyasi'), findsOneWidget);
+      // Burada da yığında altta hiçbir şey yok (bkz. `_wrapWithRouter`
+      // `initialLocation`), bu yüzden aynı güvenli `go()` düşüşü devreye
+      // girer (`canPop=false`) — bu bağlantı da `_SeriesReturnButton` ile
+      // aynı `_returnToSeries` yardımcısını kullanır.
+      expect(
+        find.text('SERIES:gece-vardiyasi canPop=false'),
+        findsOneWidget,
+      );
     },
   );
+
+  group('kök neden düzeltmesi (kullanıcı şikayeti: seri/bölüme girince geri '
+      'dönülemiyor) — gerçek pop vs. güvenli go() vs. pushReplacement', () {
+    /// Üç seviyeli GERÇEK bir yığın kurar: `/` (keşif işaretçisi) →
+    /// `push('/series/:slug')` → `push('/series/:slug/read/:episodeSlug')`;
+    /// yani `series_screen.dart`'taki gerçek `_EpisodeTile.onTap`
+    /// (`context.push`) davranışını taklit eder. Seri işaretçisi kendi
+    /// `context.canPop()` değerini metnine gömer ki testler `pop()` (yığının
+    /// altını KORUR, `canPop=true` kalır) ile `go()` (yığını YENİDEN KURAR,
+    /// `canPop=false` olur) arasındaki farkı doğrudan görebilsin.
+    GoRouter buildStackedRouter(ReaderRepository repository) {
+      return GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(body: Text('DISCOVER')),
+          ),
+          GoRoute(
+            path: '/series/:slug',
+            builder: (context, state) => Scaffold(
+              body: Text(
+                'SERIES:${state.pathParameters['slug']} canPop=${context.canPop()}',
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/series/:slug/read/:episodeSlug',
+            builder: (context, state) => ReaderScreen(
+              seriesSlug: state.pathParameters['slug']!,
+              episodeSlug: state.pathParameters['episodeSlug']!,
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget wrapStackedRouter(GoRouter router, ReaderRepository repository) {
+      return ProviderScope(
+        overrides: [
+          readerRepositoryProvider.overrideWithValue(repository),
+          readingProgressRepositoryProvider.overrideWithValue(
+            _FakeReadingProgressRepository(),
+          ),
+        ],
+        child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
+      );
+    }
+
+    testWidgets(
+      'reaching the reader via a real push chain (keşif → seri → okuyucu) '
+      'then tapping "seriye dön" performs an ACTUAL pop: the series screen '
+      'reappears and the discover screen underneath is still on the stack '
+      '(canPop stays true) — the old context.go() behavior would have '
+      'rebuilt the stack down to just the series route (canPop=false), '
+      'losing the path back to discover',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) async =>
+              _manifest(episodeSlug: episodeSlug, number: 1),
+        );
+        final router = buildStackedRouter(repository);
+
+        await tester.pumpWidget(wrapStackedRouter(router, repository));
+        await tester.pumpAndSettle();
+        expect(find.text('DISCOVER'), findsOneWidget);
+
+        router.push('/series/gece-vardiyasi');
+        await tester.pumpAndSettle();
+        router.push('/series/gece-vardiyasi/read/bolum-1');
+        await tester.pumpAndSettle();
+        expect(find.text('Bölüm 1'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Seriye dön'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('SERIES:gece-vardiyasi canPop=true'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'moving from episode 1 to episode 2 via the app bar "sonraki bölüm" '
+      'icon uses pushReplacement: the episode page is SWAPPED, not stacked '
+      'on top — tapping "seriye dön" from episode 2 afterwards pops straight '
+      'to the series screen (not back to episode 1), and the stack below '
+      'the reader (discover, then series) is preserved',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository((seriesSlug, episodeSlug) async {
+          switch (episodeSlug) {
+            case 'bolum-1':
+              return _manifest(
+                episodeSlug: 'bolum-1',
+                number: 1,
+                next: const EpisodeNavigationRef(slug: 'bolum-2', number: 2),
+              );
+            case 'bolum-2':
+              return _manifest(
+                episodeSlug: 'bolum-2',
+                number: 2,
+                previous: const EpisodeNavigationRef(slug: 'bolum-1', number: 1),
+              );
+            default:
+              throw StateError('Beklenmeyen bölüm: $episodeSlug');
+          }
+        });
+        final router = buildStackedRouter(repository);
+
+        await tester.pumpWidget(wrapStackedRouter(router, repository));
+        await tester.pumpAndSettle();
+
+        router.push('/series/gece-vardiyasi');
+        await tester.pumpAndSettle();
+        router.push('/series/gece-vardiyasi/read/bolum-1');
+        await tester.pumpAndSettle();
+        expect(find.text('Bölüm 1'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Sonraki bölüm: Bölüm 2'));
+        await tester.pumpAndSettle();
+        expect(find.text('Bölüm 2'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Seriye dön'));
+        await tester.pumpAndSettle();
+
+        // Tek bir pop, doğrudan seri ekranına döner (bölüm 1'e DEĞİL) ve
+        // altındaki keşif hâlâ oradadır — bölüm 1 sayfası yığında hiç
+        // kalmamıştı (pushReplacement onu DEĞİŞTİRMİŞTİ).
+        expect(
+          find.text('SERIES:gece-vardiyasi canPop=true'),
+          findsOneWidget,
+        );
+        expect(find.text('Bölüm 1'), findsNothing);
+      },
+    );
+  });
+
+  group('anasayfaya doğrudan dönüş (PLAN Görev 3)', () {
+    testWidgets(
+      'the reader app bar (loading/error chrome) offers a home button that '
+      'navigates to "/" and meets the 44x44 touch target minimum',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) =>
+              Completer<EpisodeManifestResponse>().future,
+        );
+
+        await tester.pumpWidget(
+          _wrapWithRouter(
+            repository,
+            seriesSlug: 'gece-vardiyasi',
+            episodeSlug: 'bolum-1',
+          ),
+        );
+        await tester.pump();
+
+        final homeButton = find.byTooltip('Ana sayfa');
+        expect(homeButton, findsOneWidget);
+        expect(tester.getSize(homeButton).width, greaterThanOrEqualTo(44));
+        expect(tester.getSize(homeButton).height, greaterThanOrEqualTo(44));
+
+        await tester.tap(homeButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('HOME'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'the reader app bar (success chrome) offers a home button that '
+      'navigates to "/" and meets the 44x44 touch target minimum',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeReaderRepository(
+          (seriesSlug, episodeSlug) async =>
+              _manifest(episodeSlug: episodeSlug, number: 1),
+        );
+
+        await tester.pumpWidget(
+          _wrapWithRouter(
+            repository,
+            seriesSlug: 'gece-vardiyasi',
+            episodeSlug: 'bolum-1',
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final homeButton = find.byTooltip('Ana sayfa');
+        expect(homeButton, findsOneWidget);
+        expect(tester.getSize(homeButton).width, greaterThanOrEqualTo(44));
+        expect(tester.getSize(homeButton).height, greaterThanOrEqualTo(44));
+
+        await tester.tap(homeButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('HOME'), findsOneWidget);
+      },
+    );
+  });
 
   testWidgets(
     'respects reduced motion: the panel image fade uses a zero duration '

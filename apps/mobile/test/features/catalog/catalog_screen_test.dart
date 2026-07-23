@@ -87,6 +87,10 @@ Widget _wrap({
     initialLocation: '/catalog',
     routes: [
       GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text('HOME')),
+      ),
+      GoRoute(
         path: '/catalog',
         builder: (context, state) => CatalogScreen(initialGenre: initialGenre),
       ),
@@ -202,6 +206,31 @@ void main() {
 
     expect(find.text('SERIES:gece-vardiyasi'), findsOneWidget);
   });
+
+  testWidgets(
+    'the app bar offers a home button that navigates to "/" and meets the '
+    '44x44 touch target minimum (PLAN Görev 3 — kullanıcı bir seriye/bölüme '
+    'girince anasayfaya dönecek bir yol yoktu)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeCatalogRepository(
+        () async => _catalogWith(const []),
+      );
+
+      await tester.pumpWidget(_wrap(catalogRepository: repository));
+      await tester.pumpAndSettle();
+
+      final homeButton = find.byTooltip('Ana sayfa');
+      expect(homeButton, findsOneWidget);
+      expect(tester.getSize(homeButton).width, greaterThanOrEqualTo(44));
+      expect(tester.getSize(homeButton).height, greaterThanOrEqualTo(44));
+
+      await tester.tap(homeButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('HOME'), findsOneWidget);
+    },
+  );
 
   group('tür filtresi — GET /api/discovery genres alanından gelir', () {
     testWidgets(
