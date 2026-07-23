@@ -1,4 +1,5 @@
 import { seriesCatalog, type Episode, type PanelTone, type PublicMediaVariant, type Series, type StoryPanel } from "../data/catalog";
+import { localDummySeriesCatalog } from "../data/local-dummy-catalog";
 import { getDatabase } from "./database";
 import { isRecentlyPublished } from "./series-recency";
 
@@ -134,6 +135,17 @@ export type EpisodeInput = {
 
 let seedReady: Promise<void> | null = null;
 
+function localDummyCatalogEnabled() {
+  const configured = process.env.LOCAL_DUMMY_CATALOG?.trim().toLowerCase();
+  if (configured === "true" || configured === "1") return true;
+  if (configured === "false" || configured === "0") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
+function bundledCatalog() {
+  return localDummyCatalogEnabled() ? [...seriesCatalog, ...localDummySeriesCatalog] : seriesCatalog;
+}
+
 function safeArray<T>(value: string, fallback: T[] = []) {
   try {
     const parsed = JSON.parse(value);
@@ -176,7 +188,7 @@ async function ensureContentSeed() {
   // The bundled catalog is an idempotent baseline, not an all-or-nothing first-run
   // fixture. INSERT OR IGNORE adds newly shipped originals without overwriting
   // anything an editor has already changed in Studio.
-  for (const [seriesIndex, series] of seriesCatalog.entries()) {
+  for (const [seriesIndex, series] of bundledCatalog().entries()) {
     statements.push(db.prepare(`INSERT OR IGNORE INTO content_series (
       slug, title, eyebrow, creator, search_text, description, long_description, story_status, genres_json, tone,
       updated_label, rating, followers, is_new, cover_image, cover_position, publication_status,
@@ -195,7 +207,9 @@ async function ensureContentSeed() {
           episode.readTime, JSON.stringify(episode.panels), now, now, now));
     }
   }
-  if (statements.length) await db.batch(statements);
+  for (let offset = 0; offset < statements.length; offset += 75) {
+    await db.batch(statements.slice(offset, offset + 75));
+  }
   const missingSearchText = await db.prepare(`SELECT slug, title, eyebrow, creator, description, genres_json
     FROM content_series WHERE search_text = ''`).all<Pick<SeriesRow, "slug" | "title" | "eyebrow" | "creator" | "description" | "genres_json">>();
   if (missingSearchText.results.length) {
@@ -310,7 +324,7 @@ function toPublicSeries(series: StudioSeries): Series {
 function bundledPublicFallback(): Series[] {
   // Bundled originals do not carry a trustworthy first-publication timestamp.
   // During a D1 outage, keep them readable without guessing that they are new.
-  return seriesCatalog.map((series) => ({ ...series, isNew: false }));
+  return bundledCatalog().map((series) => ({ ...series, isNew: localDummyCatalogEnabled() && series.slug.startsWith("yerel-demo-") }));
 }
 
 function publicMediaAssetId(src: string | undefined) {
@@ -418,11 +432,12 @@ export async function listPublishedEpisodeUpdates(limit = 24): Promise<Published
         return series && episode ? [{ series, episode, publishedAtTimestamp: item.publishedAtTimestamp }] : [];
       });
   } catch {
-    return bundledPublicFallback()
+    const fallback = bundledPublicFallback();
+    return fallback
       .flatMap((series, seriesIndex) => series.episodes.map((episode) => ({
         series,
         episode,
-        publishedAtTimestamp: (seriesCatalog.length - seriesIndex) * 1_000_000 + episode.number,
+        publishedAtTimestamp: (fallback.length - seriesIndex) * 1_000_000 + episode.number,
       })))
       .sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp)
       .slice(0, safeLimit);
@@ -656,7 +671,7 @@ export async function listPublishedGenres() {
     return Array.from(new Set(result.results.flatMap((row) => safeArray<string>(row.genres_json))))
       .sort((a, b) => a.localeCompare(b, "tr"));
   } catch {
-    return genresFromSeries(seriesCatalog);
+    return genresFromSeries(bundledCatalog());
   }
 }
 
@@ -672,7 +687,7 @@ export async function listPublishedSeriesForSitemap() {
       })
       .filter((series) => series.publishedEpisodeCount > 0);
   } catch {
-    return seriesCatalog.map((series) => ({ slug: series.slug, lastModified: undefined, publishedEpisodeCount: series.episodes.length }));
+    return bundledCatalog().map((series) => ({ slug: series.slug, lastModified: undefined, publishedEpisodeCount: series.episodes.length }));
   }
 }
 

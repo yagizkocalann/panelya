@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NewEpisodesPage() {
-  const updates = await listPublishedEpisodeUpdates(24);
+  const updates = await listPublishedEpisodeUpdates(100);
 
   return (
     <div className="site-shell">

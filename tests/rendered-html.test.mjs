@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
+process.env.LOCAL_DUMMY_CATALOG = "true";
+
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
 const { default: worker } = await import(workerUrl.href);
@@ -24,7 +26,7 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
   assert.match(html, /Yeni Eklenen Bölümler/);
   assert.match(html, /class="home-genre-directory"/);
   assert.match(html, /href="\/new-episodes"[^>]*>Tümünü Gör/);
-  assert.doesNotMatch(html, /Hızlı keşif|Katalog ve türler/);
+  assert.doesNotMatch(html, /Hızlı keşif|Katalog ve türler|Aç \/ Kapat/);
   assert.ok(html.indexOf("Yeni Seriler") < html.indexOf("Yeni Eklenen Bölümler"), "Yeni Seriler, Yeni Eklenen Bölümler alanından önce gelmeli");
   assert.match(html, /href="\/gece-vardiyasi\/bolum-1"/);
   assert.match(html, /data-ad-test-slot="home-feed-01"/);
@@ -84,15 +86,15 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalam
   assert.match(css, /\.catalog-filter-form[^}]*grid-template-columns/);
   assert.match(manualQa, /QA-CAT-01/);
 
-  const catalogHtml = await (await request("/catalog?q=ses&sort=title")).text();
+  const catalogHtml = await (await request("/catalog?q=yarinki&sort=title")).text();
   assert.match(catalogHtml, /class="catalog-filter-form"/);
   assert.match(catalogHtml, /Tür, durum ve sıralama seçimleri otomatik uygulanır/);
   assert.match(catalogHtml, /<button[^>]*type="submit"[^>]*>Ara<\/button>/);
-  assert.match(catalogHtml, /name="q"[^>]*value="ses"/);
+  assert.match(catalogHtml, /name="q"[^>]*value="yarinki"/);
   assert.match(catalogHtml, /option value="title" selected/);
   assert.match(catalogHtml, /Yarınki Ses/);
   const defaultCatalogHtml = await (await request("/catalog")).text();
-  assert.match(defaultCatalogHtml, /8(?:<!-- -->)? seriden (?:<!-- -->)?1(?:<!-- -->)?–(?:<!-- -->)?8(?:<!-- -->)? arası/);
+  assert.match(defaultCatalogHtml, /100(?:<!-- -->)? seriden (?:<!-- -->)?1(?:<!-- -->)?–(?:<!-- -->)?8(?:<!-- -->)? arası/);
   assert.match(defaultCatalogHtml, /href="\/catalog"[^>]*aria-current="true"[^>]*>8<\/a>/);
   const largePageHtml = await (await request("/catalog?size=16")).text();
   assert.match(largePageHtml, /name="size" value="16"/);
@@ -100,9 +102,9 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalam
   const genreCatalogHtml = await (await request("/catalog?genre=Bilim%20Kurgu")).text();
   assert.match(genreCatalogHtml, /option value="Bilim Kurgu" selected/);
 
-  const legacyCatalog = await request("/?view=catalog&q=ses&sort=title");
+  const legacyCatalog = await request("/?view=catalog&q=yarinki&sort=title");
   assert.equal(legacyCatalog.status, 307);
-  assert.equal(new URL(legacyCatalog.headers.get("location")).pathname + new URL(legacyCatalog.headers.get("location")).search, "/catalog?q=ses&sort=title");
+  assert.equal(new URL(legacyCatalog.headers.get("location")).pathname + new URL(legacyCatalog.headers.get("location")).search, "/catalog?q=yarinki&sort=title");
 
   const newEpisodesHtml = await (await request("/new-episodes")).text();
   assert.match(newEpisodesHtml, /Yeni Eklenen Bölümler/);
@@ -119,6 +121,30 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalam
 
   const catalogApi = await (await request("/api/catalog", "application/json")).json();
   assert.deepEqual(Object.keys(catalogApi).sort(), ["featuredSlug", "schemaVersion", "series"]);
+});
+
+test("yerel dummy katalog yüz seri ve yüz yeni bölümle production verisinden ayrı kalır", async () => {
+  const [dummySource, repository, css] = await Promise.all([
+    readFile(new URL("../app/data/local-dummy-catalog.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(dummySource, /LOCAL_DUMMY_SERIES_COUNT = 92/);
+  assert.match(dummySource, /Panelya Yerel Demo/);
+  assert.match(repository, /process\.env\.LOCAL_DUMMY_CATALOG/);
+  assert.match(repository, /process\.env\.NODE_ENV !== "production"/);
+  assert.match(repository, /statements\.slice\(offset, offset \+ 75\)/);
+  assert.match(css, /\.home-genre-directory summary::after[^}]*border-right:\s*2px solid var\(--mint\)[^}]*rotate\(45deg\)/);
+  assert.match(css, /\.home-genre-directory\[open\] summary::after[^}]*rotate\(225deg\)/);
+
+  const catalog = await (await request("/api/catalog", "application/json")).json();
+  assert.equal(catalog.series.length, 100);
+  assert.equal(catalog.series.filter((series) => series.slug.startsWith("yerel-demo-")).length, 92);
+
+  const newSeriesHtml = await (await request("/new-series")).text();
+  assert.equal((newSeriesHtml.match(/class="series-card"/g) ?? []).length, 92);
+  const newEpisodesHtml = await (await request("/new-episodes")).text();
+  assert.equal((newEpisodesHtml.match(/class="update-card"/g) ?? []).length, 100);
 });
 
 test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => {
@@ -913,7 +939,8 @@ test("Studio içerik CRUD, D1 yayın sınırı ve otomatik yeni seri penceresi k
   assert.match(recencySource, /NEW_SERIES_WINDOW_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(recencySource, /publishedAt <= now && now - publishedAt < NEW_SERIES_WINDOW_MS/);
   assert.match(repository, /isNew: isRecentlyPublished\(row\.published_at/);
-  assert.match(repository, /function bundledPublicFallback[\s\S]*isNew: false/);
+  assert.match(repository, /function bundledPublicFallback[\s\S]*bundledCatalog\(\)\.map/);
+  assert.match(repository, /isNew: localDummyCatalogEnabled\(\) && series\.slug\.startsWith\("yerel-demo-"\)/);
   assert.doesNotMatch(seriesApi, /form\.get\("is_new"\)/);
   assert.doesNotMatch(contentForms, /name="is_new"/);
   assert.match(contentForms, /ilk public yayın tarihinden itibaren 30 gün boyunca otomatik gösterilir/);
