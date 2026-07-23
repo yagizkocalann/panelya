@@ -25,6 +25,7 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
   assert.match(html, /class="home-genre-directory"/);
   assert.match(html, /href="\/new-episodes"[^>]*>Tümünü Gör/);
   assert.doesNotMatch(html, /Hızlı keşif|Katalog ve türler/);
+  assert.ok(html.indexOf("Yeni Seriler") < html.indexOf("Yeni Eklenen Bölümler"), "Yeni Seriler, Yeni Eklenen Bölümler alanından önce gelmeli");
   assert.match(html, /href="\/gece-vardiyasi\/bolum-1"/);
   assert.match(html, /data-ad-test-slot="home-feed-01"/);
   assert.doesNotMatch(html, /<script[^>]+securepubads\.g\.doubleclick\.net/i);

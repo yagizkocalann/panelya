@@ -82,6 +82,10 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
 
         <div className="wrap content-wrap home-content">
+          {newSeries.length > 0 && <section id="new-series" aria-labelledby="new-title">
+            <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni Seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div><Link className="inline-link inline-link--persistent" href="/new-series">Tümünü Gör →</Link></div>
+            <div className="card-grid home-card-grid">{newSeries.slice(0, 4).map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
+          </section>}
           <section aria-labelledby="recent-title">
             <div className="section-heading"><div><p className="section-kicker">Okuma akışı</p><h2 id="recent-title">Yeni Eklenen Bölümler</h2><p>Son eklenen bölümlerden okumaya hemen başla.</p></div><Link className="inline-link inline-link--persistent" href="/new-episodes">Tümünü Gör →</Link></div>
             <div className="home-update-grid">
@@ -109,10 +113,6 @@ export default async function Home({ searchParams }: HomeProps) {
             <div><span className="manifesto-mark" aria-hidden="true">P</span><p className="section-kicker">Panelya Originals</p><h2>Burada hikâyeler<br />telefona göre doğar.</h2></div>
             <p>Kaydırma ritmi, sessiz anlar ve bölüm sonu kancaları tek bir dikey tuval için tasarlanır. <Link className="inline-link" href="/production-journal">İlk özgün serimizin üretim günlüğünü oku →</Link></p>
           </section>
-          {newSeries.length > 0 && <section id="new-series" aria-labelledby="new-title">
-            <div className="section-heading"><div><p className="section-kicker">Yeni keşifler</p><h2 id="new-title">Yeni Seriler</h2><p>İlk bölümünden yakalayabileceğin taze dünyalar.</p></div><Link className="inline-link inline-link--persistent" href="/new-series">Tümünü Gör →</Link></div>
-            <div className="card-grid home-card-grid">{newSeries.slice(0, 4).map((series) => <SeriesCard key={series.slug} series={series} badge="Yeni seri" />)}</div>
-          </section>}
         </div>
         <section className="home-seo wrap" aria-labelledby="home-seo-title">
           <p className="section-kicker">Türkçe dikey hikâyeler</p>
