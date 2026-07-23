@@ -10,6 +10,7 @@ import 'package:panelya_mobile/features/discover/domain/discover_repository.dart
 import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
 import 'package:panelya_mobile/features/discovery/domain/discovery_repository.dart';
 import 'package:panelya_mobile/features/discovery/presentation/discovery_providers.dart';
+import 'package:panelya_mobile/shared/widgets/series_card.dart';
 
 class _FakeCatalogRepository implements DiscoverRepository {
   _FakeCatalogRepository(this._result);
@@ -36,6 +37,8 @@ SeriesSummary _series(
   String creator = 'Panelya Originals',
   String eyebrow = 'Eyebrow',
   String description = 'Description',
+  String status = 'Devam Ediyor',
+  double rating = 4.5,
 }) {
   return SeriesSummary(
     slug: slug,
@@ -44,11 +47,11 @@ SeriesSummary _series(
     creator: creator,
     description: description,
     longDescription: 'Long description',
-    status: 'Devam Ediyor',
+    status: status,
     genres: genres,
     tone: PanelTone.mint,
     updatedAt: 'Bugün',
-    rating: 4.5,
+    rating: rating,
     followers: '1 B',
     episodeCount: 1,
     latestEpisode: null,
@@ -77,6 +80,52 @@ DiscoveryResponse _discoveryGenres(List<String> genres) {
 Finder _seriesCard(String slug) => find.byKey(ValueKey('series-card-$slug'));
 Finder _genreChip(String genre) =>
     find.byKey(ValueKey('catalog-genre-chip-$genre'));
+Finder _statusChip(String status) =>
+    find.byKey(ValueKey('catalog-status-chip-$status'));
+Finder _sortChip(String sortName) =>
+    find.byKey(ValueKey('catalog-sort-chip-$sortName'));
+
+final Finder _statusBarScrollable = find.descendant(
+  of: find.byKey(const ValueKey('catalog-status-bar-scrollable')),
+  matching: find.byType(Scrollable),
+);
+final Finder _sortBarScrollable = find.descendant(
+  of: find.byKey(const ValueKey('catalog-sort-bar-scrollable')),
+  matching: find.byType(Scrollable),
+);
+
+/// Durum/sıralama çubukları yatay kaydırılabilir ve LAZY inşa edilir (bkz.
+/// `ListView.separated`); dar bir telefon genişliğinde (bkz.
+/// [usePhoneViewport]) sondaki chip'ler yalnız görsel olarak ekran dışında
+/// kalmakla kalmaz, henüz İNŞA BİLE EDİLMEMİŞ olabilir. `ensureVisible`
+/// yalnız zaten inşa edilmiş widget'lar için çalışır; bu yüzden [scrollable]
+/// verildiğinde `scrollUntilVisible` kullanılır — bu, hedef widget henüz
+/// inşa edilmemişken bile ilgili `Scrollable`'ı adım adım kaydırıp inşa
+/// olana kadar dener (bkz. `WidgetController.scrollUntilVisible` doc'u).
+Future<void> _tapChip(
+  WidgetTester tester,
+  Finder finder, {
+  Finder? scrollable,
+}) async {
+  if (scrollable != null) {
+    await tester.scrollUntilVisible(finder, 80, scrollable: scrollable);
+  } else {
+    await tester.ensureVisible(finder);
+  }
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+/// Izgaradaki [SeriesCard]'ların GÖRÜNEN sırasını (dizideki index sırası,
+/// grid sütun sayısından bağımsız — bkz. `SliverChildBuilderDelegate`'in
+/// index 0..n-1 inşa sırası) döner. Sıralama testlerinde kullanılır.
+List<String> _visibleSeriesOrder(WidgetTester tester) {
+  return tester
+      .widgetList<SeriesCard>(find.byType(SeriesCard))
+      .map((card) => card.series.slug)
+      .toList(growable: false);
+}
 
 Widget _wrap({
   required DiscoverRepository catalogRepository,
@@ -426,5 +475,276 @@ void main() {
       expect(_seriesCard('a'), findsOneWidget);
       expect(_seriesCard('b'), findsOneWidget);
     });
+  });
+
+  group('durum filtresi (webde CatalogFilterForm "Durum" alanının karşılığı)', () {
+    testWidgets('"Tümü" varsayılan seçilidir ve her durumu gösterir', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeCatalogRepository(
+        () async => _catalogWith([
+          _series('devam', 'Devam Eden Seri', status: 'Devam Ediyor'),
+          _series('tamam', 'Tamamlanan Seri', status: 'Tamamlandı'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(catalogRepository: repository));
+      await tester.pumpAndSettle();
+
+      expect(_statusChip('all'), findsOneWidget);
+      expect(_statusChip('Devam Ediyor'), findsOneWidget);
+      expect(_statusChip('Tamamlandı'), findsOneWidget);
+      expect(_seriesCard('devam'), findsOneWidget);
+      expect(_seriesCard('tamam'), findsOneWidget);
+    });
+
+    testWidgets('"Tamamlandı" seçmek yalnız o durumdaki serileri gösterir', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeCatalogRepository(
+        () async => _catalogWith([
+          _series('devam', 'Devam Eden Seri', status: 'Devam Ediyor'),
+          _series('tamam', 'Tamamlanan Seri', status: 'Tamamlandı'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(catalogRepository: repository));
+      await tester.pumpAndSettle();
+
+      await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+
+      expect(_seriesCard('tamam'), findsOneWidget);
+      expect(_seriesCard('devam'), findsNothing);
+    });
+
+    testWidgets('durum chip\'ine tekrar dokunmak filtreyi kaldırır ("Tümü"ne döner)', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeCatalogRepository(
+        () async => _catalogWith([
+          _series('devam', 'Devam Eden Seri', status: 'Devam Ediyor'),
+          _series('tamam', 'Tamamlanan Seri', status: 'Tamamlandı'),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(catalogRepository: repository));
+      await tester.pumpAndSettle();
+
+      await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+      expect(_seriesCard('devam'), findsNothing);
+
+      await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+      expect(_seriesCard('devam'), findsOneWidget);
+      expect(_seriesCard('tamam'), findsOneWidget);
+    });
+
+    testWidgets(
+      'durum + tür + arama filtreleri AND mantığıyla birlikte uygulanır',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeCatalogRepository(
+          () async => _catalogWith([
+            _series(
+              'a',
+              'Gece Vardiyası',
+              genres: const ['Gizem'],
+              status: 'Devam Ediyor',
+            ),
+            _series(
+              'b',
+              'Gece Treni',
+              genres: const ['Gizem'],
+              status: 'Tamamlandı',
+            ),
+            _series(
+              'c',
+              'Gece Yolu',
+              genres: const ['Romantizm'],
+              status: 'Tamamlandı',
+            ),
+          ]),
+        );
+        final discovery = _FakeDiscoveryRepository(
+          () async => _discoveryGenres(const ['Gizem', 'Romantizm']),
+        );
+
+        await tester.pumpWidget(
+          _wrap(catalogRepository: repository, discoveryRepository: discovery),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const ValueKey('catalog-search-field')),
+          'gece',
+        );
+        await tester.pumpAndSettle();
+        await _tapChip(tester, _genreChip('Gizem'));
+        await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+
+        // Yalnız 'b' hem "gece" araması, hem "Gizem" türü, hem de
+        // "Tamamlandı" durumuyla eşleşir.
+        expect(_seriesCard('b'), findsOneWidget);
+        expect(_seriesCard('a'), findsNothing);
+        expect(_seriesCard('c'), findsNothing);
+      },
+    );
+  });
+
+  group('sıralama kontrolü (webde CatalogFilterForm "Sırala" alanının karşılığı)', () {
+    testWidgets(
+      '"Son güncellenen" varsayılan seçilidir ve API sırasını DEĞİŞTİRMEZ '
+      '(kritik: istemci tarafında yanlışlıkla bir varsayılan sıralama '
+      'eklenmediğini kanıtlar)',
+      (tester) async {
+        usePhoneViewport(tester);
+        // API cevabı KASITLI olarak ne rating ne de title'a göre sıralı
+        // DEĞİL — web'in `ORDER BY is_featured DESC, updated_at DESC, title
+        // COLLATE NOCASE` sırasını taklit eden, alfabetik de puana göre de
+        // olmayan gelişigüzel bir sıra.
+        final repository = _FakeCatalogRepository(
+          () async => _catalogWith([
+            _series('z-serisi', 'Z Serisi', rating: 3.0),
+            _series('a-serisi', 'A Serisi', rating: 5.0),
+            _series('m-serisi', 'M Serisi', rating: 1.0),
+          ]),
+        );
+
+        await tester.pumpWidget(_wrap(catalogRepository: repository));
+        await tester.pumpAndSettle();
+
+        expect(_sortChip('updated'), findsOneWidget);
+        expect(
+          _visibleSeriesOrder(tester),
+          ['z-serisi', 'a-serisi', 'm-serisi'],
+        );
+      },
+    );
+
+    testWidgets('"Puana göre" seçmek rating\'e göre azalan sıralar', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeCatalogRepository(
+        () async => _catalogWith([
+          _series('dusuk', 'Düşük Puanlı', rating: 2.0),
+          _series('yuksek', 'Yüksek Puanlı', rating: 4.8),
+          _series('orta', 'Orta Puanlı', rating: 3.5),
+        ]),
+      );
+
+      await tester.pumpWidget(_wrap(catalogRepository: repository));
+      await tester.pumpAndSettle();
+
+      await _tapChip(tester, _sortChip('rating'), scrollable: _sortBarScrollable);
+
+      expect(
+        _visibleSeriesOrder(tester),
+        ['yuksek', 'orta', 'dusuk'],
+      );
+    });
+
+    testWidgets(
+      '"Puana göre" eşit rating\'lerde slug ile kararlı biçimde sıralar',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeCatalogRepository(
+          () async => _catalogWith([
+            _series('z-slug', 'Z Serisi', rating: 4.0),
+            _series('a-slug', 'A Serisi', rating: 4.0),
+          ]),
+        );
+
+        await tester.pumpWidget(_wrap(catalogRepository: repository));
+        await tester.pumpAndSettle();
+
+        await _tapChip(tester, _sortChip('rating'), scrollable: _sortBarScrollable);
+
+        expect(_visibleSeriesOrder(tester), ['a-slug', 'z-slug']);
+      },
+    );
+
+    testWidgets(
+      '"Ada göre" seçmek Türkçe'
+      '-duyarlı normalize edilmiş başlığa göre artan sıralar',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeCatalogRepository(
+          () async => _catalogWith([
+            _series('cay', 'Çay Bahçesi'),
+            _series('istanbul', 'İstanbul Geceleri'),
+            _series('araba', 'Araba Yolu'),
+          ]),
+        );
+
+        await tester.pumpWidget(_wrap(catalogRepository: repository));
+        await tester.pumpAndSettle();
+
+        await _tapChip(tester, _sortChip('title'), scrollable: _sortBarScrollable);
+
+        // normalizeCatalogSearch: 'Araba Yolu' -> 'araba yolu',
+        // 'Çay Bahçesi' -> 'cay bahcesi', 'İstanbul Geceleri' ->
+        // 'istanbul geceleri' — alfabetik olarak araba < cay < istanbul.
+        expect(
+          _visibleSeriesOrder(tester),
+          ['araba', 'cay', 'istanbul'],
+        );
+      },
+    );
+
+    testWidgets(
+      'sıralama + tür + durum + arama filtreleriyle birlikte çalışır',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeCatalogRepository(
+          () async => _catalogWith([
+            _series(
+              'a',
+              'Gece Vardiyası',
+              genres: const ['Gizem'],
+              status: 'Tamamlandı',
+              rating: 3.0,
+            ),
+            _series(
+              'b',
+              'Gece Treni',
+              genres: const ['Gizem'],
+              status: 'Tamamlandı',
+              rating: 4.9,
+            ),
+            _series(
+              'c',
+              'Gece Yolu',
+              genres: const ['Romantizm'],
+              status: 'Tamamlandı',
+              rating: 5.0,
+            ),
+          ]),
+        );
+        final discovery = _FakeDiscoveryRepository(
+          () async => _discoveryGenres(const ['Gizem', 'Romantizm']),
+        );
+
+        await tester.pumpWidget(
+          _wrap(catalogRepository: repository, discoveryRepository: discovery),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const ValueKey('catalog-search-field')),
+          'gece',
+        );
+        await tester.pumpAndSettle();
+        await _tapChip(tester, _genreChip('Gizem'));
+        await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+        await _tapChip(tester, _sortChip('rating'), scrollable: _sortBarScrollable);
+
+        // 'c' Romantizm türünde olduğu için filtrelenip ELENİR; kalan 'a'
+        // ve 'b' arasında rating'e göre azalan sıralanır (b: 4.9 > a: 3.0).
+        expect(_visibleSeriesOrder(tester), ['b', 'a']);
+      },
+    );
   });
 }

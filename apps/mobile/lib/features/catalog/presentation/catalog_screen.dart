@@ -36,6 +36,27 @@ import '../../discovery/presentation/discovery_providers.dart';
 /// ekranının kendi tür toplama mantığını tekrar etmesini önler. Bu yüzden
 /// `discover_filters.dart`'taki eski `uniqueGenres` (tam katalogdan istemci
 /// tarafı türetme) kaldırıldı — bkz. o dosyanın doc yorumu.
+///
+/// Durum ve sıralama kontrolleri web referansındaki `CatalogFilterForm`'un
+/// (bkz. `app/catalog/CatalogFilterForm.tsx`) "Durum" ve "Sırala" alanlarının
+/// Flutter karşılığıdır (kullanıcı bildirimi: "webde filtrelemede sadece
+/// arama değil, 3 tane daha filtre vardı" — tür zaten vardı, eksik olan
+/// durum ve sıralamaydı). Durum karşılaştırması web'deki ongoing/completed ->
+/// Türkçe eşlemesini TEKRARLAMAZ: [SeriesSummary.status] sözleşmesi zaten tam
+/// "Devam Ediyor"/"Tamamlandı" string'lerini taşır (bkz.
+/// `core/contracts/generated/series_summary.dart` — "Bilinen değer kümesi"
+/// yorumu), bu yüzden doğrudan karşılaştırılır. Sıralamada "Son güncellenen"
+/// (varsayılan) seçiliyken HİÇBİR yeniden sıralama yapılmaz: `GET
+/// /api/catalog` zaten `ORDER BY is_featured DESC, updated_at DESC, title
+/// COLLATE NOCASE` ile gelir (bkz. `app/lib/content-repository.ts` ~satır
+/// 278) ve web'in kendisi de `sort === "updated"` için ayrı bir yeniden
+/// sıralama yapmaz (bkz. aynı dosya satır 492-493) — istemci bu doğal API
+/// sırasını yeniden hesaplamaz/bozmaz. "Ada göre" sıralaması tam NFKD/
+/// tr-locale collation yerine, dosyada zaten belgelenmiş
+/// `normalizeCatalogSearch` katlama tablosunu (bkz.
+/// `shared/utils/turkish_search.dart` — "NFKD sapması" notu) karşılaştırma
+/// anahtarı olarak yeniden kullanır; bu, yeni bir yaklaşım icadı değil, aynı
+/// belgelenmiş sapmanın tekrarıdır.
 class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen({super.key, this.initialGenre});
 
@@ -51,6 +72,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   final _searchController = TextEditingController();
   String? _selectedGenre;
   String _query = '';
+  String? _selectedStatus;
+  _CatalogSort _sort = _CatalogSort.updated;
 
   @override
   void initState() {
@@ -69,6 +92,14 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
 
   void _selectGenre(String? genre) {
     setState(() => _selectedGenre = genre);
+  }
+
+  void _selectStatus(String? status) {
+    setState(() => _selectedStatus = status);
+  }
+
+  void _selectSort(_CatalogSort sort) {
+    setState(() => _sort = sort);
   }
 
   @override
@@ -104,6 +135,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             // bloklamaz).
             final genres = discovery.asData?.value.genres ?? const <String>[];
 
+            // 1) Filtrele: arama + tür + durum, AND mantığıyla (web'in
+            // `CatalogFilterForm` referansındaki davranışıyla aynı sıra).
             var filtered = filterSeriesByGenre(response.series, _selectedGenre);
             final needle = normalizeCatalogSearch(_query);
             if (needle.isNotEmpty) {
@@ -112,12 +145,20 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
                       .contains(needle))
                   .toList(growable: false);
             }
+            filtered = _filterSeriesByStatus(filtered, _selectedStatus);
+            // 2) Sırala: filtrelenmiş sonuç üzerinde, en son (bkz. sınıf
+            // başlığı doc yorumu — "Son güncellenen" API sırasını korur).
+            filtered = _sortSeries(filtered, _sort);
 
             return _CatalogContent(
               searchController: _searchController,
               genres: genres,
               selectedGenre: _selectedGenre,
               onSelectGenre: _selectGenre,
+              selectedStatus: _selectedStatus,
+              onSelectStatus: _selectStatus,
+              sort: _sort,
+              onSelectSort: _selectSort,
               series: filtered,
               hasAnySeries: response.series.isNotEmpty,
               onRefresh: () => ref.refresh(catalogProvider.future),
@@ -144,12 +185,84 @@ String _catalogSearchHaystack(SeriesSummary series) {
   ].join(' ');
 }
 
+/// Web'in `CatalogFilterForm` "Sırala" alanının (bkz.
+/// `app/catalog/CatalogFilterForm.tsx`) üç seçeneği. [updated] varsayılan
+/// değerdir ve web'deki `sort` query param'ının varsayılanıyla eşleşir.
+enum _CatalogSort { updated, rating, title }
+
+extension on _CatalogSort {
+  String get label => switch (this) {
+        _CatalogSort.updated => 'Son güncellenen',
+        _CatalogSort.rating => 'Puana göre',
+        _CatalogSort.title => 'Ada göre',
+      };
+}
+
+/// Web'in `CatalogFilterForm` "Durum" alanının Flutter karşılığı. `null`
+/// "Tümü" (filtre yok) anlamına gelir; diğer iki değer
+/// [SeriesSummary.status] ile DOĞRUDAN karşılaştırılır — web'deki gibi ayrı
+/// bir ongoing/completed -> Türkçe eşlemesi burada YOK, çünkü sözleşme
+/// zaten tam Türkçe durum string'ini taşıyor (bkz.
+/// `core/contracts/generated/series_summary.dart`).
+List<SeriesSummary> _filterSeriesByStatus(
+  List<SeriesSummary> series,
+  String? status,
+) {
+  if (status == null) return series;
+  return series
+      .where((item) => item.status == status)
+      .toList(growable: false);
+}
+
+/// Seçili sıralamayı filtrelenmiş listeye uygular. [_CatalogSort.updated]
+/// (varsayılan) için liste OLDUĞU GİBİ döner: `GET /api/catalog` cevabı
+/// zaten `ORDER BY is_featured DESC, updated_at DESC, title COLLATE NOCASE`
+/// ile gelir (bkz. `app/lib/content-repository.ts` ~satır 278) ve web'in
+/// kendisi de `sort === "updated"` için ayrı bir yeniden sıralama yapmaz
+/// (bkz. aynı dosya satır 492-493); istemci bu doğal API sırasını asla
+/// yeniden hesaplamaz ya da bozmaz — bu yüzden burada varsayılan durum için
+/// KASITLI olarak hiçbir `.sort()` çağrısı yok. [_CatalogSort.rating] ve
+/// [_CatalogSort.title], web'in `fallbackCatalogSearch` sıralama mantığıyla
+/// (aynı dosya) aynı iki alanlı karşılaştırmayı kullanır: birincil alan
+/// eşitse `slug` ile kararlı/deterministik biçimde tamamlanır.
+List<SeriesSummary> _sortSeries(List<SeriesSummary> series, _CatalogSort sort) {
+  if (sort == _CatalogSort.updated) return series;
+
+  final sorted = series.toList(growable: false);
+  if (sort == _CatalogSort.rating) {
+    sorted.sort((a, b) {
+      final byRating = b.rating.compareTo(a.rating);
+      return byRating != 0 ? byRating : a.slug.compareTo(b.slug);
+    });
+    return sorted;
+  }
+
+  // `title`: web `a.title.localeCompare(b.title, "tr")` kullanır. Dart'ın
+  // çekirdek kütüphanesinde tam tr-locale collation yoktur ve AGENTS.md
+  // gerekçesiz yeni bağımlılık eklemeyi yasaklar (bkz.
+  // `shared/utils/turkish_search.dart` başlığındaki "NFKD sapması" notu —
+  // aynı gerekçe burada da geçerli). Bu yüzden yeni bir yaklaşım icat
+  // etmek yerine dosyadaki mevcut, zaten belgelenmiş katlama tablosu
+  // (`normalizeCatalogSearch`) karşılaştırma anahtarı olarak yeniden
+  // kullanılır.
+  sorted.sort((a, b) {
+    final byTitle = normalizeCatalogSearch(a.title)
+        .compareTo(normalizeCatalogSearch(b.title));
+    return byTitle != 0 ? byTitle : a.slug.compareTo(b.slug);
+  });
+  return sorted;
+}
+
 class _CatalogContent extends StatelessWidget {
   const _CatalogContent({
     required this.searchController,
     required this.genres,
     required this.selectedGenre,
     required this.onSelectGenre,
+    required this.selectedStatus,
+    required this.onSelectStatus,
+    required this.sort,
+    required this.onSelectSort,
     required this.series,
     required this.hasAnySeries,
     required this.onRefresh,
@@ -159,6 +272,10 @@ class _CatalogContent extends StatelessWidget {
   final List<String> genres;
   final String? selectedGenre;
   final ValueChanged<String?> onSelectGenre;
+  final String? selectedStatus;
+  final ValueChanged<String?> onSelectStatus;
+  final _CatalogSort sort;
+  final ValueChanged<_CatalogSort> onSelectSort;
   final List<SeriesSummary> series;
   final bool hasAnySeries;
   final Future<void> Function() onRefresh;
@@ -222,6 +339,26 @@ class _CatalogContent extends StatelessWidget {
                 ),
               ),
             ),
+          SliverToBoxAdapter(
+            child: _CatalogFilterSection(
+              label: 'Durum',
+              topPadding: tokens.spacing.sm,
+              child: _CatalogStatusBar(
+                selected: selectedStatus,
+                onSelect: onSelectStatus,
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _CatalogFilterSection(
+              label: 'Sırala',
+              topPadding: tokens.spacing.sm,
+              child: _CatalogSortBar(
+                selected: sort,
+                onSelect: onSelectSort,
+              ),
+            ),
+          ),
           SliverPadding(
             padding: EdgeInsets.all(tokens.spacing.md),
             sliver: series.isEmpty
@@ -256,6 +393,143 @@ class _CatalogContent extends StatelessWidget {
   }
 }
 
+/// Durum ve sıralama çubuklarının üstündeki küçük etiket (web'in
+/// `<label><span>Durum</span>...` / `<span>Sırala</span>` başlıklarının
+/// erişilebilir eşdeğeri) + çubuğun kendisi.
+///
+/// Yalnız DİKEY (`topPadding`) bir boşluk ekler; yatay boşluğu KASITLI
+/// olarak eklemez, çünkü [child] (bkz. [_CatalogStatusBar], [_CatalogSortBar]
+/// — [_CatalogGenreBar] ile aynı desen) zaten kendi yatay `ListView`
+/// padding'ini taşıyor. İkisini üst üste eklemek chip'leri ekranın
+/// solundan/sağından taşırıp dokunma testlerinde hit-test dışına düşmesine
+/// yol açardı (bkz. görev raporundaki "Kalan risk/varsayım" — bu tam olarak
+/// ilk taslakta yakalanan hataydı).
+class _CatalogFilterSection extends StatelessWidget {
+  const _CatalogFilterSection({
+    required this.label,
+    required this.topPadding,
+    required this.child,
+  });
+
+  final String label;
+  final double topPadding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(
+              left: tokens.spacing.md,
+              bottom: tokens.spacing.xs,
+            ),
+            child: Text(
+              label,
+              style: tokens.typography.bodySmall.copyWith(
+                color: tokens.colors.muted,
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogStatusBar extends StatelessWidget {
+  const _CatalogStatusBar({required this.selected, required this.onSelect});
+
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  /// [SeriesSummary.status]'ün taşıdığı tam Türkçe değerler (bkz.
+  /// `core/contracts/generated/series_summary.dart` — "Bilinen değer
+  /// kümesi" yorumu). Web'deki ongoing/completed sözlük anahtarları burada
+  /// KASITLI olarak YOK.
+  static const _statuses = <String>['Devam Ediyor', 'Tamamlandı'];
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+
+    return SizedBox(
+      height: tokens.sizes.minTouchTarget,
+      child: ListView.separated(
+        key: const ValueKey('catalog-status-bar-scrollable'),
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
+        itemCount: _statuses.length + 1,
+        separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _CatalogChip(
+              key: const ValueKey('catalog-status-chip-all'),
+              label: 'Tümü',
+              isSelected: selected == null,
+              semanticsLabel: 'Tümü durumuna göre filtrele',
+              onTap: () => onSelect(null),
+            );
+          }
+          final status = _statuses[index - 1];
+          final isSelected = selected == status;
+          return _CatalogChip(
+            key: ValueKey('catalog-status-chip-$status'),
+            label: status,
+            isSelected: isSelected,
+            semanticsLabel: '$status durumuna göre filtrele',
+            onTap: () => onSelect(isSelected ? null : status),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CatalogSortBar extends StatelessWidget {
+  const _CatalogSortBar({required this.selected, required this.onSelect});
+
+  final _CatalogSort selected;
+  final ValueChanged<_CatalogSort> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+
+    return SizedBox(
+      height: tokens.sizes.minTouchTarget,
+      child: ListView.separated(
+        key: const ValueKey('catalog-sort-bar-scrollable'),
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
+        itemCount: _CatalogSort.values.length,
+        separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
+        itemBuilder: (context, index) {
+          final option = _CatalogSort.values[index];
+          final isSelected = selected == option;
+          return _CatalogChip(
+            key: ValueKey('catalog-sort-chip-${option.name}'),
+            label: option.label,
+            isSelected: isSelected,
+            semanticsLabel: '${option.label} sıralamasını uygula',
+            // Sıralamanın her zaman tam olarak bir aktif değeri vardır (web
+            // `<select>`'in aksine "seçimi kaldır" durumu yok); bu yüzden
+            // tür/durum çubuklarındaki toggle-to-null davranışı burada
+            // KASITLI olarak yok — seçili chip'e tekrar dokunmak no-op'tur.
+            onTap: () => onSelect(option),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _CatalogGenreBar extends StatelessWidget {
   const _CatalogGenreBar({
     required this.genres,
@@ -280,19 +554,21 @@ class _CatalogGenreBar extends StatelessWidget {
         separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _CatalogGenreChip(
+            return _CatalogChip(
               key: const ValueKey('catalog-genre-chip-all'),
               label: 'Tümü',
               isSelected: selected == null,
+              semanticsLabel: 'Tümü türüne göre filtrele',
               onTap: () => onSelect(null),
             );
           }
           final genre = genres[index - 1];
           final isSelected = selected == genre;
-          return _CatalogGenreChip(
+          return _CatalogChip(
             key: ValueKey('catalog-genre-chip-$genre'),
             label: genre,
             isSelected: isSelected,
+            semanticsLabel: '$genre türüne göre filtrele',
             onTap: () => onSelect(isSelected ? null : genre),
           );
         },
@@ -301,16 +577,23 @@ class _CatalogGenreBar extends StatelessWidget {
   }
 }
 
-class _CatalogGenreChip extends StatelessWidget {
-  const _CatalogGenreChip({
+/// Tür, durum ve sıralama çubuklarının paylaştığı tek chip görseli (bkz.
+/// [_CatalogGenreBar], [_CatalogStatusBar], [_CatalogSortBar]). Yalnız
+/// erişilebilir etiket metni ([semanticsLabel]) çağıran tarafından
+/// özelleştirilir; görsel dil (renk, kenarlık, dokunma hedefi) üçü için
+/// birebir aynıdır.
+class _CatalogChip extends StatelessWidget {
+  const _CatalogChip({
     super.key,
     required this.label,
     required this.isSelected,
+    required this.semanticsLabel,
     required this.onTap,
   });
 
   final String label;
   final bool isSelected;
+  final String semanticsLabel;
   final VoidCallback onTap;
 
   @override
@@ -320,7 +603,7 @@ class _CatalogGenreChip extends StatelessWidget {
     return Semantics(
       button: true,
       selected: isSelected,
-      label: '$label türüne göre filtrele',
+      label: semanticsLabel,
       child: Material(
         color: isSelected ? tokens.colors.mint : tokens.colors.surface2,
         borderRadius: BorderRadius.circular(tokens.radii.pill),
