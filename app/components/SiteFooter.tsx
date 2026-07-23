@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { listPublishedGenres } from "../lib/content-repository";
 import { ConsentSettingsButton } from "./ConsentSettingsButton";
+import { GenreDirectoryLinks } from "./GenreDirectoryLinks";
 
 export async function SiteFooter() {
   const genres = await listPublishedGenres();
-  const featuredGenres = genres.slice(0, 12);
 
   return (
     <footer className="site-footer">
@@ -16,11 +16,8 @@ export async function SiteFooter() {
         </div>
         <nav className="footer-links" aria-label="Alt bilgi bağlantıları">
           <div className="footer-link-group footer-link-group--genres">
-            <strong>Kategoriler</strong>
-            <div className="footer-category-grid">
-              {featuredGenres.map((genre) => <Link key={genre} href={`/catalog?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}
-            </div>
-            <Link className="footer-all-link" href="/catalog">Tüm türler</Link>
+            <strong>Türler</strong>
+            <GenreDirectoryLinks genres={genres} className="footer-category-grid" />
           </div>
           <div className="footer-link-group"><strong>Bilgi</strong><Link href="/about">Hakkımızda</Link><Link href="/creators">İçerik üreticileri</Link><Link href="/publishing-principles">Yayın ilkeleri</Link><Link href="/production-journal">Üretim günlüğü</Link><Link href="/contact">İletişim</Link></div>
           <div className="footer-link-group"><strong>Hesap</strong><Link href="/login">Giriş yap</Link><Link href="/register">Üye ol</Link><Link href="/library">Kütüphanem</Link><Link href="/account">Hesabım</Link></div>
