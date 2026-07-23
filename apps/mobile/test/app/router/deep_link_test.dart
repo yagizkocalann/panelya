@@ -51,6 +51,16 @@ void main() {
       '/studio',
       '/api',
       '/series', // mobil önekiyle karışmasın diye kasıtlı olarak elenir
+      // Web'in editorial keşif ayrımı route'ları (bkz. `app/catalog`,
+      // `app/new-series`, `app/new-episodes`, `app/updates` — SALT OKUNUR
+      // referans, docs/mobile-handoff.md "Editorial keşif akışı"): mobilde
+      // aynı isimlerle karşılıkları vardır ama bu fonksiyon yalnız web'in
+      // `/<slug>` seri path'ini çevirir; bu dört isim bir seri slug'ı
+      // olarak asla yanlış yorumlanmamalı.
+      '/catalog',
+      '/new-series',
+      '/new-episodes',
+      '/updates',
     ]) {
       test('web-only top-level route "$webOnly" is not a series slug', () {
         expect(mapWebPathToMobileRoute(webOnly), isNull);

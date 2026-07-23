@@ -4,20 +4,98 @@ import '../../app/theme/tokens.dart';
 import '../../core/contracts/generated/generated.dart';
 import 'cover_image.dart';
 
+/// [SeriesCard]'ın render etmek için ihtiyaç duyduğu alanların düz
+/// (flattened), DTO-bağımsız bir görünümü.
+///
+/// `packages/contracts/schema.json`'dan üretilen `SeriesSummary` (tam
+/// katalog, bkz. `GET /api/catalog`) ve `DiscoverySeriesSummary` (editorial
+/// keşif akışı, bkz. `GET /api/discovery`) neredeyse aynı alanları taşıyan
+/// FARKLI DTO sınıflarıdır (ikisi de aynı JSON Schema `$defs` şeklini
+/// paylaşır ama codegen ayrı tipler üretir). [SeriesCard] widget'ının bu iki
+/// tipi ayrı ayrı bilmesi (veya kopyalanmış iki kart widget'ı) yerine, her
+/// iki DTO'dan da türetilebilen bu küçük value tipi tek bir kart
+/// implementasyonunun her yerde (ana sayfa, `/catalog`, `/new-series`)
+/// yeniden kullanılmasını sağlar.
+class SeriesCardData {
+  const SeriesCardData({
+    required this.slug,
+    required this.title,
+    required this.eyebrow,
+    required this.status,
+    required this.genres,
+    required this.tone,
+    required this.rating,
+    required this.episodeCount,
+    this.isNew,
+    this.coverImage,
+    this.coverImageVariants,
+    this.coverPosition,
+  });
+
+  /// Tam katalog (`GET /api/catalog`) girdisinden.
+  factory SeriesCardData.fromSeriesSummary(SeriesSummary series) {
+    return SeriesCardData(
+      slug: series.slug,
+      title: series.title,
+      eyebrow: series.eyebrow,
+      status: series.status,
+      genres: series.genres,
+      tone: series.tone,
+      rating: series.rating,
+      episodeCount: series.episodeCount,
+      isNew: series.isNew,
+      coverImage: series.coverImage,
+      coverImageVariants: series.coverImageVariants,
+      coverPosition: series.coverPosition,
+    );
+  }
+
+  /// Editorial keşif akışı (`GET /api/discovery`) girdisinden.
+  factory SeriesCardData.fromDiscoverySeriesSummary(
+    DiscoverySeriesSummary series,
+  ) {
+    return SeriesCardData(
+      slug: series.slug,
+      title: series.title,
+      eyebrow: series.eyebrow,
+      status: series.status,
+      genres: series.genres,
+      tone: series.tone,
+      rating: series.rating,
+      episodeCount: series.episodeCount,
+      isNew: series.isNew,
+      coverImage: series.coverImage,
+      coverImageVariants: series.coverImageVariants,
+      coverPosition: series.coverPosition,
+    );
+  }
+
+  final String slug;
+  final String title;
+  final String eyebrow;
+  final String status;
+  final List<String> genres;
+  final PanelTone tone;
+  final double rating;
+  final int episodeCount;
+  final bool? isNew;
+  final String? coverImage;
+  final List<PublicMediaVariant>? coverImageVariants;
+  final String? coverPosition;
+}
+
 /// Keşif ızgarasında bir seriyi özetleyen poster kart (Faz 2): 3:4 kapak
 /// oranı, başlık ve tür/durum bilgisiyle keskin bir bilgi hiyerarşisi
 /// kurar (bkz. production-bible.md §7 — "Kartlar keskin bilgi
 /// hiyerarşisine, posterler 3:4 orana sahiptir").
 ///
-/// [series] artık `packages/contracts/schema.json`'dan üretilen,
-/// wire-faithful (düz/flattened) `SeriesSummary` DTO'sudur; alanlara
-/// doğrudan (`series.slug`), eski `series.metadata.slug` gibi bir sarmalayıcı
-/// üzerinden değil, erişilir (bkz. docs/mobile-handoff.md Ortaklık
-/// kuralları #3 — geçici adapter kaldırıldı).
+/// [series] DTO-bağımsız [SeriesCardData]'dır (bkz. o sınıfın doc yorumu);
+/// çağıran taraf `SeriesSummary.fromSeriesSummary`/`.fromDiscoverySeriesSummary`
+/// ile üretir.
 class SeriesCard extends StatelessWidget {
   const SeriesCard({super.key, required this.series, required this.onTap});
 
-  final SeriesSummary series;
+  final SeriesCardData series;
   final VoidCallback onTap;
 
   @override

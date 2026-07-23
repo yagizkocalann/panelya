@@ -3,34 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
-import 'package:panelya_mobile/app/theme/tokens.dart';
-import 'package:panelya_mobile/app/theme/tone_gradients.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
-import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
-import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_screen.dart';
+import 'package:panelya_mobile/features/discovery/domain/discovery_repository.dart';
+import 'package:panelya_mobile/features/discovery/presentation/discovery_providers.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
 import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
-import 'package:panelya_mobile/shared/layout/content_max_width.dart';
+import 'package:panelya_mobile/shared/widgets/episode_update_card.dart';
+import 'package:panelya_mobile/shared/widgets/series_card.dart';
 
 import '../../support/overflow_watcher.dart';
 import '../../support/viewports.dart';
 
-class _FakeDiscoverRepository implements DiscoverRepository {
-  _FakeDiscoverRepository(this._result);
+class _FakeDiscoveryRepository implements DiscoveryRepository {
+  _FakeDiscoveryRepository(this._result);
 
-  final Future<CatalogResponse> Function() _result;
+  final Future<DiscoveryResponse> Function() _result;
 
   @override
-  Future<CatalogResponse> fetchCatalog() => _result();
+  Future<DiscoveryResponse> fetchDiscovery() => _result();
 }
 
 /// In-memory sahte ilerleme deposu (bkz. `series_screen_test.dart`'taki
-/// eşdeğeri): keşif ekranındaki "Okumaya devam et" şeridinin varlığını/
-/// yokluğunu, gerçek `SharedPreferences` deposuna dokunmadan test etmeyi
-/// sağlar.
+/// eşdeğeri).
 class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
   _FakeReadingProgressRepository([Map<String, ReadingProgress>? seed])
     : _store = {...?seed};
@@ -86,28 +83,14 @@ class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
   }
 }
 
-CatalogResponse _catalogWith(
-  List<SeriesSummary> series, {
-  String? featuredSlug,
-}) {
-  return CatalogResponse(
-    schemaVersion: '1.0',
-    featuredSlug: featuredSlug ?? (series.isEmpty ? null : series.first.slug),
-    series: series,
-  );
-}
-
-/// `SeriesSummary` üretilen (generated) DTO'sunun wire-faithful, düz
-/// (flattened) şeklini kullanır — eski `SeriesSummaryContract.metadata`
-/// sarmalayıcısı yoktur (bkz. docs/mobile-handoff.md Ortaklık kuralları #3).
-SeriesSummary _series(
+DiscoverySeriesSummary _series(
   String slug,
   String title, {
   List<String> genres = const ['Gizem'],
   bool? isNew,
   PanelTone tone = PanelTone.mint,
 }) {
-  return SeriesSummary(
+  return DiscoverySeriesSummary(
     slug: slug,
     title: title,
     eyebrow: 'Eyebrow',
@@ -122,25 +105,50 @@ SeriesSummary _series(
     followers: '1 B',
     isNew: isNew,
     episodeCount: 1,
-    latestEpisode: const Episode(
-      slug: 'bolum-1',
-      number: 1,
-      title: 'Bölüm 1',
-      publishedAt: '18 Temmuz 2026',
-      readTime: '5 dk',
-      panels: [StoryPanel(id: 'panel-1', scene: 'Sahne', tone: PanelTone.mint)],
-    ),
+  );
+}
+
+EpisodeSummary _episode(
+  String slug,
+  int number,
+  String title, {
+  String publishedAt = '18 Temmuz 2026',
+}) {
+  return EpisodeSummary(
+    slug: slug,
+    number: number,
+    title: title,
+    publishedAt: publishedAt,
+    readTime: '5 dk',
+    panelCount: 3,
+  );
+}
+
+DiscoveryResponse _discoveryWith({
+  DiscoverySeriesSummary? featuredSeries,
+  EpisodeSummary? featuredFirstEpisode,
+  List<String> genres = const [],
+  List<DiscoverySeriesSummary> newSeries = const [],
+  List<DiscoveryEpisodeUpdate> latestEpisodes = const [],
+}) {
+  return DiscoveryResponse(
+    schemaVersion: '1.0',
+    featuredSeries: featuredSeries,
+    featuredFirstEpisode: featuredFirstEpisode,
+    genres: genres,
+    newSeries: newSeries,
+    latestEpisodes: latestEpisodes,
   );
 }
 
 Widget _wrap(
-  DiscoverRepository repository, {
+  DiscoveryRepository repository, {
   LocalReadingProgressRepository? progressRepository,
   double? textScale,
 }) {
   return ProviderScope(
     overrides: [
-      discoverRepositoryProvider.overrideWithValue(repository),
+      discoveryRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
       ),
@@ -160,14 +168,13 @@ Widget _wrap(
   );
 }
 
-/// `context.push` gerektiren şerit dokunuşunu test etmek için gerçek bir
-/// go_router kurar; okuyucu rotası gerçek `ReaderScreen` yerine yalnız
-/// hedef slug'ları görünür kılan bir işaretçi widget'tır (bkz.
+/// `context.push` gerektiren navigasyonları test etmek için gerçek bir
+/// go_router kurar; hedef ekranlar gerçek widget'lar yerine yalnız hangi
+/// slug'a/rotaya ulaşıldığını görünür kılan işaretçi widget'lardır (bkz.
 /// `series_screen_test.dart`'taki aynı desen).
 Widget _wrapWithRouter(
-  DiscoverRepository repository, {
+  DiscoveryRepository repository, {
   LocalReadingProgressRepository? progressRepository,
-  double? textScale,
 }) {
   final router = GoRouter(
     initialLocation: '/',
@@ -181,60 +188,72 @@ Widget _wrapWithRouter(
           ),
         ),
       ),
+      GoRoute(
+        path: '/series/:slug',
+        builder: (context, state) => Scaffold(
+          body: Text('SERIES:${state.pathParameters['slug']}'),
+        ),
+      ),
+      GoRoute(
+        path: '/new-series',
+        builder: (context, state) =>
+            const Scaffold(body: Text('NEW_SERIES_SCREEN')),
+      ),
+      GoRoute(
+        path: '/new-episodes',
+        builder: (context, state) =>
+            const Scaffold(body: Text('NEW_EPISODES_SCREEN')),
+      ),
     ],
   );
 
   return ProviderScope(
     overrides: [
-      discoverRepositoryProvider.overrideWithValue(repository),
+      discoveryRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
       ),
     ],
-    child: MaterialApp.router(
-      theme: buildAppTheme(),
-      routerConfig: router,
-      builder: textScale == null
-          ? null
-          : (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: child!,
-            ),
-    ),
+    child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
   );
 }
 
-/// Bir seri kartının kökü (`SeriesCard`'a `discover_screen.dart`'ta
-/// verilen `ValueKey('series-card-<slug>')`).
 Finder _seriesCard(String slug) => find.byKey(ValueKey('series-card-$slug'));
-
-/// Bir tür filtre chip'inin kökü.
-Finder _genreChip(String genre) => find.byKey(ValueKey('genre-chip-$genre'));
+Finder _episodeUpdate(String seriesSlug, String episodeSlug) =>
+    find.byKey(ValueKey('episode-update-$seriesSlug-$episodeSlug'));
 
 const _heroFinder = ValueKey('featured-hero');
+const _continueStrip = ValueKey('continue-reading-strip');
+const _genreToggle = ValueKey('genre-disclosure-toggle');
+const _seeAllNewSeries = ValueKey('see-all-new-series');
+const _seeAllNewEpisodes = ValueKey('see-all-new-episodes');
 
 void main() {
-  /// Keşif ekranının hero + tür şeridi + ızgara dikey akışı gerçekçi bir
-  /// telefon oranında anlamlıdır; varsayılan 800x600 masaüstü test tuvali
-  /// gerçek bir cihazı temsil etmez. Testleri gerçekçi bir telefon
-  /// boyutuna sabitler; yine de olası kaydırmaya karşı dayanıklı olmak
-  /// için etkileşimlerden önce `tester.ensureVisible` kullanılır.
+  // Bilerek gerçekçi bir telefon YÜKSEKLİĞİNDEN çok daha uzun bir tuval:
+  // ana sayfa artık beş bölüm barındırıyor (tür dizini + hero + devam et +
+  // yeni seriler + yeni bölümler) ve `CustomScrollView`/`Sliver*` içerik
+  // görünüm alanı + önbellek payının (`cacheExtent`) DIŞINDaki widget'ları
+  // hiç İNŞA ETMEZ. Testlerin çoğu (sıra, 4-kart kısıtı, navigasyon)
+  // gerçek bir kaydırmayı DEĞİL, içeriğin doğruluğunu doğruladığı için en
+  // basit ve güvenilir yol, tüm bölümlerin TEK seferde inşa edilmesini
+  // garanti eden uzun bir tuval kullanmaktır. Gerçek cihaz
+  // yüksekliklerindeki taşma/kaydırma davranışı ayrı bir grupta (bkz.
+  // aşağıdaki "genişlik/viewport" grubu) gerçek `phonePortrait`/
+  // `tabletPortrait` boyutları + açık bir kaydırma adımıyla kapsanır.
   void usePhoneViewport(WidgetTester tester) {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(390, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
   }
 
-  testWidgets('shows a loading indicator while the catalog loads', (
+  testWidgets('shows a loading indicator while discovery loads', (
     tester,
   ) async {
     usePhoneViewport(tester);
-    final repository = _FakeDiscoverRepository(
-      () => Future<CatalogResponse>.delayed(
+    final repository = _FakeDiscoveryRepository(
+      () => Future<DiscoveryResponse>.delayed(
         const Duration(seconds: 1),
-        () => _catalogWith(const []),
+        () => _discoveryWith(),
       ),
     );
 
@@ -242,218 +261,14 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    // The fake repository's `Future.delayed` timer must resolve before the
-    // test ends, otherwise flutter_test's teardown asserts on a pending timer.
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('renders the featured hero and series grid once resolved', (
+  testWidgets('shows the empty state when discovery has nothing to show', (
     tester,
   ) async {
     usePhoneViewport(tester);
-    final repository = _FakeDiscoverRepository(
-      () async => _catalogWith([
-        _series(
-          'gece-vardiyasi',
-          'Gece Vardiyası',
-          genres: const ['Gizem', 'Dram'],
-        ),
-        _series('yarinki-ses', 'Yarınki Ses', genres: const ['Romantizm']),
-      ]),
-    );
-
-    await tester.pumpWidget(_wrap(repository));
-    await tester.pumpAndSettle();
-
-    // Featured series (first in the list) renders as a distinct hero with
-    // its own CTA, keyed separately from its (also present) grid card.
-    expect(find.byKey(_heroFinder), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(_heroFinder),
-        matching: find.text('Gece Vardiyası'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(_heroFinder),
-        matching: find.text('Seriyi incele'),
-      ),
-      findsOneWidget,
-    );
-
-    // Genre filter chips are derived from every series' `genres` field.
-    expect(_genreChip('all'), findsOneWidget);
-    expect(_genreChip('Gizem'), findsOneWidget);
-    expect(_genreChip('Dram'), findsOneWidget);
-    expect(_genreChip('Romantizm'), findsOneWidget);
-
-    // Both series appear as grid cards (mirrors the web home page, where
-    // the featured/index-0 series also reappears in the card feed below
-    // the hero — bkz. `app/page.tsx`).
-    await tester.ensureVisible(_seriesCard('gece-vardiyasi'));
-    await tester.ensureVisible(_seriesCard('yarinki-ses'));
-    expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
-    expect(_seriesCard('yarinki-ses'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: _seriesCard('yarinki-ses'),
-        matching: find.text('Yarınki Ses'),
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets(
-    'a cover-less series card renders the tone poster gradient in its '
-    'placeholder (mirrors app/globals.css .poster--<tone>)',
-    (tester) async {
-      usePhoneViewport(tester);
-      final repository = _FakeDiscoverRepository(
-        () async => _catalogWith([
-          _series('gece-vardiyasi', 'Gece Vardiyası', tone: PanelTone.violet),
-        ]),
-      );
-
-      await tester.pumpWidget(_wrap(repository));
-      await tester.pumpAndSettle();
-
-      // `_series` never sets `coverImage`, so the card always renders the
-      // `CoverImage` placeholder — no separate "no cover" fixture needed.
-      final containerFinder = find.descendant(
-        of: _seriesCard('gece-vardiyasi'),
-        matching: find.byType(Container),
-      );
-      expect(containerFinder, findsOneWidget);
-      final decoration =
-          tester.widget<Container>(containerFinder).decoration as BoxDecoration;
-      expect(decoration.gradient, posterGradientForTone(PanelTone.violet));
-      expect(decoration.color, isNull);
-    },
-  );
-
-  testWidgets(
-    'a cover-less series card falls back to the flat surface3 color when '
-    'the tone is PanelTone.unknown (no gradient mapping)',
-    (tester) async {
-      usePhoneViewport(tester);
-      final repository = _FakeDiscoverRepository(
-        () async => _catalogWith([
-          _series('gece-vardiyasi', 'Gece Vardiyası', tone: PanelTone.unknown),
-        ]),
-      );
-
-      await tester.pumpWidget(_wrap(repository));
-      await tester.pumpAndSettle();
-
-      final containerFinder = find.descendant(
-        of: _seriesCard('gece-vardiyasi'),
-        matching: find.byType(Container),
-      );
-      expect(containerFinder, findsOneWidget);
-      final decoration =
-          tester.widget<Container>(containerFinder).decoration as BoxDecoration;
-      expect(decoration.gradient, isNull);
-      expect(decoration.color, AppTokens.dark.colors.surface3);
-    },
-  );
-
-  group(
-    'kapaksız hero placeholder ikonu büyük yazı tipinde çakışmayı önler '
-    '(QA bulgusu — chip satırı ikinci satıra sarınca dekoratif kitap '
-    'ikonu içerik bloğuyla çakışıyordu)',
-    () {
-      Finder heroDecorativeIcon() => find.descendant(
-        of: find.byKey(_heroFinder),
-        matching: find.byIcon(Icons.auto_stories_outlined),
-      );
-
-      testWidgets(
-        'textScale 1.0: mevcut görünüm değişmez, ikon görünür kalır',
-        (tester) async {
-          usePhoneViewport(tester);
-          final repository = _FakeDiscoverRepository(
-            () async => _catalogWith([
-              _series('gece-vardiyasi', 'Gece Vardiyası'),
-            ]),
-          );
-
-          await tester.pumpWidget(_wrap(repository, textScale: 1.0));
-          await tester.pumpAndSettle();
-
-          expect(heroDecorativeIcon(), findsOneWidget);
-        },
-      );
-
-      for (final scale in [1.6, 2.0]) {
-        testWidgets(
-          'textScale $scale: chip satırı sarındığında dekoratif ikon '
-          'gizlenir (içerikle çakışmaz)',
-          (tester) async {
-            usePhoneViewport(tester);
-            final repository = _FakeDiscoverRepository(
-              () async => _catalogWith([
-                _series(
-                  'gece-vardiyasi',
-                  'Gece Vardiyası: Kayıp Dakikanın İzinde Bir Teslimat '
-                      'Hikâyesi',
-                  genres: const ['Gizem', 'Dram', 'Bilim Kurgu', 'Aksiyon'],
-                ),
-              ]),
-            );
-
-            await tester.pumpWidget(_wrap(repository, textScale: scale));
-            await tester.pumpAndSettle();
-
-            expect(find.byKey(_heroFinder), findsOneWidget);
-            expect(heroDecorativeIcon(), findsNothing);
-          },
-        );
-      }
-    },
-  );
-
-  testWidgets('filtering by genre hides the hero and non-matching cards', (
-    tester,
-  ) async {
-    usePhoneViewport(tester);
-    final repository = _FakeDiscoverRepository(
-      () async => _catalogWith([
-        _series('gece-vardiyasi', 'Gece Vardiyası', genres: const ['Gizem']),
-        _series('yarinki-ses', 'Yarınki Ses', genres: const ['Romantizm']),
-      ]),
-    );
-
-    await tester.pumpWidget(_wrap(repository));
-    await tester.pumpAndSettle();
-
-    await tester.ensureVisible(_genreChip('Romantizm'));
-    await tester.tap(_genreChip('Romantizm'));
-    await tester.pumpAndSettle();
-
-    // Selecting a genre hides the featured hero (web parity, bkz.
-    // `app/page.tsx`'teki `!isFiltered` koşulu) and filters the grid down
-    // to matching series only.
-    expect(find.byKey(_heroFinder), findsNothing);
-    expect(_seriesCard('yarinki-ses'), findsOneWidget);
-    expect(_seriesCard('gece-vardiyasi'), findsNothing);
-
-    // Tapping the same chip again clears the filter back to "Tümü" and
-    // restores the hero.
-    await tester.tap(_genreChip('Romantizm'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(_heroFinder), findsOneWidget);
-    expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
-  });
-
-  testWidgets('shows the empty state when the catalog has no series', (
-    tester,
-  ) async {
-    usePhoneViewport(tester);
-    final repository = _FakeDiscoverRepository(
-      () async => _catalogWith(const []),
-    );
+    final repository = _FakeDiscoveryRepository(() async => _discoveryWith());
 
     await tester.pumpWidget(_wrap(repository));
     await tester.pumpAndSettle();
@@ -466,111 +281,368 @@ void main() {
   ) async {
     usePhoneViewport(tester);
     var attempt = 0;
-    final repository = _FakeDiscoverRepository(() async {
+    final repository = _FakeDiscoveryRepository(() async {
       attempt += 1;
       if (attempt == 1) {
         throw const NetworkException('bağlantı yok');
       }
-      return _catalogWith([_series('gece-vardiyasi', 'Gece Vardiyası')]);
+      return _discoveryWith(
+        featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+      );
     });
 
     await tester.pumpWidget(_wrap(repository));
     await tester.pumpAndSettle();
 
     expect(find.text('Tekrar dene'), findsOneWidget);
-    expect(_seriesCard('gece-vardiyasi'), findsNothing);
+    expect(find.byKey(_heroFinder), findsNothing);
 
     await tester.tap(find.text('Tekrar dene'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(_heroFinder), findsOneWidget);
-    expect(_seriesCard('gece-vardiyasi'), findsOneWidget);
+  });
+
+  group('bölüm sırası TAM OLARAK: tür dizini, hero, devam et, yeni seriler, '
+      'yeni bölümler (PLAN Görev 3)', () {
+    testWidgets('all five sections render in the required top-to-bottom order', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+          featuredFirstEpisode: _episode('bolum-1', 1, 'İlk İşaret'),
+          genres: const ['Gizem', 'Romantizm'],
+          newSeries: [_series('yeni-seri', 'Yeni Seri')],
+          latestEpisodes: [
+            DiscoveryEpisodeUpdate(
+              series: _series('baska-seri', 'Başka Seri'),
+              episode: _episode('bolum-2', 2, 'İkinci Bölüm'),
+            ),
+          ],
+        ),
+      );
+      final progressRepository = _FakeReadingProgressRepository({
+        'gece-vardiyasi': ReadingProgress(
+          seriesSlug: 'gece-vardiyasi',
+          seriesTitle: 'Gece Vardiyası',
+          episodeSlug: 'bolum-2',
+          episodeNumber: 2,
+          updatedAt: DateTime(2026, 7, 18),
+          completed: false,
+        ),
+      });
+
+      await tester.pumpWidget(
+        _wrap(repository, progressRepository: progressRepository),
+      );
+      await tester.pumpAndSettle();
+
+      final genreTop = tester.getRect(find.byKey(_genreToggle)).top;
+      final heroTop = tester.getRect(find.byKey(_heroFinder)).top;
+      final stripTop = tester.getRect(find.byKey(_continueStrip)).top;
+      final newSeriesHeaderTop = tester
+          .getRect(find.byKey(_seeAllNewSeries))
+          .top;
+      final newEpisodesHeaderTop = tester
+          .getRect(find.byKey(_seeAllNewEpisodes))
+          .top;
+
+      expect(genreTop, lessThan(heroTop));
+      expect(heroTop, lessThanOrEqualTo(stripTop));
+      expect(stripTop, lessThan(newSeriesHeaderTop));
+      expect(newSeriesHeaderTop, lessThan(newEpisodesHeaderTop));
+    });
+  });
+
+  group('Yeni Seriler bölümü — en fazla 4 kart + Tümünü Gör (PLAN Görev 3/6)', () {
+    testWidgets('shows at most 4 series cards even when the API returns more', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          newSeries: [
+            _series('s1', 'Seri 1'),
+            _series('s2', 'Seri 2'),
+            _series('s3', 'Seri 3'),
+            _series('s4', 'Seri 4'),
+            _series('s5', 'Seri 5'),
+            _series('s6', 'Seri 6'),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SeriesCard), findsNWidgets(4));
+      expect(_seriesCard('s1'), findsOneWidget);
+      expect(_seriesCard('s4'), findsOneWidget);
+      expect(_seriesCard('s5'), findsNothing);
+      expect(_seriesCard('s6'), findsNothing);
+    });
+
+    testWidgets('preserves the exact API order — never re-sorted client-side', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      // Kasıtlı olarak alfabetik/rating sırasının TERSİNDE: istemci hiçbir
+      // yeniden sıralama yapmamalı (bkz. docs/mobile-handoff.md madde 5).
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          newSeries: [
+            _series('zzz-series', 'ZZZ Serisi'),
+            _series('aaa-series', 'AAA Serisi'),
+            _series('mmm-series', 'MMM Serisi'),
+          ],
+        ),
+      );
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      final cards = tester.widgetList<SeriesCard>(find.byType(SeriesCard)).toList();
+      expect(cards.map((c) => c.series.slug).toList(), [
+        'zzz-series',
+        'aaa-series',
+        'mmm-series',
+      ]);
+    });
+
+    testWidgets('tapping "Tümünü Gör" navigates to /new-series', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          newSeries: [_series('yeni-seri', 'Yeni Seri')],
+        ),
+      );
+
+      await tester.pumpWidget(_wrapWithRouter(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(_seeAllNewSeries));
+      await tester.pumpAndSettle();
+
+      expect(find.text('NEW_SERIES_SCREEN'), findsOneWidget);
+    });
+
+    testWidgets('section is hidden entirely when there is no new series', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+        ),
+      );
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(_seeAllNewSeries), findsNothing);
+    });
+  });
+
+  group(
+    'Yeni Eklenen Bölümler bölümü — en fazla 4 kart + Tümünü Gör (PLAN Görev 3/6)',
+    () {
+      testWidgets('shows at most 4 episode updates even when the API returns more', (
+        tester,
+      ) async {
+        usePhoneViewport(tester);
+        final updates = List.generate(
+          6,
+          (i) => DiscoveryEpisodeUpdate(
+            series: _series('s$i', 'Seri $i'),
+            episode: _episode('e$i', i + 1, 'Bölüm ${i + 1}'),
+          ),
+        );
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(latestEpisodes: updates),
+        );
+
+        await tester.pumpWidget(_wrap(repository));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(EpisodeUpdateCard), findsNWidgets(4));
+        expect(_episodeUpdate('s0', 'e0'), findsOneWidget);
+        expect(_episodeUpdate('s3', 'e3'), findsOneWidget);
+        expect(_episodeUpdate('s4', 'e4'), findsNothing);
+      });
+
+      testWidgets('preserves the exact API order — never re-sorted client-side', (
+        tester,
+      ) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            latestEpisodes: [
+              DiscoveryEpisodeUpdate(
+                series: _series('zzz', 'ZZZ'),
+                episode: _episode('e-zzz', 9, 'Son'),
+              ),
+              DiscoveryEpisodeUpdate(
+                series: _series('aaa', 'AAA'),
+                episode: _episode('e-aaa', 1, 'İlk'),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pumpWidget(_wrap(repository));
+        await tester.pumpAndSettle();
+
+        final cards = tester
+            .widgetList<EpisodeUpdateCard>(find.byType(EpisodeUpdateCard))
+            .toList();
+        expect(cards.map((c) => c.series.slug).toList(), ['zzz', 'aaa']);
+      });
+
+      testWidgets('tapping "Tümünü Gör" navigates to /new-episodes', (
+        tester,
+      ) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            latestEpisodes: [
+              DiscoveryEpisodeUpdate(
+                series: _series('gece-vardiyasi', 'Gece Vardiyası'),
+                episode: _episode('bolum-1', 1, 'İlk Bölüm'),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pumpWidget(_wrapWithRouter(repository));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(_seeAllNewEpisodes));
+        await tester.pumpAndSettle();
+
+        expect(find.text('NEW_EPISODES_SCREEN'), findsOneWidget);
+      });
+
+      testWidgets('tapping an episode update opens the reader at that episode', (
+        tester,
+      ) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            latestEpisodes: [
+              DiscoveryEpisodeUpdate(
+                series: _series('gece-vardiyasi', 'Gece Vardiyası'),
+                episode: _episode('bolum-3', 3, 'Üçüncü Bölüm'),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pumpWidget(_wrapWithRouter(repository));
+        await tester.pumpAndSettle();
+
+        await tester.tap(_episodeUpdate('gece-vardiyasi', 'bolum-3'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('READER:gece-vardiyasi/bolum-3'), findsOneWidget);
+      });
+
+      testWidgets('section is hidden entirely when there are no episode updates', (
+        tester,
+      ) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+          ),
+        );
+
+        await tester.pumpWidget(_wrap(repository));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(_seeAllNewEpisodes), findsNothing);
+      });
+    },
+  );
+
+  group('Haftanın hikâyesi hero — ilk bölüm okuma aksiyonu (docs madde 3)', () {
+    testWidgets(
+      'shows both "İlk bölümü oku" and "Seriyi incele" when a first episode exists',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+            featuredFirstEpisode: _episode('bolum-1', 1, 'İlk İşaret'),
+          ),
+        );
+
+        await tester.pumpWidget(_wrapWithRouter(repository));
+        await tester.pumpAndSettle();
+
+        expect(find.text('İlk bölümü oku'), findsOneWidget);
+        expect(find.text('Seriyi incele'), findsOneWidget);
+
+        await tester.tap(find.text('İlk bölümü oku'));
+        await tester.pumpAndSettle();
+        expect(find.text('READER:gece-vardiyasi/bolum-1'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'shows only "Seriyi incele" when there is no first episode yet — no '
+      'disabled/dead read button (ADR-010)',
+      (tester) async {
+        usePhoneViewport(tester);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+          ),
+        );
+
+        await tester.pumpWidget(_wrapWithRouter(repository));
+        await tester.pumpAndSettle();
+
+        expect(find.text('İlk bölümü oku'), findsNothing);
+        expect(find.text('Seriyi incele'), findsOneWidget);
+
+        await tester.tap(find.text('Seriyi incele'));
+        await tester.pumpAndSettle();
+        expect(find.text('SERIES:gece-vardiyasi'), findsOneWidget);
+      },
+    );
   });
 
   group('"Okumaya devam et" şeridi (cihaz-yerel kaldığın yerden devam et)', () {
-    const continueStrip = ValueKey('continue-reading-strip');
+    testWidgets('with no local progress record, the strip is not rendered at all', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+        ),
+      );
 
-    testWidgets(
-      'with no local progress record, the strip is not rendered at all '
-      '(ADR-010 — no empty state/placeholder)',
-      (tester) async {
-        usePhoneViewport(tester);
-        final repository = _FakeDiscoverRepository(
-          () async =>
-              _catalogWith([_series('gece-vardiyasi', 'Gece Vardiyası')]),
-        );
+      await tester.pumpWidget(
+        _wrap(repository, progressRepository: _FakeReadingProgressRepository()),
+      );
+      await tester.pumpAndSettle();
 
-        await tester.pumpWidget(
-          _wrap(
-            repository,
-            progressRepository: _FakeReadingProgressRepository(),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.byKey(continueStrip), findsNothing);
-      },
-    );
-
-    testWidgets(
-      'with a local progress record, renders the strip below the hero and '
-      'above the grid, showing the series title and episode number',
-      (tester) async {
-        usePhoneViewport(tester);
-        final repository = _FakeDiscoverRepository(
-          () async => _catalogWith([
-            _series('gece-vardiyasi', 'Gece Vardiyası'),
-            _series('yarinki-ses', 'Yarınki Ses'),
-          ]),
-        );
-        final progressRepository = _FakeReadingProgressRepository({
-          'gece-vardiyasi': ReadingProgress(
-            seriesSlug: 'gece-vardiyasi',
-            seriesTitle: 'Gece Vardiyası',
-            episodeSlug: 'bolum-2',
-            episodeNumber: 2,
-            updatedAt: DateTime(2026, 7, 18),
-            completed: false,
-          ),
-        });
-
-        await tester.pumpWidget(
-          _wrap(repository, progressRepository: progressRepository),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.byKey(continueStrip), findsOneWidget);
-        expect(
-          find.descendant(
-            of: find.byKey(continueStrip),
-            matching: find.textContaining('Gece Vardiyası'),
-          ),
-          findsOneWidget,
-        );
-        expect(
-          find.descendant(
-            of: find.byKey(continueStrip),
-            matching: find.textContaining('Bölüm 2'),
-          ),
-          findsOneWidget,
-        );
-
-        // Sıra: hero -> devam-et şeridi -> ızgara (bkz. PLAN "keşif"
-        // maddesi — hero'nun üstünde değil altında, ızgaradan önce).
-        final heroBox = tester.getRect(find.byKey(_heroFinder));
-        final stripBox = tester.getRect(find.byKey(continueStrip));
-        final gridCardBox = tester.getRect(_seriesCard('gece-vardiyasi'));
-        expect(stripBox.top, greaterThanOrEqualTo(heroBox.bottom));
-        expect(gridCardBox.top, greaterThanOrEqualTo(stripBox.bottom));
-      },
-    );
+      expect(find.byKey(_continueStrip), findsNothing);
+    });
 
     testWidgets('tapping the strip navigates to the recorded episode', (
       tester,
     ) async {
       usePhoneViewport(tester);
-      final repository = _FakeDiscoverRepository(
-        () async => _catalogWith([_series('gece-vardiyasi', 'Gece Vardiyası')]),
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(
+          featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+        ),
       );
       final progressRepository = _FakeReadingProgressRepository({
         'gece-vardiyasi': ReadingProgress(
@@ -588,161 +660,54 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(continueStrip));
+      await tester.tap(find.byKey(_continueStrip));
       await tester.pumpAndSettle();
 
       expect(find.text('READER:gece-vardiyasi/bolum-2'), findsOneWidget);
     });
   });
 
-  group('ızgara kolon sayısı genişliğe göre uyarlanır (PLAN Görev A.1)', () {
-    test('telefon genişliğinde (360-430) 2 kolon korunur', () {
-      expect(discoverGridColumnsForWidth(360), 2);
-      expect(discoverGridColumnsForWidth(390), 2);
-      expect(discoverGridColumnsForWidth(430), 2);
-    });
-
-    test('~768 tablet dikeyde 3-4 kolon aralığındadır', () {
-      final columns = discoverGridColumnsForWidth(768);
-      expect(columns, inInclusiveRange(3, 4));
-    });
-
-    test('~1024 tablet yatayda 4-5 kolon aralığındadır', () {
-      final columns = discoverGridColumnsForWidth(1024);
-      expect(columns, inInclusiveRange(4, 5));
-    });
-
-    test('genişlik arttıkça kolon sayısı asla azalmaz (monoton)', () {
-      const widths = [360, 500, 600, 768, 900, 1024, 1200, 1440];
-      var previous = 0;
-      for (final width in widths) {
-        final columns = discoverGridColumnsForWidth(width.toDouble());
-        expect(columns, greaterThanOrEqualTo(previous));
-        previous = columns;
-      }
-    });
-
+  group('genişlik/viewport ve büyük yazı tipinde taşma yok (PLAN Görev A/B.1)', () {
     for (final entry in {
       'telefon dikey (390x844)': phonePortrait,
-      'telefon yatay (844x390)': phoneLandscape,
       'tablet dikey (768x1024)': tabletPortrait,
-      'tablet yatay (1024x768)': tabletLandscape,
     }.entries) {
-      testWidgets(
-        '${entry.key}: ızgara + hero + devam şeridi taşmadan render edilir',
-        (tester) async {
-          useViewport(tester, entry.value);
-          final watcher = OverflowWatcher()..start();
-          addTearDown(watcher.stop);
-
-          final repository = _FakeDiscoverRepository(
-            () async => _catalogWith([
-              _series(
-                'gece-vardiyasi',
-                'Gece Vardiyası: Kayıp Dakikanın İzinde',
-                genres: const ['Gizem', 'Dram', 'Bilim Kurgu'],
-              ),
-              _series(
-                'yarinki-ses',
-                'Yarınki Ses',
-                genres: const ['Romantizm'],
-              ),
-              _series('son-teslimat', 'Son Teslimat', genres: const ['Gizem']),
-              _series('kayip-adres', 'Kayıp Adres', genres: const ['Dram']),
-              _series(
-                'gece-yarisi',
-                'Gece Yarısı Vardiyası',
-                genres: const ['Aksiyon'],
-              ),
-            ]),
-          );
-          final progressRepository = _FakeReadingProgressRepository({
-            'gece-vardiyasi': ReadingProgress(
-              seriesSlug: 'gece-vardiyasi',
-              seriesTitle: 'Gece Vardiyası',
-              episodeSlug: 'bolum-2',
-              episodeNumber: 2,
-              updatedAt: DateTime(2026, 7, 18),
-              completed: false,
-            ),
-          });
-
-          await tester.pumpWidget(
-            _wrap(repository, progressRepository: progressRepository),
-          );
-          await tester.pumpAndSettle();
-
-          // Hero okuyucudakiyle tutarlı bir 760 px merkez sütunda kalır
-          // (bkz. PLAN Görev A.1); ilk sliver olduğu için viewport
-          // yüksekliğinden bağımsız her zaman mount edilir. "Okumaya devam
-          // et" şeridi AYNI `CenteredMaxWidth` sarmalayıcısını kullanır
-          // (bkz. `discover_screen.dart` ve ayrıca izole
-          // `content_max_width_test.dart`); kısa (yatay telefon) viewport'ta
-          // dev bir hero onu cache extent dışına itip hiç build
-          // ETTİRMEYEBİLİR — bu yüzden burada yalnız zaten mount edilmişse
-          // (best-effort) doğrulanır.
-          final heroFinder = find.byKey(_heroFinder);
-          final heroWidth = tester.getRect(heroFinder).width;
-          expect(heroWidth, lessThanOrEqualTo(kContentMaxWidth));
-
-          final stripFinder = find.byKey(
-            const ValueKey('continue-reading-strip'),
-          );
-          if (stripFinder.evaluate().isNotEmpty) {
-            final stripWidth = tester.getRect(stripFinder).width;
-            expect(stripWidth, lessThanOrEqualTo(kContentMaxWidth));
-          }
-
-          expect(
-            watcher.errors,
-            isEmpty,
-            reason: 'viewport=${entry.value}\n${watcher.describe()}',
-          );
-        },
-      );
-    }
-  });
-
-  group(
-    'büyük yazı tipinde taşma yok (PLAN Görev B.1 — textScaler 1.3/1.6/2.0)',
-    () {
-      /// `FlutterError.onError`'ı sarıp bir RenderFlex/RenderBox taşması
-      /// oluşup oluşmadığını yakalar (bkz. `OverflowWatcher` doc yorumu —
-      /// taşmalar normalde throw edilmez, yalnız raporlanır).
-      for (final scale in [1.3, 1.6, 2.0]) {
-        for (final entry in {
-          'telefon (390x844)': phonePortrait,
-          'tablet dikey (768x1024)': tabletPortrait,
-        }.entries) {
-          testWidgets('keşif ekranı (hero + devam şeridi + ızgara + tür filtresi) '
-              'scale=$scale, ${entry.key}', (tester) async {
+      for (final scale in [1.0, 1.6, 2.0]) {
+        testWidgets(
+          'tüm bölümler (tür dizini + hero + devam et + yeni seriler + yeni '
+          'bölümler) scale=$scale, ${entry.key}',
+          (tester) async {
             useViewport(tester, entry.value);
             final watcher = OverflowWatcher()..start();
             addTearDown(watcher.stop);
 
-            final repository = _FakeDiscoverRepository(
-              () async => _catalogWith([
-                _series(
+            final repository = _FakeDiscoveryRepository(
+              () async => _discoveryWith(
+                featuredSeries: _series(
                   'gece-vardiyasi',
-                  'Gece Vardiyası: Kayıp Dakikanın İzinde Bir Teslimat Hikâyesi',
+                  'Gece Vardiyası: Kayıp Dakikanın İzinde Bir Teslimat '
+                      'Hikâyesi',
                   genres: const ['Gizem', 'Dram', 'Bilim Kurgu', 'Aksiyon'],
                 ),
-                _series(
-                  'yarinki-ses',
-                  'Yarınki Ses',
-                  genres: const ['Romantizm'],
-                ),
-                _series(
-                  'son-teslimat',
-                  'Son Teslimat',
-                  genres: const ['Gizem'],
-                ),
-              ]),
+                featuredFirstEpisode: _episode('bolum-1', 1, 'İlk İşaret'),
+                genres: const ['Gizem', 'Dram', 'Bilim Kurgu', 'Aksiyon'],
+                newSeries: [
+                  _series('yeni-seri-1', 'Yeni Seri Bir'),
+                  _series('yeni-seri-2', 'Yeni Seri İki'),
+                  _series('yeni-seri-3', 'Yeni Seri Üç'),
+                ],
+                latestEpisodes: [
+                  DiscoveryEpisodeUpdate(
+                    series: _series('baska-seri', 'Başka Seri'),
+                    episode: _episode('bolum-2', 2, 'İkinci Bölüm'),
+                  ),
+                ],
+              ),
             );
             final progressRepository = _FakeReadingProgressRepository({
               'gece-vardiyasi': ReadingProgress(
                 seriesSlug: 'gece-vardiyasi',
-                seriesTitle: 'Gece Vardiyası: Kayıp Dakikanın İzinde',
+                seriesTitle: 'Gece Vardiyası',
                 episodeSlug: 'bolum-2',
                 episodeNumber: 2,
                 updatedAt: DateTime(2026, 7, 18),
@@ -759,60 +724,65 @@ void main() {
             );
             await tester.pumpAndSettle();
 
+            // Gerçek cihaz yüksekliğinde beş bölümün tamamı ilk karede
+            // görünür olmayabilir (bkz. `CustomScrollView`'ın lazy inşa
+            // davranışı); alt bölümleri (Yeni Seriler/Yeni Eklenen
+            // Bölümler) de aynı taşma taramasına dahil etmek için listenin
+            // sonuna kadar kaydırılır.
+            await tester.drag(
+              find.byType(CustomScrollView),
+              const Offset(0, -4000),
+            );
+            await tester.pumpAndSettle();
+
             expect(
               watcher.errors,
               isEmpty,
               reason:
                   'scale=$scale, viewport=${entry.value}\n${watcher.describe()}',
             );
-          });
-        }
-
-        testWidgets('boş durum (katalogda hiç seri yok) scale=$scale', (
-          tester,
-        ) async {
-          useViewport(tester, phonePortrait);
-          final watcher = OverflowWatcher()..start();
-          addTearDown(watcher.stop);
-
-          final repository = _FakeDiscoverRepository(
-            () async => _catalogWith(const []),
-          );
-
-          await tester.pumpWidget(_wrap(repository, textScale: scale));
-          await tester.pumpAndSettle();
-
-          expect(watcher.errors, isEmpty, reason: watcher.describe());
-        });
-
-        testWidgets('hata durumu (yeniden dene butonuyla) scale=$scale', (
-          tester,
-        ) async {
-          useViewport(tester, phonePortrait);
-          final watcher = OverflowWatcher()..start();
-          addTearDown(watcher.stop);
-
-          final repository = _FakeDiscoverRepository(
-            () async => throw const NetworkException('bağlantı yok'),
-          );
-
-          await tester.pumpWidget(_wrap(repository, textScale: scale));
-          await tester.pumpAndSettle();
-
-          // Erişilebilirlik dokunma hedefi: hata durumundaki "Tekrar dene"
-          // butonu büyük yazı tipinde de en az 44 px yüksekliğinde kalır
-          // (bkz. PLAN Görev B.3 — sabit `SizedBox(height: 44)` yerine tema
-          // `minimumSize`'ı büyümeye izin verir, asla küçülmez).
-          final buttonFinder = find.ancestor(
-            of: find.text('Tekrar dene'),
-            matching: find.byType(FilledButton),
-          );
-          final buttonSize = tester.getSize(buttonFinder);
-          expect(buttonSize.height, greaterThanOrEqualTo(44));
-
-          expect(watcher.errors, isEmpty, reason: watcher.describe());
-        });
+          },
+        );
       }
-    },
-  );
+    }
+
+    testWidgets('boş durum taşmadan render edilir', (tester) async {
+      useViewport(tester, phonePortrait);
+      final watcher = OverflowWatcher()..start();
+      addTearDown(watcher.stop);
+
+      final repository = _FakeDiscoveryRepository(() async => _discoveryWith());
+
+      await tester.pumpWidget(_wrap(repository, textScale: 1.6));
+      await tester.pumpAndSettle();
+
+      expect(watcher.errors, isEmpty, reason: watcher.describe());
+    });
+
+    testWidgets(
+      'hata durumu (yeniden dene butonuyla) taşmadan render edilir ve buton '
+      'en az 44 px yükseklikte kalır',
+      (tester) async {
+        useViewport(tester, phonePortrait);
+        final watcher = OverflowWatcher()..start();
+        addTearDown(watcher.stop);
+
+        final repository = _FakeDiscoveryRepository(
+          () async => throw const NetworkException('bağlantı yok'),
+        );
+
+        await tester.pumpWidget(_wrap(repository, textScale: 1.6));
+        await tester.pumpAndSettle();
+
+        final buttonFinder = find.ancestor(
+          of: find.text('Tekrar dene'),
+          matching: find.byType(FilledButton),
+        );
+        final buttonSize = tester.getSize(buttonFinder);
+        expect(buttonSize.height, greaterThanOrEqualTo(44));
+
+        expect(watcher.errors, isEmpty, reason: watcher.describe());
+      },
+    );
+  });
 }

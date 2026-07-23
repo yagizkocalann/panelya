@@ -40,6 +40,15 @@ class PanelyaApiClient {
     return _getJson('/api/catalog', CatalogResponse.fromJson);
   }
 
+  /// `GET /api/discovery` — editorial keşif akışı: öne çıkan seri/ilk
+  /// bölümü, ortak tür listesi, sunucunun 30 günlük kuralıyla belirlediği
+  /// yeni seriler ve gerçek yayın sırasındaki en fazla 100 bölüm güncellemesi
+  /// (bkz. docs/mobile-handoff.md "Editorial keşif akışı" ve ADR-044). İstemci
+  /// bu listelerin sırasını asla yeniden hesaplamaz/sıralamaz.
+  Future<DiscoveryResponse> fetchDiscovery() {
+    return _getJson('/api/discovery', DiscoveryResponse.fromJson);
+  }
+
   /// `GET /api/series/:slug` — seri, türler ve bölüm listesi.
   Future<SeriesDetailResponse> fetchSeriesDetail(String slug) {
     return _getJson(

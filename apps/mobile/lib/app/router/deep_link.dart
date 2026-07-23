@@ -29,12 +29,22 @@ const _webOnlyTopLevelSegments = {
   'about',
   'account',
   'api',
+  // Web tarafındaki gerçek route'lar (bkz. `app/catalog`, `app/new-series`,
+  // `app/new-episodes`, `app/updates` — editorial keşif ayrımı, bkz.
+  // docs/mobile-handoff.md "Editorial keşif akışı"); mobilde de aynı
+  // isimlerle karşılıkları vardır (`/catalog`, `/new-series`,
+  // `/new-episodes`) ama bu fonksiyon yalnız web'in `/<slug>` seri
+  // path'ini mobil rotaya çevirir — bu dört isim asla bir seri slug'ı
+  // olamayacağı için burada da eleniyor.
+  'catalog',
   'contact',
   'copyright',
   'creators',
   'forgot-password',
   'library',
   'login',
+  'new-episodes',
+  'new-series',
   'privacy',
   'production-journal',
   'publishing-principles',
@@ -45,6 +55,7 @@ const _webOnlyTopLevelSegments = {
   'series',
   'studio',
   'terms',
+  'updates',
   'verify-email',
 };
 

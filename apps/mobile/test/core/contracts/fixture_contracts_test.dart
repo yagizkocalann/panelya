@@ -119,6 +119,27 @@ void main() {
       },
     );
 
+    test('discovery.v1.json parses with generated DiscoveryResponse', () {
+      final json = _readFixture('discovery.v1.json');
+      final response = DiscoveryResponse.fromJson(json);
+
+      expect(response.schemaVersion, '1.0');
+      expect(response.featuredSeries?.slug, 'gece-denemesi');
+      expect(response.featuredSeries?.genres, ['Gizem', 'Romantik']);
+      expect(response.featuredFirstEpisode?.slug, 'bolum-1');
+      expect(response.featuredFirstEpisode?.number, 1);
+      expect(response.genres, ['Gizem', 'Romantik']);
+      expect(response.newSeries, hasLength(1));
+      expect(response.newSeries.single.slug, 'gece-denemesi');
+      expect(response.newSeries.single.coverImageVariants, hasLength(1));
+      expect(response.latestEpisodes, hasLength(1));
+      expect(response.latestEpisodes.single.series.slug, 'gece-denemesi');
+      expect(response.latestEpisodes.single.episode.slug, 'bolum-1');
+
+      final roundTripped = DiscoveryResponse.fromJson(response.toJson());
+      expect(roundTripped.newSeries.single.slug, response.newSeries.single.slug);
+    });
+
     test(
       'unknown PanelTone value falls back to PanelTone.unknown '
       '(LENIENT enum policy) instead of throwing',

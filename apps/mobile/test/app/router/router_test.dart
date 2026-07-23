@@ -4,12 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:panelya_mobile/app/router/route_args.dart';
 import 'package:panelya_mobile/app/router/router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/catalog/presentation/catalog_screen.dart';
 import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_screen.dart';
+import 'package:panelya_mobile/features/discovery/domain/discovery_repository.dart';
+import 'package:panelya_mobile/features/discovery/presentation/discovery_providers.dart';
+import 'package:panelya_mobile/features/discovery/presentation/new_episodes_screen.dart';
+import 'package:panelya_mobile/features/discovery/presentation/new_series_screen.dart';
 import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_providers.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_screen.dart';
@@ -25,6 +31,12 @@ import 'package:panelya_mobile/features/series/presentation/series_screen.dart';
 class _NeverResolvingDiscoverRepository implements DiscoverRepository {
   @override
   Future<CatalogResponse> fetchCatalog() => Completer<CatalogResponse>().future;
+}
+
+class _NeverResolvingDiscoveryRepository implements DiscoveryRepository {
+  @override
+  Future<DiscoveryResponse> fetchDiscovery() =>
+      Completer<DiscoveryResponse>().future;
 }
 
 class _NeverResolvingSeriesRepository implements SeriesRepository {
@@ -50,6 +62,9 @@ void main() {
       overrides: [
         discoverRepositoryProvider.overrideWithValue(
           _NeverResolvingDiscoverRepository(),
+        ),
+        discoveryRepositoryProvider.overrideWithValue(
+          _NeverResolvingDiscoveryRepository(),
         ),
         seriesRepositoryProvider.overrideWithValue(
           _NeverResolvingSeriesRepository(),
@@ -162,4 +177,93 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group(
+    'editorial keşif ayrımı — /catalog, /new-series, /new-episodes (PLAN Görev 2)',
+    () {
+      testWidgets('"/catalog" resolves to CatalogScreen without a preselected genre', (
+        tester,
+      ) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('/catalog');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(CatalogScreen), findsOneWidget);
+        final screen = tester.widget<CatalogScreen>(find.byType(CatalogScreen));
+        expect(screen.initialGenre, isNull);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets(
+        '"/catalog" with a CatalogRouteArgs extra carries the initial genre '
+        'through to CatalogScreen',
+        (tester) async {
+          final built = buildRouter();
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go(
+            '/catalog',
+            extra: const CatalogRouteArgs(initialGenre: 'Gizem'),
+          );
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(CatalogScreen), findsOneWidget);
+          final screen = tester.widget<CatalogScreen>(
+            find.byType(CatalogScreen),
+          );
+          expect(screen.initialGenre, 'Gizem');
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        'an unexpected `extra` type on /catalog is ignored, not crashed on',
+        (tester) async {
+          final built = buildRouter();
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/catalog', extra: 'not-a-CatalogRouteArgs');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(CatalogScreen), findsOneWidget);
+          final screen = tester.widget<CatalogScreen>(
+            find.byType(CatalogScreen),
+          );
+          expect(screen.initialGenre, isNull);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets('"/new-series" resolves to NewSeriesScreen', (tester) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('/new-series');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(NewSeriesScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('"/new-episodes" resolves to NewEpisodesScreen', (
+        tester,
+      ) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('/new-episodes');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(NewEpisodesScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    },
+  );
 }
