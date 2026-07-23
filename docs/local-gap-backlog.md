@@ -28,7 +28,7 @@
 ## P1 - Operasyon ve gelir
 
 0. Tamamlandi: genel iletisimden ayrilan, dosya/kimlik belgesi istemeyen telif bildirimi; 90 gunluk hashli gizli durum baglantisi; Studio durum/public yanit yonetimi ve audit kaydi. Kalan dis is: karsi bildirim, resmi tebligat, SLA ve production saklama/silme politikasini hukuk incelemesiyle kesinlestirmek.
-1. Gercek reklam hesabi gecisinden once CMP/onay yonetimi ve canli/test ortam ayrimi.
+1. Tamamlandi: cihaz-yerel reklam tercihi, onaydan once sifir Google istegi, footer/gizlilikten tercih degistirme ve localhosta kilitli test/canli ortam siniri. Kalan dis is: production reklam saglayicisi secilirse sertifikali CMP/provider, bolgesel onay sinyali, hukuki metin ve gercek publisher/slot yapilandirmasini ayri incelemeyle baglamak.
 2. Analitik, hata izleme, performans butcesi ve reklam gorunurluk olcumleri.
 3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
 4. Tamamlandi: D1 Time Travel + uzun sureli SQL export, ayri immutable R2 yedek kovasi, surumlu kurtarma paketi verifier'i ve izole geri yukleme tatbikati runbook'u. Kalan dis is: production yedek kovasi/kimligi, retention lock ve zamanlanmis export-copy workflow'unu provision edip `QA-OPS-02` tatbikatini calistirmak.

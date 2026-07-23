@@ -1,5 +1,7 @@
 import { seriesCatalog, type Episode, type PanelTone, type PublicMediaVariant, type Series, type StoryPanel } from "../data/catalog";
+import { localDummySeriesCatalog } from "../data/local-dummy-catalog";
 import { getDatabase } from "./database";
+import { isRecentlyPublished } from "./series-recency";
 
 export type PublicationStatus = "draft" | "published" | "archived";
 
@@ -64,6 +66,20 @@ export type CatalogSearchResult = {
   filters: { query: string; genre: string; status: CatalogStatus | ""; sort: CatalogSort };
 };
 
+export type CatalogPageInput = Omit<CatalogSearchInput, "cursor" | "limit"> & {
+  page?: number;
+  pageSize?: number;
+};
+
+export type CatalogPageResult = {
+  items: Series[];
+  page: number;
+  pageSize: 8 | 16 | 32;
+  totalItems: number;
+  totalPages: number;
+  filters: CatalogSearchResult["filters"];
+};
+
 type CatalogCursor = { version: 1; sort: CatalogSort; scope: string; value: string | number; slug: string };
 
 type EpisodeRow = {
@@ -100,7 +116,6 @@ export type SeriesInput = {
   tone: PanelTone;
   updatedAt: string;
   followers: string;
-  isNew: boolean;
   coverImage?: string;
   coverPosition?: string;
   publicationStatus: PublicationStatus;
@@ -119,6 +134,17 @@ export type EpisodeInput = {
 };
 
 let seedReady: Promise<void> | null = null;
+
+function localDummyCatalogEnabled() {
+  const configured = process.env.LOCAL_DUMMY_CATALOG?.trim().toLowerCase();
+  if (configured === "true" || configured === "1") return true;
+  if (configured === "false" || configured === "0") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
+function bundledCatalog() {
+  return localDummyCatalogEnabled() ? [...seriesCatalog, ...localDummySeriesCatalog] : seriesCatalog;
+}
 
 function safeArray<T>(value: string, fallback: T[] = []) {
   try {
@@ -162,7 +188,7 @@ async function ensureContentSeed() {
   // The bundled catalog is an idempotent baseline, not an all-or-nothing first-run
   // fixture. INSERT OR IGNORE adds newly shipped originals without overwriting
   // anything an editor has already changed in Studio.
-  for (const [seriesIndex, series] of seriesCatalog.entries()) {
+  for (const [seriesIndex, series] of bundledCatalog().entries()) {
     statements.push(db.prepare(`INSERT OR IGNORE INTO content_series (
       slug, title, eyebrow, creator, search_text, description, long_description, story_status, genres_json, tone,
       updated_label, rating, followers, is_new, cover_image, cover_position, publication_status,
@@ -170,7 +196,7 @@ async function ensureContentSeed() {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?)`)
       .bind(series.slug, series.title, series.eyebrow, series.creator, catalogSearchText(series), series.description, series.longDescription,
         series.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(series.genres), series.tone,
-        series.updatedAt, series.rating, series.followers, series.isNew ? 1 : 0, series.coverImage ?? null,
+        series.updatedAt, series.rating, series.followers, 0, series.coverImage ?? null,
         series.coverPosition ?? null, seriesIndex === 0 ? 1 : 0, now, now, now));
     for (const episode of series.episodes) {
       statements.push(db.prepare(`INSERT OR IGNORE INTO content_episodes (
@@ -181,7 +207,9 @@ async function ensureContentSeed() {
           episode.readTime, JSON.stringify(episode.panels), now, now, now));
     }
   }
-  if (statements.length) await db.batch(statements);
+  for (let offset = 0; offset < statements.length; offset += 75) {
+    await db.batch(statements.slice(offset, offset + 75));
+  }
   const missingSearchText = await db.prepare(`SELECT slug, title, eyebrow, creator, description, genres_json
     FROM content_series WHERE search_text = ''`).all<Pick<SeriesRow, "slug" | "title" | "eyebrow" | "creator" | "description" | "genres_json">>();
   if (missingSearchText.results.length) {
@@ -231,7 +259,7 @@ function seriesFromRow(row: SeriesRow, episodes: StudioEpisode[]): StudioSeries 
     updatedAt: row.updated_label,
     rating: Number(row.rating),
     followers: row.followers,
-    isNew: Boolean(row.is_new),
+    isNew: isRecentlyPublished(row.published_at == null ? null : Number(row.published_at)),
     coverImage: row.cover_image ?? undefined,
     coverPosition: row.cover_position ?? undefined,
     publicationStatus: row.publication_status,
@@ -291,6 +319,12 @@ function toPublicSeries(series: StudioSeries): Series {
         panels: episode.panels,
       })),
   };
+}
+
+function bundledPublicFallback(): Series[] {
+  // Bundled originals do not carry a trustworthy first-publication timestamp.
+  // During a D1 outage, keep them readable without guessing that they are new.
+  return bundledCatalog().map((series) => ({ ...series, isNew: localDummyCatalogEnabled() && series.slug.startsWith("yerel-demo-") }));
 }
 
 function publicMediaAssetId(src: string | undefined) {
@@ -362,7 +396,51 @@ export async function listPublishedSeries(): Promise<Series[]> {
     return attachPublicMediaVariants(published);
   } catch {
     // Public reads remain available during build probes or a transient D1 outage.
-    return seriesCatalog;
+    return bundledPublicFallback();
+  }
+}
+
+export type PublishedEpisodeUpdate = {
+  series: Series;
+  episode: Episode;
+  publishedAtTimestamp: number;
+};
+
+export async function listPublishedEpisodeUpdates(limit = 24): Promise<PublishedEpisodeUpdate[]> {
+  const safeLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+  try {
+    const rows = await listSeriesRows();
+    const publishedRows = rows.filter((series) => series.publicationStatus === "published");
+    const publicSeries = await attachPublicMediaVariants(publishedRows.map(toPublicSeries));
+    const seriesBySlug = new Map(publicSeries.map((series) => [series.slug, series]));
+
+    return publishedRows
+      .flatMap((series) => series.episodes
+        .filter((episode) => episode.publicationStatus === "published")
+        .map((episode) => ({
+          seriesSlug: series.slug,
+          episodeSlug: episode.slug,
+          publishedAtTimestamp: episode.publishedAtTimestamp ?? episode.updatedAt,
+        })))
+      .sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp
+        || a.seriesSlug.localeCompare(b.seriesSlug)
+        || a.episodeSlug.localeCompare(b.episodeSlug))
+      .slice(0, safeLimit)
+      .flatMap((item) => {
+        const series = seriesBySlug.get(item.seriesSlug);
+        const episode = series?.episodes.find((candidate) => candidate.slug === item.episodeSlug);
+        return series && episode ? [{ series, episode, publishedAtTimestamp: item.publishedAtTimestamp }] : [];
+      });
+  } catch {
+    const fallback = bundledPublicFallback();
+    return fallback
+      .flatMap((series, seriesIndex) => series.episodes.map((episode) => ({
+        series,
+        episode,
+        publishedAtTimestamp: (fallback.length - seriesIndex) * 1_000_000 + episode.number,
+      })))
+      .sort((a, b) => b.publishedAtTimestamp - a.publishedAtTimestamp)
+      .slice(0, safeLimit);
   }
 }
 
@@ -405,7 +483,7 @@ function catalogCursorScope(filters: ReturnType<typeof normalizedCatalogFilters>
 }
 
 function fallbackCatalogSearch(filters: ReturnType<typeof normalizedCatalogFilters>): Series[] {
-  const items = seriesCatalog.filter((series) => {
+  const items = bundledPublicFallback().filter((series) => {
     const matchesSearch = !filters.normalizedQuery || catalogSearchText(series).includes(filters.normalizedQuery);
     const matchesGenre = !filters.genre || series.genres.some((genre) => genre.localeCompare(filters.genre, "tr", { sensitivity: "base" }) === 0);
     const storyStatus = series.status === "Tamamland\u0131" ? "completed" : "ongoing";
@@ -500,6 +578,89 @@ export async function searchPublishedSeries(input: CatalogSearchInput = {}): Pro
   }
 }
 
+export async function searchPublishedSeriesPage(input: CatalogPageInput = {}): Promise<CatalogPageResult> {
+  const filters = normalizedCatalogFilters(input);
+  const requestedPage = typeof input.page === "number" && Number.isFinite(input.page)
+    ? Math.max(1, Math.min(10_000, Math.trunc(input.page)))
+    : 1;
+  const pageSize: 8 | 16 | 32 = input.pageSize === 16 || input.pageSize === 32 ? input.pageSize : 8;
+  try {
+    await ensureReady();
+    const db = await getDatabase();
+    const where = [
+      "publication_status = 'published'",
+      "EXISTS (SELECT 1 FROM content_episodes ce WHERE ce.series_slug = catalog.slug AND ce.publication_status = 'published')",
+    ];
+    const bindings: Array<string | number> = [];
+    if (filters.normalizedQuery) {
+      where.push("search_text LIKE ?");
+      bindings.push(`%${filters.normalizedQuery}%`);
+    }
+    if (filters.genre) {
+      where.push("EXISTS (SELECT 1 FROM json_each(catalog.genres_json) genre WHERE genre.value = ? COLLATE NOCASE)");
+      bindings.push(filters.genre);
+    }
+    if (filters.status) {
+      where.push("story_status = ?");
+      bindings.push(filters.status);
+    }
+    const catalogCte = `WITH catalog AS (
+      SELECT cs.*, COALESCE(
+        (SELECT MAX(COALESCE(ce.published_at, ce.updated_at)) FROM content_episodes ce
+          WHERE ce.series_slug = cs.slug AND ce.publication_status = 'published'),
+        cs.published_at, cs.updated_at
+      ) AS discovery_updated_at
+      FROM content_series cs
+    )`;
+    const countRow = await db.prepare(`${catalogCte} SELECT COUNT(*) AS count FROM catalog WHERE ${where.join(" AND ")}`)
+      .bind(...bindings).first<{ count: number }>();
+    const totalItems = Number(countRow?.count ?? 0);
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const page = totalPages ? Math.min(requestedPage, totalPages) : 1;
+    const orderBy = filters.sort === "rating"
+      ? "rating DESC, slug ASC"
+      : filters.sort === "title"
+        ? "title COLLATE NOCASE ASC, slug ASC"
+        : "discovery_updated_at DESC, slug ASC";
+    const result = await db.prepare(`${catalogCte} SELECT * FROM catalog WHERE ${where.join(" AND ")}
+      ORDER BY ${orderBy} LIMIT ? OFFSET ?`).bind(...bindings, pageSize, (page - 1) * pageSize).all<CatalogQueryRow>();
+    const bySeries = new Map<string, StudioEpisode[]>();
+    if (result.results.length) {
+      const placeholders = result.results.map(() => "?").join(", ");
+      const episodes = await db.prepare(`SELECT * FROM content_episodes
+        WHERE publication_status = 'published' AND series_slug IN (${placeholders})
+        ORDER BY series_slug, number DESC`).bind(...result.results.map((row) => row.slug)).all<EpisodeRow>();
+      for (const row of episodes.results) {
+        const list = bySeries.get(row.series_slug) ?? [];
+        list.push(episodeFromRow(row));
+        bySeries.set(row.series_slug, list);
+      }
+    }
+    const items = await attachPublicMediaVariants(result.results.map((row) => toPublicSeries(seriesFromRow(row, bySeries.get(row.slug) ?? []))));
+    return {
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort },
+    };
+  } catch {
+    const allItems = fallbackCatalogSearch(filters);
+    const totalItems = allItems.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const page = totalPages ? Math.min(requestedPage, totalPages) : 1;
+    return {
+      items: allItems.slice((page - 1) * pageSize, page * pageSize),
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      filters: { query: filters.query, genre: filters.genre, status: filters.status, sort: filters.sort },
+    };
+  }
+}
+
 export async function listPublishedGenres() {
   try {
     await ensureReady();
@@ -510,7 +671,7 @@ export async function listPublishedGenres() {
     return Array.from(new Set(result.results.flatMap((row) => safeArray<string>(row.genres_json))))
       .sort((a, b) => a.localeCompare(b, "tr"));
   } catch {
-    return genresFromSeries(seriesCatalog);
+    return genresFromSeries(bundledCatalog());
   }
 }
 
@@ -526,7 +687,7 @@ export async function listPublishedSeriesForSitemap() {
       })
       .filter((series) => series.publishedEpisodeCount > 0);
   } catch {
-    return seriesCatalog.map((series) => ({ slug: series.slug, lastModified: undefined, publishedEpisodeCount: series.episodes.length }));
+    return bundledCatalog().map((series) => ({ slug: series.slug, lastModified: undefined, publishedEpisodeCount: series.episodes.length }));
   }
 }
 
@@ -552,10 +713,10 @@ export async function createContentSeries(input: SeriesInput) {
     slug, title, eyebrow, creator, search_text, description, long_description, story_status, genres_json, tone,
     updated_label, rating, followers, is_new, cover_image, cover_position, publication_status,
     is_featured, created_at, updated_at, published_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(input.slug, input.title, input.eyebrow, input.creator, catalogSearchText(input), input.description, input.longDescription,
       input.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(input.genres), input.tone,
-      input.updatedAt, input.followers, input.isNew ? 1 : 0, input.coverImage ?? null, input.coverPosition ?? null,
+      input.updatedAt, input.followers, input.coverImage ?? null, input.coverPosition ?? null,
       input.publicationStatus, input.isFeatured ? 1 : 0, now, now, input.publicationStatus === "published" ? now : null));
   await db.batch(statements);
 }
@@ -568,12 +729,12 @@ export async function updateContentSeries(slug: string, input: SeriesInput) {
   if (input.isFeatured) statements.push(db.prepare("UPDATE content_series SET is_featured = 0"));
   statements.push(db.prepare(`UPDATE content_series SET
     title = ?, eyebrow = ?, creator = ?, search_text = ?, description = ?, long_description = ?, story_status = ?, genres_json = ?,
-    tone = ?, updated_label = ?, followers = ?, is_new = ?, cover_image = ?, cover_position = ?, publication_status = ?,
+    tone = ?, updated_label = ?, followers = ?, cover_image = ?, cover_position = ?, publication_status = ?,
     is_featured = ?, updated_at = ?, published_at = CASE WHEN ? = 'published' THEN COALESCE(published_at, ?) ELSE published_at END
     WHERE slug = ?`)
     .bind(input.title, input.eyebrow, input.creator, catalogSearchText(input), input.description, input.longDescription,
       input.status === "Tamamlandı" ? "completed" : "ongoing", JSON.stringify(input.genres), input.tone,
-      input.updatedAt, input.followers, input.isNew ? 1 : 0, input.coverImage ?? null, input.coverPosition ?? null,
+      input.updatedAt, input.followers, input.coverImage ?? null, input.coverPosition ?? null,
       input.publicationStatus, input.isFeatured ? 1 : 0, now, input.publicationStatus, now, slug));
   await db.batch(statements);
 }

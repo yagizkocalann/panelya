@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { ReadingProgressCard } from "./ReadingProgressCard";
-import { AdTestSlot } from "../components/AdTestSlot";
+import { AdSlot } from "../components/AdSlot";
 import { JsonLd } from "../components/JsonLd";
 import { getCurrentUser } from "../lib/auth";
 import { getSeriesCommunity } from "../lib/reviews";
@@ -117,7 +117,7 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
             <h1 id="series-title">{series.title}</h1>
             <p className="creator-line">{series.creator}</p>
             <div className="series-stats"><span>{series.status}</span><span>★ {(community.average ?? series.rating).toFixed(1)}</span><span>{series.followers} takipçi</span></div>
-            <div className="genre-pills">{series.genres.map((genre) => <Link key={genre} href={`/?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}</div>
+            <div className="genre-pills">{series.genres.map((genre) => <Link key={genre} href={`/catalog?genre=${encodeURIComponent(genre)}`}>{genre}</Link>)}</div>
             <p className="series-description">{series.longDescription}</p>
             <div className="series-actions">
               <Link className="button button--primary button--large" href={`/${series.slug}/${first.slug}`}>▶ İlk bölümü oku</Link>
@@ -131,7 +131,7 @@ export default async function SeriesPage({ params, searchParams }: SeriesPagePro
         </section>
 
         <ReadingProgressCard seriesSlug={series.slug} firstEpisodeSlug={first.slug} />
-        <div className="wrap series-ad"><AdTestSlot placement="series-detail-01" /></div>
+        <div className="wrap series-ad"><AdSlot placement="series-detail-01" /></div>
 
         <section className="episode-section wrap" aria-labelledby="episodes-title">
           <div className="section-heading"><div><p className="section-kicker">{series.episodes.length} durak</p><h2 id="episodes-title">Bölümler</h2></div><span className="sort-note">En yeni önce</span></div>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { getServerAdConsent, readAdConsent, subscribeAdConsent } from "../lib/ad-consent";
+import type { AdRuntimeMode } from "../lib/ad-runtime";
 
 type GptSlot = {
   addService(service: GptPubAds): GptSlot;
@@ -42,16 +44,21 @@ function ensureGoogleTag() {
   return script;
 }
 
-export function AdTestSlot({ placement }: { placement: string }) {
+type AdStatus = "consent_required" | "consent_denied" | "disabled" | "loading" | "loaded" | "empty" | "blocked";
+
+export function AdTestSlot({ placement, runtimeMode }: { placement: string; runtimeMode: AdRuntimeMode }) {
   const elementId = useMemo(() => `panelya-gpt-${placement.replace(/[^a-z0-9-]/gi, "-")}`, [placement]);
-  const [status, setStatus] = useState<"loading" | "loaded" | "empty" | "blocked">("loading");
+  const consent = useSyncExternalStore(subscribeAdConsent, readAdConsent, getServerAdConsent);
+  const [networkStatus, setNetworkStatus] = useState<AdStatus>("loading");
   const slotRef = useRef<GptSlot | null>(null);
 
   useEffect(() => {
+    if (runtimeMode === "disabled" || consent !== "ads") return;
+
     let active = true;
     const script = ensureGoogleTag();
-    const blockedTimer = window.setTimeout(() => active && setStatus("blocked"), 8000);
-    const onScriptError = () => active && setStatus("blocked");
+    const blockedTimer = window.setTimeout(() => active && setNetworkStatus("blocked"), 8000);
+    const onScriptError = () => active && setNetworkStatus("blocked");
     script.addEventListener("error", onScriptError);
 
     window.googletag?.cmd.push(() => {
@@ -60,12 +67,12 @@ export function AdTestSlot({ placement }: { placement: string }) {
       pubAds.addEventListener("slotRenderEnded", (event) => {
         if (!active || event.slot.getSlotElementId() !== elementId) return;
         window.clearTimeout(blockedTimer);
-        setStatus(event.isEmpty ? "empty" : "loaded");
+        setNetworkStatus(event.isEmpty ? "empty" : "loaded");
       });
       slotRef.current = window.googletag.defineSlot(GOOGLE_SAMPLE_AD_UNIT, [300, 250], elementId);
       if (!slotRef.current) {
         window.clearTimeout(blockedTimer);
-        setStatus("empty");
+        setNetworkStatus("empty");
         return;
       }
       slotRef.current.addService(pubAds);
@@ -83,13 +90,15 @@ export function AdTestSlot({ placement }: { placement: string }) {
       if (slotRef.current && window.googletag) window.googletag.destroySlots([slotRef.current]);
       slotRef.current = null;
     };
-  }, [elementId]);
+  }, [consent, elementId, runtimeMode]);
 
-  const statusText = status === "loaded" ? "Google testi yüklendi" : status === "empty" ? "Test yanıtı boş" : status === "blocked" ? "Reklam engellendi veya ağ erişimi yok" : "Google testi yükleniyor";
+  const status: AdStatus = runtimeMode === "disabled" ? "disabled" : consent === null ? "consent_required" : consent === "necessary" ? "consent_denied" : networkStatus;
+  const statusText = status === "loaded" ? "Google testi yüklendi" : status === "empty" ? "Test yanıtı boş" : status === "blocked" ? "Reklam engellendi veya ağ erişimi yok" : status === "consent_denied" ? "Reklam izni verilmedi" : status === "consent_required" ? "Reklam izni bekleniyor" : status === "disabled" ? "Bu ortamda reklam kapalı" : "Google testi yükleniyor";
+  const canRenderGoogle = runtimeMode === "google_test" && consent === "ads";
   return (
     <aside className="ad-test-slot ad-test-slot--google" data-ad-test-slot={placement} data-ad-status={status} aria-label="Google reklam test alanı">
       <div className="ad-test-slot__header"><span>GOOGLE GPT TEST</span><strong>{placement}</strong><small className={`ad-status ad-status--${status}`}>{statusText}</small></div>
-      <div className="google-test-ad-frame"><div id={elementId} className="google-test-ad" /></div>
+      {canRenderGoogle ? <div className="google-test-ad-frame"><div id={elementId} className="google-test-ad" /></div> : <div className="ad-consent-placeholder"><strong>{statusText}</strong><p>{status === "disabled" ? "Canlı reklam bağlantısı yapılandırılmadı; harici istek gönderilmiyor." : "Tercihini alt bilgideki Gizlilik tercihleri düğmesinden değiştirebilirsin."}</p></div>}
       <p>Google’ın resmî örnek reklam birimi · gelir ve gerçek kampanya içermez.</p>
     </aside>
   );

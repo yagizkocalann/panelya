@@ -20,6 +20,7 @@ Hesap ve kütüphane entegrasyonu, ADR-039 ortak auth sözleşmesi `main` dalın
 
 ## Mevcut API başlangıç noktaları
 
+- `GET /api/discovery`
 - `GET /api/catalog`
 - `GET /api/series/:slug`
 - `GET /api/series/:slug/episodes/:episodeSlug`
@@ -41,8 +42,31 @@ Mobil taraf aşağıdaki iki ortak teslimi `origin/main` uzerinden alip adapter/
 | --- | --- | --- | --- |
 | Responsive medya varyantları | MAIN'E MERGE EDILDI (PR #20, `ab1c92e`) | Public katalog, seri ve bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | `PublicMediaVariant` ile değişen `StoryPanelImage`/`SeriesMetadataFields` tanımları, response `schemaVersion: 1.0` (geriye uyumlu opsiyonel alanlar), OpenAPI `1.1.0` ve üç v1 fixture |
 | Production auth/session | MAIN'E MERGE EDILDI (PR #21, `7ca0f24`) | ADR-039 Auth0'yu, sistem tarayıcılı Authorization Code + PKCE'yi, 15 dakikalık access tokenini ve 30 günlük dönen refresh tokenini seçer. Giriş/code exchange, refresh, revoke, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme değildir. Gercek tenant/gateway/JWKS degerleri gelmeden fixture degerleri runtime config sayilmaz. | OpenAPI `1.2.0`, ADR-039, `AuthProviderConfigResponse`/token/state/error tanımları ve sentetik `auth-*.v1.json` fixture listesi |
+| Editorial keşif akışı | MAIN'E MERGE EDILDI (bu teslim) | `GET /api/discovery`; öne çıkan seri ve ilk bölümü, ortak tür listesi, sunucunun 30 günlük kuralıyla belirlediği yeni seriler ve gerçek yayın sırasındaki en fazla 100 bölüm güncellemesini tek cevapta taşır. Yerelleştirilmiş tarih metninden sıralama yapılmaz; panel gövdeleri keşif payload'ına girmez. | OpenAPI `1.3.0`, `DiscoveryResponse`/`DiscoverySeriesSummary`/`DiscoveryEpisodeUpdate`, `discovery.v1.json` ve ADR-044 |
 
 Bir teslim yalnız pull request `main` dalına merge edildiğinde ve zorunlu CI kontrolleri geçtiğinde hazır sayılır. Web tarafı bu noktada mobil tarafa merge commit'ini ve yukarıdaki değişiklik özetini gönderir; mobil taraf `origin/main` aldıktan sonra codegen/adapter entegrasyonunu ayrı committe yapar.
+
+## Güncel web bilgi mimarisinin Flutter karşılığı
+
+Mobil UI web bileşenlerini kopyalamaz, fakat içerik sırası ve kullanıcı niyeti aynı kalır:
+
+1. `/` editorial keşif ekranıdır. Sıra: açılır tür dizini, haftanın hikâyesi, varsa cihaz-yerel `Okumaya devam et`, `Yeni Seriler`, `Yeni Eklenen Bölümler`. Yeni seri bölümü yeni bölüm bölümünden önce gelir.
+2. Tür dizini varsayılan açık olabilir; kontrol yalnız `Türler` etiketi ve durum oku taşır. Kapalıyken aşağı, açıkken yukarı bakar; kontrol en az 44x44 ve semantics ile button/expanded durumunu açıklar. Bir tür seçmek `/catalog` ekranını o tür seçili halde açar.
+3. Haftanın hikâyesi `featuredSeries` ve `featuredFirstEpisode` alanlarını kullanır. İlk bölüm yoksa okuma aksiyonu gösterilmez; seri inceleme aksiyonu çalışmaya devam eder.
+4. Ana sayfa `newSeries` ve `latestEpisodes` dizilerinden en fazla dörder kart gösterir. `Tümünü Gör` aksiyonları sırasıyla `/new-series` ve `/new-episodes` rotalarına gider.
+5. `/new-series` cevaptaki `newSeries` sırasını korur. Mobil istemci 30 günlük pencereyi veya `isNew` değerini cihaz saatinden yeniden hesaplamaz.
+6. `/new-episodes` cevaptaki `latestEpisodes` sırasını korur. `publishedAt` yalnız ekranda gösterilecek yerelleştirilmiş etikettir; sıralama anahtarı değildir.
+7. `/catalog` tam katalog, arama, tür/durum filtresi ve sıralama yüzeyidir. Mobil doğal lazy grid/list kullanır; web'e özgü 8/16/32 ve numaralı sayfa kontrollerini kopyalamaz. Arama Türkçe karakterleri normalize eder ve girilen ifadenin daha uzun katalog metninde geçmesini arar; kelimeleri bağımsız AND/OR koşullarına bölmez.
+8. Yerel 100 serilik yük testi yalnız web API'sinin development seed'inden gelir. Flutter içine ikinci bir dummy katalog veya raster kapak kopyalanmaz; kapaksız kayıtlar mevcut tone gradyanına düşer.
+9. Web reklam yerleşimleri mobil kapsamına otomatik taşınmaz. Mobil reklam/consent ayrı ürün ve mağaza kararı olmadan görünür placeholder üretmez.
+
+Flutter tesliminin kabul kriterleri:
+
+- `origin/main` alındıktan sonra `schema.json` codegen'i deterministik çalışır ve `discovery.v1.json` generated modellerle parse edilir.
+- API client yalnız merkezi repository katmanında `/api/discovery` çağrısı ekler; ekran widget'ı ham HTTP veya JSON işlemez.
+- `/`, `/catalog`, `/new-series` ve `/new-episodes` deep-link rotaları ile native geri hareketi test edilir.
+- Loading, empty, error+retry ve success durumları tamamlanır; görünür ama çalışmayan CTA kalmaz.
+- Telefon, tablet ve büyük yazı ölçeğinde overflow, en az 44x44 hedef, safe area, semantics ve azaltılmış hareket testleri geçer.
 
 ## Yerel cihaz testi
 

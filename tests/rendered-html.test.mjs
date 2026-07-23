@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
+process.env.LOCAL_DUMMY_CATALOG = "true";
+
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
 const { default: worker } = await import(workerUrl.href);
@@ -21,19 +23,30 @@ test("ana sayfa özgün katalog ve doğru metadata ile render edilir", async () 
   const html = await response.text();
   assert.match(html, /<title>Panelya/);
   assert.match(html, /Gece Vardiyası/);
-  assert.match(html, /Yeni bölüm eklenenler/);
+  assert.match(html, /Yeni Eklenen Bölümler/);
+  assert.match(html, /class="home-genre-directory"/);
+  assert.match(html, /href="\/new-episodes"[^>]*>Tümünü Gör/);
+  assert.doesNotMatch(html, /Hızlı keşif|Katalog ve türler|Aç \/ Kapat/);
+  assert.ok(html.indexOf("Yeni Seriler") < html.indexOf("Yeni Eklenen Bölümler"), "Yeni Seriler, Yeni Eklenen Bölümler alanından önce gelmeli");
   assert.match(html, /href="\/gece-vardiyasi\/bolum-1"/);
   assert.match(html, /data-ad-test-slot="home-feed-01"/);
+  assert.doesNotMatch(html, /<script[^>]+securepubads\.g\.doubleclick\.net/i);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|OkuToon/i);
+
+  const remoteHtml = await (await request("/", "text/html", "https://panelya.example", { headers: { "x-forwarded-host": "panelya.example", "x-forwarded-proto": "https" } })).text();
+  assert.doesNotMatch(remoteHtml, /data-ad-test-slot="home-feed-01"/);
 });
 
-test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sınırını korur", async () => {
-  const [schema, database, repository, page, header, css, migration, manualQa] = await Promise.all([
+test("D1 katalog keşfi normalize arama, filtre, sıralama ve numaralı sayfalama sınırını korur", async () => {
+  const [schema, database, repository, page, filterForm, header, genreDirectory, footer, css, migration, manualQa] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/catalog/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/catalog/CatalogFilterForm.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/SiteHeader.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/GenreDirectoryLinks.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/SiteFooter.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0012_round_mulholland_black.sql", import.meta.url), "utf8"),
     readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
@@ -44,6 +57,7 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sın
   assert.match(migration, /ALTER TABLE `content_series` ADD `search_text`/);
   assert.match(repository, /normalizeCatalogSearch/);
   assert.match(repository, /searchPublishedSeries/);
+  assert.match(repository, /searchPublishedSeriesPage/);
   assert.match(repository, /WITH catalog AS/);
   assert.match(repository, /discovery_updated_at < \?/);
   assert.match(repository, /rating < \?/);
@@ -52,22 +66,85 @@ test("D1 katalog keşfi normalize arama, filtre, sıralama ve keyset cursor sın
   assert.match(repository, /decodeCatalogCursor/);
   assert.match(repository, /catalogCursorScope/);
   assert.match(repository, /cursorWasInvalid/);
-  assert.match(page, /className="catalog-filter-form"/);
-  assert.match(page, /Sonraki sonuçlar/);
-  assert.match(header, /listPublishedGenres/);
+  assert.match(repository, /LIMIT \? OFFSET \?/);
+  assert.match(repository, /pageSize: 8 \| 16 \| 32/);
+  assert.match(page, /<CatalogFilterForm genres=\{genres\} filters=\{filters\} pageSize=\{catalogResult\.pageSize\}/);
+  assert.match(filterForm, /"use client"/);
+  assert.match(filterForm, /event\.target instanceof HTMLSelectElement/);
+  assert.match(filterForm, /event\.currentTarget\.requestSubmit\(\)/);
+  assert.match(filterForm, /key=\{filters\.genre \|\| "all-genres"\}/);
+  assert.match(filterForm, /name="size" value=\{pageSize\}/);
+  assert.match(filterForm, />Ara<\/button>/);
+  assert.match(filterForm, /seçimleri otomatik uygulanır/);
+  assert.match(page, /\(\[8, 16, 32\] as const\)/);
+  assert.match(page, /visiblePages\(catalogResult\.page, catalogResult\.totalPages\)/);
+  assert.doesNotMatch(page, /İlk sayfa|Sonraki sonuçlar/);
+  assert.doesNotMatch(header, /GenreMenu|listPublishedGenres|Yeni bölümler/);
+  assert.match(genreDirectory, /href="\/catalog"/);
+  assert.match(genreDirectory, /catalog\?genre=/);
+  assert.match(footer, /GenreDirectoryLinks genres=\{genres\}/);
   assert.match(css, /\.catalog-filter-form[^}]*grid-template-columns/);
   assert.match(manualQa, /QA-CAT-01/);
 
-  const catalogHtml = await (await request("/?view=catalog&q=ses&sort=title")).text();
+  const catalogHtml = await (await request("/catalog?q=yarinki&sort=title")).text();
   assert.match(catalogHtml, /class="catalog-filter-form"/);
-  assert.match(catalogHtml, /name="q"[^>]*value="ses"/);
+  assert.match(catalogHtml, /Tür, durum ve sıralama seçimleri otomatik uygulanır/);
+  assert.match(catalogHtml, /<button[^>]*type="submit"[^>]*>Ara<\/button>/);
+  assert.match(catalogHtml, /name="q"[^>]*value="yarinki"/);
   assert.match(catalogHtml, /option value="title" selected/);
   assert.match(catalogHtml, /Yarınki Ses/);
-  const invalidCursorHtml = await (await request("/?view=catalog&cursor=bozuk")).text();
-  assert.match(invalidCursorHtml, /Geçersiz veya eski sayfa bağlantısı/);
+  const defaultCatalogHtml = await (await request("/catalog")).text();
+  assert.match(defaultCatalogHtml, /100(?:<!-- -->)? seriden (?:<!-- -->)?1(?:<!-- -->)?–(?:<!-- -->)?8(?:<!-- -->)? arası/);
+  assert.match(defaultCatalogHtml, /href="\/catalog"[^>]*aria-current="true"[^>]*>8<\/a>/);
+  const largePageHtml = await (await request("/catalog?size=16")).text();
+  assert.match(largePageHtml, /name="size" value="16"/);
+  assert.match(largePageHtml, /href="\/catalog\?size=16"[^>]*aria-current="true"[^>]*>16<\/a>/);
+  const genreCatalogHtml = await (await request("/catalog?genre=Bilim%20Kurgu")).text();
+  assert.match(genreCatalogHtml, /option value="Bilim Kurgu" selected/);
+
+  const legacyCatalog = await request("/?view=catalog&q=yarinki&sort=title");
+  assert.equal(legacyCatalog.status, 307);
+  assert.equal(new URL(legacyCatalog.headers.get("location")).pathname + new URL(legacyCatalog.headers.get("location")).search, "/catalog?q=yarinki&sort=title");
+
+  const newEpisodesHtml = await (await request("/new-episodes")).text();
+  assert.match(newEpisodesHtml, /Yeni Eklenen Bölümler/);
+  assert.match(newEpisodesHtml, /class="update-list"/);
+  assert.match(newEpisodesHtml, /href="\/gece-vardiyasi\/bolum-3"/);
+
+  const legacyUpdates = await request("/updates");
+  assert.equal(legacyUpdates.status, 307);
+  assert.equal(new URL(legacyUpdates.headers.get("location")).pathname, "/new-episodes");
+
+  const newSeriesHtml = await (await request("/new-series")).text();
+  assert.match(newSeriesHtml, /<h1[^>]*>Yeni Seriler<\/h1>/);
+  assert.match(newSeriesHtml, /Yeni Seri|yeni seri/);
 
   const catalogApi = await (await request("/api/catalog", "application/json")).json();
   assert.deepEqual(Object.keys(catalogApi).sort(), ["featuredSlug", "schemaVersion", "series"]);
+});
+
+test("yerel dummy katalog yüz seri ve yüz yeni bölümle production verisinden ayrı kalır", async () => {
+  const [dummySource, repository, css] = await Promise.all([
+    readFile(new URL("../app/data/local-dummy-catalog.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(dummySource, /LOCAL_DUMMY_SERIES_COUNT = 92/);
+  assert.match(dummySource, /Panelya Yerel Demo/);
+  assert.match(repository, /process\.env\.LOCAL_DUMMY_CATALOG/);
+  assert.match(repository, /process\.env\.NODE_ENV !== "production"/);
+  assert.match(repository, /statements\.slice\(offset, offset \+ 75\)/);
+  assert.match(css, /\.home-genre-directory summary::after[^}]*border-right:\s*2px solid var\(--mint\)[^}]*rotate\(45deg\)/);
+  assert.match(css, /\.home-genre-directory\[open\] summary::after[^}]*rotate\(225deg\)/);
+
+  const catalog = await (await request("/api/catalog", "application/json")).json();
+  assert.equal(catalog.series.length, 100);
+  assert.equal(catalog.series.filter((series) => series.slug.startsWith("yerel-demo-")).length, 92);
+
+  const newSeriesHtml = await (await request("/new-series")).text();
+  assert.equal((newSeriesHtml.match(/class="series-card"/g) ?? []).length, 92);
+  const newEpisodesHtml = await (await request("/new-episodes")).text();
+  assert.equal((newEpisodesHtml.match(/class="update-card"/g) ?? []).length, 100);
 });
 
 test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => {
@@ -120,6 +197,12 @@ test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin polit
   assert.match(jsonLdComponent, /JSON\.stringify\(data\)\.replace\(\/<\/g, "\\\\u003c"\)/);
   const homeHtml = await (await request("/")).text();
   assert.match(homeHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/"/i);
+  const catalogHtml = await (await request("/catalog?q=ses")).text();
+  assert.match(catalogHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/catalog"/i);
+  const newEpisodesHtml = await (await request("/new-episodes")).text();
+  assert.match(newEpisodesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/new-episodes"/i);
+  const newSeriesHtml = await (await request("/new-series")).text();
+  assert.match(newSeriesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/new-series"/i);
 
   const seriesHtml = await (await request("/gece-vardiyasi")).text();
   assert.match(seriesHtml, /<link rel="canonical" href="http:\/\/localhost:3000\/gece-vardiyasi"/i);
@@ -151,6 +234,10 @@ test("canonical, robots, sitemap ve ComicSeries JSON-LD ayni public origin polit
   const sitemapResponse = await request("/sitemap.xml", "application/xml");
   assert.equal(sitemapResponse.status, 200);
   const sitemap = await sitemapResponse.text();
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/catalog<\/loc>/);
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/new-series<\/loc>/);
+  assert.match(sitemap, /<loc>http:\/\/localhost:3000\/new-episodes<\/loc>/);
+  assert.doesNotMatch(sitemap, /<loc>http:\/\/localhost:3000\/updates<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/gece-vardiyasi<\/loc>/);
   assert.match(sitemap, /<loc>http:\/\/localhost:3000\/publishing-principles<\/loc>/);
   assert.doesNotMatch(sitemap, /\/gece-vardiyasi\/bolum-1|\/api\/|\/preview\/|studio\.localhost/);
@@ -263,7 +350,7 @@ test("kurumsal, iletişim ve yasal rotalar bağlıdır", async () => {
 
 test("görünür public bağlantılar kırık route üretmez", async () => {
   const pages = [
-    "/", "/?view=catalog", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
+    "/", "/catalog", "/new-series", "/new-episodes", "/about", "/creators", "/publishing-principles", "/production-journal", "/contact",
     "/privacy", "/terms", "/copyright", "/copyright/report", "/login", "/register", "/forgot-password",
     "/reset-password", "/verify-email", "/gece-vardiyasi", "/gece-vardiyasi/bolum-1",
     "/gece-vardiyasi/bolum-2", "/gece-vardiyasi/bolum-3", "/bir-bilet-uzaginda", "/bir-bilet-uzaginda/bolum-1",
@@ -347,7 +434,7 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
   assert.match(css, /@media \(max-width: 960px\)[\s\S]*\.card-grid[^}]*repeat\(2, 1fr\)/);
   assert.match(css, /\.reader-tools button[^}]*width:\s*44px[^}]*height:\s*44px/);
   assert.match(css, /\.reader-dock a, \.reader-dock > span[^}]*min-width:\s*44px[^}]*min-height:\s*44px/);
-  assert.match(css, /\.genre-strip a, \.genre-pills a[^}]*min-height:\s*44px/);
+  assert.match(css, /\.home-genre-directory__grid a[^}]*min-height:\s*44px/);
   assert.match(css, /\.catalog-filter-form input, \.catalog-filter-form select[^}]*min-height:\s*48px/);
   assert.match(css, /\.text-link[^}]*min-height:\s*44px[^}]*display:\s*inline-flex/);
   assert.match(authActions, /library-nav-link/);
@@ -364,7 +451,7 @@ test("PC, tablet ve mobil responsive sözleşmesi korunur", async () => {
 });
 
 test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşmesi kaynakta bulunur", async () => {
-  const [schema, hosting, authActions, authControls, studio, library, adSlot, adLab, footer, notifications, resetPage, accountPage, moderationPage, proxy] = await Promise.all([
+  const [schema, hosting, authActions, authControls, studio, library, adSlot, adBoundary, consentManager, consentState, adLab, footer, notifications, resetPage, accountPage, moderationPage, proxy] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/components/AuthActions.tsx", import.meta.url), "utf8"),
@@ -372,6 +459,9 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
     readFile(new URL("../app/studio/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/library/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/AdTestSlot.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/AdSlot.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/ConsentManager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/ad-consent.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/ads/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/components/SiteFooter.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/notifications.ts", import.meta.url), "utf8"),
@@ -399,6 +489,11 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(library, /Okumaya devam et/);
   assert.match(adSlot, /securepubads\.g\.doubleclick\.net\/tag\/js\/gpt\.js/);
   assert.match(adSlot, /\/6355419\/Travel\/Europe\/France\/Paris/);
+  assert.match(adSlot, /consent !== "ads"/);
+  assert.match(adBoundary, /resolveAdRuntimeMode/);
+  assert.match(consentManager, /Yalnız gerekli/);
+  assert.match(consentManager, /Test reklamına izin ver/);
+  assert.match(consentState, /panelya-consent-v1/);
   assert.match(adLab, /Reklam Laboratuvarı/);
   assert.match(authControls, /aria-label="Hesap ekranını kapat"/);
   assert.doesNotMatch(studio, /disabled/);
@@ -407,6 +502,7 @@ test("yerel hesap, topluluk güvenliği, Studio ve Google reklam testi sözleşm
   assert.match(footer, /footer-category-grid/);
   assert.match(footer, /href="\/library"/);
   assert.match(footer, /href="\/account"/);
+  assert.match(footer, /ConsentSettingsButton/);
   assert.match(notifications, /interface NotificationDelivery/);
   assert.match(notifications, /deliveryFactories/);
   assert.match(notifications, /NotificationDeliveryUnavailableError/);
@@ -822,13 +918,17 @@ test("şifre sıfırlama ve doğrulama sayfaları herkese açıktır", async () 
   assert.match(login, /href="\/forgot-password"/);
 });
 
-test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => {
-  const [schema, repository, contentPage, seriesApi, episodeApi] = await Promise.all([
+test("Studio içerik CRUD, D1 yayın sınırı ve otomatik yeni seri penceresi kaynakta korunur", async () => {
+  const [schema, repository, recencySource, contentPage, contentForms, homePage, seriesApi, episodeApi, manualQa] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/content-repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/series-recency.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/studio/content/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/content/ContentForms.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/content/series/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /sqliteTable\("content_series"/);
   assert.match(schema, /sqliteTable\("content_episodes"/);
@@ -836,6 +936,16 @@ test("Studio içerik CRUD ve D1 yayın sınırı kaynakta korunur", async () => 
   assert.match(repository, /publicationStatus === "published"/);
   assert.match(repository, /function toPublicSeries/);
   assert.match(repository, /function toPublicSeries[\s\S]*publishedAt: episode\.publishedAt/);
+  assert.match(recencySource, /NEW_SERIES_WINDOW_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(recencySource, /publishedAt <= now && now - publishedAt < NEW_SERIES_WINDOW_MS/);
+  assert.match(repository, /isNew: isRecentlyPublished\(row\.published_at/);
+  assert.match(repository, /function bundledPublicFallback[\s\S]*bundledCatalog\(\)\.map/);
+  assert.match(repository, /isNew: localDummyCatalogEnabled\(\) && series\.slug\.startsWith\("yerel-demo-"\)/);
+  assert.doesNotMatch(seriesApi, /form\.get\("is_new"\)/);
+  assert.doesNotMatch(contentForms, /name="is_new"/);
+  assert.match(contentForms, /ilk public yayın tarihinden itibaren 30 gün boyunca otomatik gösterilir/);
+  assert.match(homePage, /newSeries\.length > 0/);
+  assert.match(manualQa, /QA-NEW-01/);
   assert.match(seriesApi, /isStudioRequest\(request\)/);
   assert.match(episodeApi, /isStudioRequest\(request\)/);
   assert.match(seriesApi, /writeAudit/);
