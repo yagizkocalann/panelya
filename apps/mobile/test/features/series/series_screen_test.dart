@@ -5,9 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/offline/domain/offline_episode_content.dart';
+import 'package:panelya_mobile/features/offline/domain/offline_episode_repository.dart';
+import 'package:panelya_mobile/features/offline/presentation/offline_providers.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
 import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
+import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
+import 'package:panelya_mobile/features/reader/presentation/reader_providers.dart';
 import 'package:panelya_mobile/features/series/domain/series_repository.dart';
 import 'package:panelya_mobile/features/series/presentation/series_providers.dart';
 import 'package:panelya_mobile/features/series/presentation/series_screen.dart';
@@ -83,6 +88,90 @@ class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
   }
 }
 
+/// Sahte okuyucu repository'si (bkz. `reader_screen_test.dart`'taki
+/// eşdeğeri): seri ekranındaki bölüm indirme butonları, tam manifesti
+/// yalnız indirme BAŞLARKEN (`EpisodeDownloadButton.resolveManifest`
+/// üzerinden) bu repository'den ister — seri detayı özet (`EpisodeSummary`)
+/// taşıdığı için panel içeren tam manifest ayrıca çözülür.
+class _FakeReaderRepository implements ReaderRepository {
+  _FakeReaderRepository(this._result);
+
+  final Future<EpisodeManifestResponse> Function(
+    String seriesSlug,
+    String episodeSlug,
+  )
+  _result;
+
+  @override
+  Future<EpisodeManifestResponse> fetchEpisodeManifest(
+    String seriesSlug,
+    String episodeSlug,
+  ) => _result(seriesSlug, episodeSlug);
+}
+
+EpisodeManifestResponse _episodeManifest({
+  required String seriesSlug,
+  required String episodeSlug,
+  required int number,
+}) {
+  return EpisodeManifestResponse(
+    schemaVersion: '1.0',
+    series: EpisodeManifestSeriesRef(slug: seriesSlug, title: 'Gece Vardiyası'),
+    episode: Episode(
+      slug: episodeSlug,
+      number: number,
+      title: 'Bölüm $number',
+      publishedAt: '18 Temmuz 2026',
+      readTime: '7 dk',
+      panels: const [],
+    ),
+    navigation: const EpisodeNavigation(previous: null, next: null),
+  );
+}
+
+/// In-memory sahte çevrimdışı depo (bkz. `reader_screen_test.dart`'taki
+/// eşdeğeri — gerçek `FileSystemOfflineEpisodeRepository` gibi
+/// [downloadEpisode] TAMAMLANMADAN [isDownloaded] `true` olmaz). Seri
+/// ekranı testleri panel görsellerini render etmediği için [loadDownloaded]
+/// burada uygulanmadı (kapsam dışı — yalnız `isDownloaded`/`downloadEpisode`/
+/// `deleteDownload` kullanılıyor).
+class _FakeOfflineEpisodeRepository implements OfflineEpisodeRepository {
+  final Set<String> _downloadedKeys = {};
+  bool downloadShouldThrow = false;
+  final List<String> downloadedEpisodeSlugs = [];
+
+  String _key(String seriesSlug, String episodeSlug) =>
+      '$seriesSlug/$episodeSlug';
+
+  @override
+  Future<bool> isDownloaded(String seriesSlug, String episodeSlug) async =>
+      _downloadedKeys.contains(_key(seriesSlug, episodeSlug));
+
+  @override
+  Future<OfflineEpisodeContent?> loadDownloaded(
+    String seriesSlug,
+    String episodeSlug,
+  ) async => null;
+
+  @override
+  Stream<double> downloadEpisode({
+    required String apiOrigin,
+    required EpisodeManifestResponse manifest,
+  }) async* {
+    if (downloadShouldThrow) {
+      throw Exception('indirme hatası (test)');
+    }
+    yield 1.0;
+    _downloadedKeys.add(_key(manifest.series.slug, manifest.episode.slug));
+    downloadedEpisodeSlugs.add(manifest.episode.slug);
+  }
+
+  @override
+  Future<void> deleteDownload(String seriesSlug, String episodeSlug) async {
+    _downloadedKeys.remove(_key(seriesSlug, episodeSlug));
+  }
+}
+
 SeriesMetadata _metadata({
   String slug = 'gece-vardiyasi',
   String status = 'Devam Ediyor',
@@ -142,12 +231,27 @@ Widget _wrap(
   required String slug,
   LocalReadingProgressRepository? progressRepository,
   double? textScale,
+  ReaderRepository? readerRepository,
+  OfflineEpisodeRepository? offlineRepository,
 }) {
   return ProviderScope(
     overrides: [
       seriesRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+      readerRepositoryProvider.overrideWithValue(
+        readerRepository ??
+            _FakeReaderRepository(
+              (seriesSlug, episodeSlug) async => _episodeManifest(
+                seriesSlug: seriesSlug,
+                episodeSlug: episodeSlug,
+                number: 1,
+              ),
+            ),
+      ),
+      offlineEpisodeRepositoryProvider.overrideWithValue(
+        offlineRepository ?? _FakeOfflineEpisodeRepository(),
       ),
     ],
     child: MaterialApp(
@@ -174,6 +278,8 @@ Widget _wrapWithRouter(
   SeriesRepository repository, {
   required String slug,
   LocalReadingProgressRepository? progressRepository,
+  ReaderRepository? readerRepository,
+  OfflineEpisodeRepository? offlineRepository,
 }) {
   final router = GoRouter(
     initialLocation: '/series/$slug',
@@ -203,6 +309,19 @@ Widget _wrapWithRouter(
       seriesRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+      readerRepositoryProvider.overrideWithValue(
+        readerRepository ??
+            _FakeReaderRepository(
+              (seriesSlug, episodeSlug) async => _episodeManifest(
+                seriesSlug: seriesSlug,
+                episodeSlug: episodeSlug,
+                number: 1,
+              ),
+            ),
+      ),
+      offlineEpisodeRepositoryProvider.overrideWithValue(
+        offlineRepository ?? _FakeOfflineEpisodeRepository(),
       ),
     ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
@@ -724,6 +843,155 @@ void main() {
           expect(watcher.errors, isEmpty, reason: watcher.describe());
         });
       }
+    },
+  );
+
+  group(
+    'çevrimdışı seri indirme (bkz. docs/local-gap-backlog.md P2 madde 3 — '
+    '"önce bölüm, sonra seri" planının ikinci adımı)',
+    () {
+      testWidgets(
+        'her bölüm satırı kendi indirme ikonunu gösterir ve dokununca YALNIZ '
+        'o bölümü indirir',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeSeriesRepository(
+            (slug) async => SeriesDetailResponse(
+              schemaVersion: '1.0',
+              series: _metadata(),
+              episodes: _episodesNewestFirst(),
+            ),
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository();
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              slug: 'gece-vardiyasi',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Sliver tabanlı liste viewport dışı satırları hiç build etmez
+          // (bkz. dosya başındaki `usePhoneViewport` doc yorumu); üçünü de
+          // kontrol etmeden önce sırayla görünür hale getirilir.
+          await _revealText(tester, 'Kayıp Dakika');
+          await _revealText(tester, 'Yarınki Adres');
+          await _revealText(tester, 'Son Teslimat');
+
+          // Üç bölüm, üç indirme ikonu — henüz hiçbiri indirilmemiş.
+          expect(find.byTooltip('Bölümü indir'), findsNWidgets(3));
+
+          // `_episodesNewestFirst()` sırası [bolum-3, bolum-2, bolum-1];
+          // index 1 = bolum-2 ("Yarınki Adres").
+          await tester.tap(find.byTooltip('Bölümü indir').at(1));
+          await tester.pumpAndSettle();
+
+          expect(offlineRepository.downloadedEpisodeSlugs, ['bolum-2']);
+          expect(
+            await offlineRepository.isDownloaded('gece-vardiyasi', 'bolum-1'),
+            isFalse,
+          );
+          expect(
+            await offlineRepository.isDownloaded('gece-vardiyasi', 'bolum-3'),
+            isFalse,
+          );
+          expect(find.byTooltip('İndirildi · kaldırmak için dokunun'), findsOneWidget);
+          expect(find.byTooltip('Bölümü indir'), findsNWidgets(2));
+        },
+      );
+
+      testWidgets(
+        '"Tümünü indir" seride henüz indirilmemiş her bölümü SIRAYLA indirir '
+        've ilerlemeyi "İndiriliyor N/M" olarak gösterir',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeSeriesRepository(
+            (slug) async => SeriesDetailResponse(
+              schemaVersion: '1.0',
+              series: _metadata(),
+              episodes: _episodesNewestFirst(),
+            ),
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository();
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              slug: 'gece-vardiyasi',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await _revealText(tester, 'Tümünü indir');
+          await tester.tap(find.text('Tümünü indir'));
+          await tester.pumpAndSettle();
+
+          expect(
+            offlineRepository.downloadedEpisodeSlugs.toSet(),
+            {'bolum-1', 'bolum-2', 'bolum-3'},
+          );
+          // Üçü de indirildikten sonra her satır "indirildi" ikonunu
+          // gösterir (bkz. sliver-lazy build notu — üçü de kontrolden önce
+          // görünür hale getirilir).
+          await _revealText(tester, 'Kayıp Dakika');
+          await _revealText(tester, 'Yarınki Adres');
+          await _revealText(tester, 'Son Teslimat');
+          expect(
+            find.byTooltip('İndirildi · kaldırmak için dokunun'),
+            findsNWidgets(3),
+          );
+          expect(find.byTooltip('Bölümü indir'), findsNothing);
+        },
+      );
+
+      testWidgets(
+        '"Tümünü indir" zaten indirilmiş bir bölümü ATLAR (yeniden indirmez)',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeSeriesRepository(
+            (slug) async => SeriesDetailResponse(
+              schemaVersion: '1.0',
+              series: _metadata(),
+              episodes: _episodesNewestFirst(),
+            ),
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository();
+          // "bolum-2" zaten indirilmiş gibi önceden işaretlenir.
+          await offlineRepository.downloadEpisode(
+            apiOrigin: 'http://localhost:3000',
+            manifest: _episodeManifest(
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-2',
+              number: 2,
+            ),
+          ).drain<void>();
+          offlineRepository.downloadedEpisodeSlugs.clear();
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              slug: 'gece-vardiyasi',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await _revealText(tester, 'Tümünü indir');
+          await tester.tap(find.text('Tümünü indir'));
+          await tester.pumpAndSettle();
+
+          // Yalnız daha önce indirilmemiş ikisi (bolum-1, bolum-3) bu
+          // turda GERÇEKTEN indirildi — bolum-2 zaten indirilmiş
+          // olduğundan atlandı.
+          expect(
+            offlineRepository.downloadedEpisodeSlugs.toSet(),
+            {'bolum-1', 'bolum-3'},
+          );
+        },
+      );
     },
   );
 }

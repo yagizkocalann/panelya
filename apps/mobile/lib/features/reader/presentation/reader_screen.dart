@@ -13,7 +13,7 @@ import '../../../core/api/media_url.dart';
 import '../../../core/api/media_variant_selector.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
-import '../../../features/offline/presentation/offline_providers.dart';
+import '../../../features/offline/presentation/episode_download_button.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/home_button.dart';
@@ -293,7 +293,7 @@ class _ReaderSuccessScaffoldState
 /// önceki/sonraki bölüm ikon butonları — olmayan yön hiç render edilmez
 /// (ADR-010). Hemen altında ince, token renkli bir ilerleme çizgisi
 /// (bkz. [_ReaderProgressBar]) yer alır.
-class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
+class _ReaderAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const _ReaderAppBar({
     required this.seriesSlug,
     required this.episodeSlug,
@@ -316,7 +316,7 @@ class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight + 3);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AppBar(
       leading: _SeriesReturnButton(seriesSlug: seriesSlug),
       title: Text('Bölüm $episodeNumber'),
@@ -337,10 +337,19 @@ class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
               '/series/$seriesSlug/read/${next!.slug}',
             ),
           ),
-        _DownloadButton(
+        EpisodeDownloadButton(
           seriesSlug: seriesSlug,
           episodeSlug: episodeSlug,
-          manifest: manifest,
+          resolveManifest: () => Future.value(manifest),
+          // Bu bölüm şu an OFFLINE içerikten gösteriliyor olabilir (bkz.
+          // `readerContentProvider`); indirme/silme sonrası ekranın doğru
+          // kaynağa (yerel disk/ağ) düşmesi için o provider da tazelenir.
+          onChanged: () => ref.invalidate(
+            readerContentProvider((
+              seriesSlug: seriesSlug,
+              episodeSlug: episodeSlug,
+            )),
+          ),
         ),
         const HomeButton(),
       ],
@@ -348,145 +357,6 @@ class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
         preferredSize: const Size.fromHeight(3),
         child: _ReaderProgressBar(progress: progress),
       ),
-    );
-  }
-}
-
-/// Bölümü cihaza indirme/silme kontrolü (bkz. `features/offline/`,
-/// docs/local-gap-backlog.md P2 madde 3 — "Deep link, çevrimdışı okuma ve
-/// push bildirimleri"). Üç görsel durumu vardır: henüz indirilmemiş (indirme
-/// ikonu), indiriliyor (yüzde ilerlemesi, dokunulamaz) ve indirilmiş (onay
-/// ikonu — dokununca silme onayı ister). İndirme ilerlemesi bu widget'ın
-/// KENDİ (Riverpod değil) yerel state'idir — `_ReaderSuccessScaffoldState`
-/// scroll ilerlemesini nasıl kendi state'inde tutuyorsa, indirme de yalnız
-/// bu ekranda görünen ekrana-özgü, geçici bir UI durumudur (bkz. o sınıfın
-/// doc yorumu — aynı desen).
-class _DownloadButton extends ConsumerStatefulWidget {
-  const _DownloadButton({
-    required this.seriesSlug,
-    required this.episodeSlug,
-    required this.manifest,
-  });
-
-  final String seriesSlug;
-  final String episodeSlug;
-  final EpisodeManifestResponse manifest;
-
-  @override
-  ConsumerState<_DownloadButton> createState() => _DownloadButtonState();
-}
-
-class _DownloadButtonState extends ConsumerState<_DownloadButton> {
-  /// `null` iken indirme sürmüyor demektir; doluyken 0.0-1.0 arası ilerleme.
-  double? _downloadProgress;
-
-  OfflineEpisodeKey get _key =>
-      (seriesSlug: widget.seriesSlug, episodeSlug: widget.episodeSlug);
-
-  Future<void> _startDownload() async {
-    setState(() => _downloadProgress = 0);
-    final apiOrigin = ref.read(appConfigProvider).apiOrigin;
-    final repository = ref.read(offlineEpisodeRepositoryProvider);
-    try {
-      await for (final progress in repository.downloadEpisode(
-        apiOrigin: apiOrigin,
-        manifest: widget.manifest,
-      )) {
-        if (!mounted) return;
-        setState(() => _downloadProgress = progress);
-      }
-      if (!mounted) return;
-      setState(() => _downloadProgress = null);
-      ref.invalidate(isEpisodeDownloadedProvider(_key));
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _downloadProgress = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bölüm indirilemedi. Lütfen tekrar deneyin.'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _confirmDelete() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('İndirmeyi kaldır'),
-        content: const Text(
-          'Bu bölümün cihazdaki indirilmiş kopyası silinsin mi?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Vazgeç'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    await ref
-        .read(offlineEpisodeRepositoryProvider)
-        .deleteDownload(widget.seriesSlug, widget.episodeSlug);
-    ref.invalidate(isEpisodeDownloadedProvider(_key));
-    // Bu bölüm şu an OFFLINE içerikten gösteriliyor olabilir (bkz.
-    // `readerContentProvider`); silme sonrası ekranın normal ağ akışına
-    // dönmesi için o provider da tazelenir.
-    ref.invalidate(readerContentProvider(_key));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    final progress = _downloadProgress;
-
-    if (progress != null) {
-      return IconButton(
-        icon: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            value: progress == 0 ? null : progress,
-            strokeWidth: 2,
-            color: tokens.colors.mint,
-          ),
-        ),
-        tooltip: 'İndiriliyor · %${(progress * 100).round()}',
-        onPressed: null,
-      );
-    }
-
-    final downloaded = ref.watch(isEpisodeDownloadedProvider(_key));
-    return downloaded.when(
-      // Kontrol denetimi kısa sürer (yalnız yerel bir dosya var mı bakar);
-      // bu ara durumda sabit boyutlu boş bir alan, ikonun aniden belirip
-      // düzeni kaydırmasını önler.
-      loading: () => const SizedBox(width: 48, height: 48),
-      error: (error, stackTrace) => IconButton(
-        icon: const Icon(Icons.download_outlined),
-        tooltip: 'Bölümü indir',
-        onPressed: _startDownload,
-      ),
-      data: (isDownloaded) => isDownloaded
-          ? IconButton(
-              icon: Icon(
-                Icons.download_done_rounded,
-                color: tokens.colors.mint,
-              ),
-              tooltip: 'İndirildi · kaldırmak için dokunun',
-              onPressed: _confirmDelete,
-            )
-          : IconButton(
-              icon: const Icon(Icons.download_outlined),
-              tooltip: 'Bölümü indir',
-              onPressed: _startDownload,
-            ),
     );
   }
 }

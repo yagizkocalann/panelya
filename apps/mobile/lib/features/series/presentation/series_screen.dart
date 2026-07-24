@@ -5,9 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../../../features/offline/presentation/episode_download_button.dart';
+import '../../../features/offline/presentation/offline_providers.dart';
 import '../../../features/progress/domain/reading_progress.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
+import '../../../features/reader/presentation/reader_providers.dart';
 import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/home_button.dart';
@@ -198,10 +202,26 @@ class _SeriesDetailView extends ConsumerWidget {
             progress: progress,
           ),
           SizedBox(height: tokens.spacing.lg),
-          Text('Bölümler', style: tokens.typography.titleMedium),
+          // `Row` DEĞİL `Wrap`: büyük yazı tipinde (`textScaler`) "Tümünü
+          // indir" etiketi "Bölümler" başlığıyla aynı satıra sığmayabilir
+          // (bkz. PLAN Görev B.1 — bu diğer meta veri satırlarında da aynı
+          // desen, örn. yukarıdaki puan/takipçi `Wrap`'ı); `Wrap` bu
+          // durumda ikinci öğeyi bir alt satıra taşır, RenderFlex taşması
+          // yerine.
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: tokens.spacing.sm,
+            runSpacing: tokens.spacing.xs,
+            children: [
+              Text('Bölümler', style: tokens.typography.titleMedium),
+              _DownloadAllButton(seriesSlug: seriesSlug, episodes: episodes),
+            ],
+          ),
           SizedBox(height: tokens.spacing.sm),
           for (final episode in episodes)
             _EpisodeTile(
+              seriesSlug: seriesSlug,
               episode: episode,
               onTap: () =>
                   context.push('/series/$seriesSlug/read/${episode.slug}'),
@@ -276,6 +296,120 @@ class _StartReadingActions extends StatelessWidget {
   }
 }
 
+/// "Bölümler" başlığının yanındaki toplu indirme aksiyonu
+/// (docs/local-gap-backlog.md P2 madde 3'ün "önce bölüm, sonra seri"
+/// planının ikinci adımı). Seride henüz indirilmemiş her bölümü SIRAYLA
+/// indirir (aynı anda çoklu istek göndermek yerine — hem sunucuya nazik
+/// hem de "N/M indirildi" ilerlemesini basit, tek bir sayaçla göstermeyi
+/// sağlar). Bölümler zaten indirilmişse [EpisodeDownloadButton.downloadEpisode]
+/// (dolaylı olarak `isDownloaded` kontrolü üzerinden) hiçbir ağ isteği
+/// yapmadan anında atlanır.
+///
+/// Kasıtlı olarak "hepsi zaten indirilmişse gizlen" mantığı YOK: bunun
+/// için her bölümün indirilmiş durumunu ayrı ayrı reaktif izlemek
+/// gerekirdi; bunun yerine buton her zaman görünür kalır ve tekrar
+/// dokunmak (indirilecek hiçbir şey kalmadıysa) zaten anında biter — basit
+/// ve yeterli bir v1 davranışı.
+class _DownloadAllButton extends ConsumerStatefulWidget {
+  const _DownloadAllButton({required this.seriesSlug, required this.episodes});
+
+  final String seriesSlug;
+  final List<EpisodeSummary> episodes;
+
+  @override
+  ConsumerState<_DownloadAllButton> createState() => _DownloadAllButtonState();
+}
+
+class _DownloadAllButtonState extends ConsumerState<_DownloadAllButton> {
+  bool _running = false;
+  int _completed = 0;
+
+  Future<void> _downloadAll() async {
+    setState(() {
+      _running = true;
+      _completed = 0;
+    });
+
+    final offlineRepository = ref.read(offlineEpisodeRepositoryProvider);
+    final readerRepository = ref.read(readerRepositoryProvider);
+    final apiOrigin = ref.read(appConfigProvider).apiOrigin;
+    var hadFailure = false;
+
+    for (final episode in widget.episodes) {
+      try {
+        final alreadyDownloaded = await offlineRepository.isDownloaded(
+          widget.seriesSlug,
+          episode.slug,
+        );
+        if (!alreadyDownloaded) {
+          final manifest = await readerRepository.fetchEpisodeManifest(
+            widget.seriesSlug,
+            episode.slug,
+          );
+          await offlineRepository
+              .downloadEpisode(apiOrigin: apiOrigin, manifest: manifest)
+              .drain<void>();
+          ref.invalidate(
+            isEpisodeDownloadedProvider((
+              seriesSlug: widget.seriesSlug,
+              episodeSlug: episode.slug,
+            )),
+          );
+        }
+      } catch (_) {
+        // Bir bölüm başarısız olsa da geri kalanlar denenmeye devam eder
+        // (bkz. sınıf doc yorumu — sıralı, birbirinden bağımsız indirmeler);
+        // sonda tek bir özet uyarı gösterilir.
+        hadFailure = true;
+      }
+      if (!mounted) return;
+      setState(() => _completed++);
+    }
+
+    if (!mounted) return;
+    setState(() => _running = false);
+    if (hadFailure) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bazı bölümler indirilemedi. Lütfen tekrar deneyin.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+
+    if (_running) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: tokens.colors.mint,
+            ),
+          ),
+          SizedBox(width: tokens.spacing.xs),
+          Text(
+            'İndiriliyor $_completed/${widget.episodes.length}',
+            style: tokens.typography.bodySmall,
+          ),
+        ],
+      );
+    }
+
+    return TextButton.icon(
+      onPressed: _downloadAll,
+      icon: const Icon(Icons.download_outlined, size: 18),
+      label: const Text('Tümünü indir'),
+    );
+  }
+}
+
 class _Tag extends StatelessWidget {
   const _Tag({required this.text});
 
@@ -298,14 +432,19 @@ class _Tag extends StatelessWidget {
   }
 }
 
-class _EpisodeTile extends StatelessWidget {
-  const _EpisodeTile({required this.episode, required this.onTap});
+class _EpisodeTile extends ConsumerWidget {
+  const _EpisodeTile({
+    required this.seriesSlug,
+    required this.episode,
+    required this.onTap,
+  });
 
+  final String seriesSlug;
   final EpisodeSummary episode;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = context.tokens;
     return Semantics(
       button: true,
@@ -347,6 +486,13 @@ class _EpisodeTile extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                EpisodeDownloadButton(
+                  seriesSlug: seriesSlug,
+                  episodeSlug: episode.slug,
+                  resolveManifest: () => ref
+                      .read(readerRepositoryProvider)
+                      .fetchEpisodeManifest(seriesSlug, episode.slug),
                 ),
                 Icon(Icons.chevron_right, color: tokens.colors.muted),
               ],
