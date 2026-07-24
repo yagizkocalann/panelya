@@ -25,7 +25,39 @@ import '../../discovery/presentation/discovery_providers.dart';
 /// [SliverGrid]'in kendi lazy (yalnız görünür + önbellek payındaki hücreleri
 /// inşa eden) davranışı kullanılır.
 ///
-/// Tür filtre chip'leri `GET /api/discovery`'nin `genres` alanından gelir
+/// Tür, durum ve sıralama filtreleri web'in `CatalogFilterForm` (bkz.
+/// `app/catalog/CatalogFilterForm.tsx`) referansındaki gibi ÜÇ AYRI seçim
+/// alanı olarak render edilir — arama kutusunun hemen altında, bu sırayla
+/// (kullanıcı bildirimi: "webdeki gibi dropdowndan seçmeli olmasını
+/// istiyorum"). Kapalı haldeki alanlar `DropdownButtonFormField` KULLANMAZ:
+/// Flutter'ın standart `DropdownButton` menüsü açılırken seçili öğeyi
+/// dokunma noktasının olduğu yere ortalar ve listeyi oradan yukarı/aşağı
+/// büyütür — bu da AppBar'ı kapatan ve her açılışta farklı bir konumdan
+/// başlayan tutarsız bir görünüme yol açar (kullanıcı bildirimi: "hangisine
+/// bastıysam o pozisyonda eşit geliyor... çalışma prensibini beğenmedim").
+///
+/// İlk düzeltme `showModalBottomSheet` ile ekranın altından açılan bir seçim
+/// sayfasıydı; bu, konum tutarsızlığını çözdü ama kullanıcı bunu da doğru
+/// bulmadı ("ekranın en altından açılması saçma değil mi"). Araştırma
+/// (Material Design 3 "Menus" bileşen dokümantasyonu, bkz.
+/// https://m3.material.io/components/menus/overview ve Android'in
+/// "exposed dropdown menu" deseni — Gmail'in "Taşı", Google Drive'ın
+/// "Sırala" filtreleri gibi kısa liste seçicilerinde kullanılan standart)
+/// şunu doğruladı: kısa/orta uzunluktaki filtre seçicileri için doğru desen
+/// alanın TAM ALTINA sabitlenen, dokunulan noktadan/önceki seçimden bağımsız
+/// bir açılır menüdür — tam ekran alt sayfa (bottom sheet) yalnız arama
+/// içeren uzun/birincil seçiciler (örn. ülke seçici) için uygundur. Flutter
+/// tarafında bu desenin karşılığı `DropdownButton`'ın YERİNE 3.7'de eklenen
+/// Material 3 `DropdownMenu` widget'ıdır (bkz. [_CatalogDropdownField] doc
+/// yorumu) — `MenuAnchor` üzerine kuruludur ve menüyü her zaman anchor
+/// widget'ın (bu alanın) hemen altına (yer yoksa üstüne çevirerek) sabit
+/// biçimde açar; `DropdownButton`'ın "seçili öğeyi dokunma noktasında
+/// tutma" davranışı YOKTUR. State ve filtreleme mantığı (aşağıdaki
+/// `_selectedGenre`/`_selectedStatus`/`_sort` ve
+/// `_filterSeriesByStatus`/`_sortSeries`) bu ikinci değişiklikte de
+/// DEĞİŞMEDİ, yalnız seçim arayüzü değişti.
+///
+/// Tür filtre seçenekleri `GET /api/discovery`'nin `genres` alanından gelir
 /// (bkz. [discoveryProvider]), tam kataloğun istemci tarafında yeniden
 /// toplanmasından DEĞİL. Bunun nedeni: web tarafında bu iki uç aynı temel
 /// sorguya dayanır (`listPublishedGenres` da `listPublishedSeries` ile aynı
@@ -328,34 +360,38 @@ class _CatalogContent extends StatelessWidget {
               ),
             ),
           ),
-          if (genres.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.only(top: tokens.spacing.sm),
-                child: _CatalogGenreBar(
-                  genres: genres,
-                  selected: selectedGenre,
-                  onSelect: onSelectGenre,
-                ),
-              ),
-            ),
           SliverToBoxAdapter(
-            child: _CatalogFilterSection(
-              label: 'Durum',
-              topPadding: tokens.spacing.sm,
-              child: _CatalogStatusBar(
-                selected: selectedStatus,
-                onSelect: onSelectStatus,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                tokens.spacing.md,
+                tokens.spacing.sm,
+                tokens.spacing.md,
+                0,
               ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: _CatalogFilterSection(
-              label: 'Sırala',
-              topPadding: tokens.spacing.sm,
-              child: _CatalogSortBar(
-                selected: sort,
-                onSelect: onSelectSort,
+              // Web'in `CatalogFilterForm` (bkz. `app/catalog/
+              // CatalogFilterForm.tsx`) dikey form alanları gibi: Tür, Durum
+              // ve Sırala dropdown'ları arama kutusunun hemen altında, bu
+              // sırayla, dikey olarak art arda. Tür yalnız `genres`
+              // yüklüyken gösterilir (bkz. sınıf başlığı doc yorumu — bu
+              // görünürlük koşulu chip'ten dropdown'a geçişte DEĞİŞMEDİ).
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (genres.isNotEmpty) ...[
+                    _CatalogGenreDropdown(
+                      genres: genres,
+                      selected: selectedGenre,
+                      onSelect: onSelectGenre,
+                    ),
+                    SizedBox(height: tokens.spacing.sm),
+                  ],
+                  _CatalogStatusDropdown(
+                    selected: selectedStatus,
+                    onSelect: onSelectStatus,
+                  ),
+                  SizedBox(height: tokens.spacing.sm),
+                  _CatalogSortDropdown(selected: sort, onSelect: onSelectSort),
+                ],
               ),
             ),
           ),
@@ -393,145 +429,165 @@ class _CatalogContent extends StatelessWidget {
   }
 }
 
-/// Durum ve sıralama çubuklarının üstündeki küçük etiket (web'in
-/// `<label><span>Durum</span>...` / `<span>Sırala</span>` başlıklarının
-/// erişilebilir eşdeğeri) + çubuğun kendisi.
+/// Tek bir seçenek: [_CatalogDropdownField]'ın altında açılan menüdeki bir
+/// satırı temsil eder. `DropdownMenuEntry` (bkz. Flutter SDK) kendi başına
+/// bir anahtar (`Key`) taşımaz; test'ler bu yüzden seçenekleri
+/// [_CatalogDropdownField]'ın ürettiği `MenuItemButton`ları GÖRÜNÜR
+/// ETİKETLERİNDEN bulur (bkz. `catalog_screen_test.dart` —
+/// `find.widgetWithText(MenuItemButton, label)`), önceki taslaktaki
+/// (bottom sheet) sabit `testKey`'ler yerine.
+class _CatalogDropdownOption<T> {
+  const _CatalogDropdownOption({required this.value, required this.label});
+
+  final T value;
+  final String label;
+}
+
+/// Web'in `CatalogFilterForm` (bkz. `app/catalog/CatalogFilterForm.tsx`)
+/// Tür/Durum/Sırala `<select>` alanlarının Flutter karşılığı: üç filtre
+/// [_CatalogGenreDropdown], [_CatalogStatusDropdown] ve [_CatalogSortDropdown]
+/// bu tek sarmalayıcıyı paylaşır — yalnız etiket/seçenek/callback her biri
+/// için özelleşir, görsel dil üçü için birebir aynıdır.
 ///
-/// Yalnız DİKEY (`topPadding`) bir boşluk ekler; yatay boşluğu KASITLI
-/// olarak eklemez, çünkü [child] (bkz. [_CatalogStatusBar], [_CatalogSortBar]
-/// — [_CatalogGenreBar] ile aynı desen) zaten kendi yatay `ListView`
-/// padding'ini taşıyor. İkisini üst üste eklemek chip'leri ekranın
-/// solundan/sağından taşırıp dokunma testlerinde hit-test dışına düşmesine
-/// yol açardı (bkz. görev raporundaki "Kalan risk/varsayım" — bu tam olarak
-/// ilk taslakta yakalanan hataydı).
-class _CatalogFilterSection extends StatelessWidget {
-  const _CatalogFilterSection({
+/// Bu alan Material 3'ün `DropdownMenu` widget'ını (bkz. Flutter SDK
+/// `dropdown_menu.dart`, 3.7'de eklendi) kullanır — `DropdownButtonFormField`
+/// (eski `DropdownButton` tabanlı, "seçili öğeyi dokunma noktasında tutan"
+/// konumlandırması yüzünden terk edildi) DEĞİL, ve tam ekran
+/// `showModalBottomSheet` (ilk düzeltmede kullanıldı, kullanıcı "ekranın en
+/// altından açılması saçma" diye reddetti) DA DEĞİL. `DropdownMenu`,
+/// Material 3'ün "exposed dropdown menu" deseninin (bkz.
+/// https://m3.material.io/components/menus/overview — Gmail'in "Taşı",
+/// Google Drive'ın "Sırala" gibi kısa filtre seçicilerinde kullanılan
+/// standart) doğrudan Flutter karşılığıdır: `MenuAnchor` üzerine kuruludur
+/// ve menüyü HER ZAMAN bu alanın hemen altına (ekranda yer yoksa üstüne
+/// çevirerek) açar — ne dokunma noktasına ne de önceki seçime göre
+/// KONUMLANMAZ, ne de ekranın tamamını kaplayan bir sayfa açar.
+///
+/// `key: ValueKey(value)`: `DropdownMenu`'nün kendi state'i
+/// `initialSelection`'ı yalnız ilk `initState`'te okur; dışarıdan (örn.
+/// `_selectGenre` ile) [value] değiştiğinde widget'ın GÖVDESİ aynı `State`'i
+/// koruyarak yeniden build edilirse kapalı alanın gösterdiği metin ESKİ
+/// seçimde takılı kalabilir. Anahtarı seçilen değere bağlamak, değer her
+/// değiştiğinde Flutter'a eski `State`'i atıp SIFIRDAN bir `DropdownMenu`
+/// kurdurur (`initState` yeniden çalışır, `initialSelection` güncel
+/// [value]'yu okur) — bu, kontrolün her zaman dışarıdaki gerçek durumla
+/// birebir senkron kalmasını Flutter sürüm/iç uygulama detaylarına
+/// güvenmeden garanti eder.
+class _CatalogDropdownField<T> extends StatelessWidget {
+  const _CatalogDropdownField({
+    super.key,
     required this.label,
-    required this.topPadding,
-    required this.child,
+    required this.value,
+    required this.items,
+    required this.onChanged,
   });
 
   final String label;
-  final double topPadding;
-  final Widget child;
+  final T value;
+  final List<_CatalogDropdownOption<T>> items;
+  final ValueChanged<T> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    final borderRadius = BorderRadius.circular(tokens.radii.md);
 
-    return Padding(
-      padding: EdgeInsets.only(top: topPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.only(
-              left: tokens.spacing.md,
-              bottom: tokens.spacing.xs,
-            ),
-            child: Text(
-              label,
-              style: tokens.typography.bodySmall.copyWith(
-                color: tokens.colors.muted,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // `DropdownMenu.label`'ın Material yüzen etiketi KASITLI olarak
+        // KULLANILMIYOR: bu etiket kendi kapladığı alanı widget'ın raporladığı
+        // yüksekliğe DAHİL ETMEZ — kutunun üst kenarının biraz üstüne taşarak
+        // çizilir (bkz. Flutter SDK `dropdown_menu.dart`). Üç alan
+        // `Column`'da art arda dururken bu, HER alanın etiketinin bir
+        // ÖNCEKİ alanın alt kenarına binmesine yol açtı (kullanıcı
+        // bildirimi: "bu dropdownların üstüne taşan tür durum sırala ne
+        // öyle?" — ekran görüntüsüyle doğrulandı). Bunun yerine etiket
+        // normal `Column` akışında, alanın ÜSTÜNDE ayrı bir `Text` olarak
+        // durur — hiçbir kutunun sınırını aşamaz.
+        Text(
+          label,
+          style: tokens.typography.bodySmall.copyWith(color: tokens.colors.muted),
+        ),
+        SizedBox(height: tokens.spacing.xs),
+        ConstrainedBox(
+          // mobile-handoff.md'nin "dokunma hedefleri en az 44x44" kuralı.
+          constraints: BoxConstraints(minHeight: tokens.sizes.minTouchTarget),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return DropdownMenu<T>(
+                width: constraints.maxWidth,
+                initialSelection: value,
+                // Bu bir serbest metin arama kutusu değil, web
+                // `<select>`'inin karşılığı bir seçicidir: dokunma klavye
+                // açmaz, yazı filtrelemez — yalnız menüyü açar.
+                requestFocusOnTap: false,
+                enableFilter: false,
+                enableSearch: false,
+                textStyle: tokens.typography.bodyLarge,
+                inputDecorationTheme: InputDecorationTheme(
+                  filled: true,
+                  fillColor: tokens.colors.surface2,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: tokens.spacing.md,
+                    vertical: tokens.spacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: borderRadius,
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                menuStyle: MenuStyle(
+                  backgroundColor: WidgetStatePropertyAll(tokens.colors.surface2),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(borderRadius: borderRadius),
+                  ),
+                  elevation: const WidgetStatePropertyAll(4),
+                ),
+                // `DropdownMenu<T>.onSelected`'ın imzası `ValueChanged<T?>?`'dir
+                // (T ne olursa olsun) ama yalnız GERÇEK bir [items] girişine
+                // dokunulduğunda çağrılır — asla kendiliğinden "seçim yok"
+                // anlamında null ile tetiklenmez. Bu yüzden `selected`,
+                // T=String? olan Tür/Durum alanlarında MEŞRU biçimde null
+                // OLABİLİR (Tüm türler/Tümü girişi tam olarak budur) — `if
+                // (selected != null)` gibi bir koruma bu null'u YANLIŞLIKLA
+                // atardı (kullanıcı bildirimi ile bulunan gerçek hata:
+                // "Tümü" seçmek durum filtresini KALDIRMIYORDU). `as T` —
+                // T=_CatalogSort (nullable olmayan) için çalışma zamanında
+                // hep gerçek, null-olmayan bir değer taşıdığından
+                // güvenlidir.
+                onSelected: (selected) => onChanged(selected as T),
+                dropdownMenuEntries: [
+                  for (final item in items)
+                    DropdownMenuEntry<T>(
+                      value: item.value,
+                      label: item.label,
+                      trailingIcon: item.value == value
+                          ? Icon(Icons.check, color: tokens.colors.mint)
+                          : null,
+                      style: MenuItemButton.styleFrom(
+                        foregroundColor: item.value == value
+                            ? tokens.colors.mint
+                            : tokens.colors.ink,
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
-          child,
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _CatalogStatusBar extends StatelessWidget {
-  const _CatalogStatusBar({required this.selected, required this.onSelect});
-
-  final String? selected;
-  final ValueChanged<String?> onSelect;
-
-  /// [SeriesSummary.status]'ün taşıdığı tam Türkçe değerler (bkz.
-  /// `core/contracts/generated/series_summary.dart` — "Bilinen değer
-  /// kümesi" yorumu). Web'deki ongoing/completed sözlük anahtarları burada
-  /// KASITLI olarak YOK.
-  static const _statuses = <String>['Devam Ediyor', 'Tamamlandı'];
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-
-    return SizedBox(
-      height: tokens.sizes.minTouchTarget,
-      child: ListView.separated(
-        key: const ValueKey('catalog-status-bar-scrollable'),
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
-        itemCount: _statuses.length + 1,
-        separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _CatalogChip(
-              key: const ValueKey('catalog-status-chip-all'),
-              label: 'Tümü',
-              isSelected: selected == null,
-              semanticsLabel: 'Tümü durumuna göre filtrele',
-              onTap: () => onSelect(null),
-            );
-          }
-          final status = _statuses[index - 1];
-          final isSelected = selected == status;
-          return _CatalogChip(
-            key: ValueKey('catalog-status-chip-$status'),
-            label: status,
-            isSelected: isSelected,
-            semanticsLabel: '$status durumuna göre filtrele',
-            onTap: () => onSelect(isSelected ? null : status),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CatalogSortBar extends StatelessWidget {
-  const _CatalogSortBar({required this.selected, required this.onSelect});
-
-  final _CatalogSort selected;
-  final ValueChanged<_CatalogSort> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-
-    return SizedBox(
-      height: tokens.sizes.minTouchTarget,
-      child: ListView.separated(
-        key: const ValueKey('catalog-sort-bar-scrollable'),
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
-        itemCount: _CatalogSort.values.length,
-        separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
-        itemBuilder: (context, index) {
-          final option = _CatalogSort.values[index];
-          final isSelected = selected == option;
-          return _CatalogChip(
-            key: ValueKey('catalog-sort-chip-${option.name}'),
-            label: option.label,
-            isSelected: isSelected,
-            semanticsLabel: '${option.label} sıralamasını uygula',
-            // Sıralamanın her zaman tam olarak bir aktif değeri vardır (web
-            // `<select>`'in aksine "seçimi kaldır" durumu yok); bu yüzden
-            // tür/durum çubuklarındaki toggle-to-null davranışı burada
-            // KASITLI olarak yok — seçili chip'e tekrar dokunmak no-op'tur.
-            onTap: () => onSelect(option),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CatalogGenreBar extends StatelessWidget {
-  const _CatalogGenreBar({
+/// Web'in "Tür" `<select>`'inin karşılığı (bkz. [_CatalogDropdownField] doc
+/// yorumu). Seçenek kaynağı `GET /api/discovery`'nin `genres` alanıdır
+/// (bkz. bu dosyanın başındaki sınıf doc yorumu) — tam kataloğun istemci
+/// tarafı türetmesi DEĞİL.
+class _CatalogGenreDropdown extends StatelessWidget {
+  const _CatalogGenreDropdown({
     required this.genres,
     required this.selected,
     required this.onSelect,
@@ -543,92 +599,74 @@ class _CatalogGenreBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.tokens;
-
-    return SizedBox(
-      height: tokens.sizes.minTouchTarget,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
-        itemCount: genres.length + 1,
-        separatorBuilder: (context, index) => SizedBox(width: tokens.spacing.sm),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _CatalogChip(
-              key: const ValueKey('catalog-genre-chip-all'),
-              label: 'Tümü',
-              isSelected: selected == null,
-              semanticsLabel: 'Tümü türüne göre filtrele',
-              onTap: () => onSelect(null),
-            );
-          }
-          final genre = genres[index - 1];
-          final isSelected = selected == genre;
-          return _CatalogChip(
-            key: ValueKey('catalog-genre-chip-$genre'),
-            label: genre,
-            isSelected: isSelected,
-            semanticsLabel: '$genre türüne göre filtrele',
-            onTap: () => onSelect(isSelected ? null : genre),
-          );
-        },
-      ),
+    return _CatalogDropdownField<String?>(
+      key: const ValueKey('catalog-genre-dropdown'),
+      label: 'Tür',
+      value: selected,
+      onChanged: onSelect,
+      items: [
+        const _CatalogDropdownOption<String?>(value: null, label: 'Tüm türler'),
+        ...genres.map(
+          (genre) => _CatalogDropdownOption<String?>(value: genre, label: genre),
+        ),
+      ],
     );
   }
 }
 
-/// Tür, durum ve sıralama çubuklarının paylaştığı tek chip görseli (bkz.
-/// [_CatalogGenreBar], [_CatalogStatusBar], [_CatalogSortBar]). Yalnız
-/// erişilebilir etiket metni ([semanticsLabel]) çağıran tarafından
-/// özelleştirilir; görsel dil (renk, kenarlık, dokunma hedefi) üçü için
-/// birebir aynıdır.
-class _CatalogChip extends StatelessWidget {
-  const _CatalogChip({
-    super.key,
-    required this.label,
-    required this.isSelected,
-    required this.semanticsLabel,
-    required this.onTap,
-  });
+/// Web'in "Durum" `<select>`'inin karşılığı (bkz. [_CatalogDropdownField]
+/// doc yorumu). [SeriesSummary.status]'ün taşıdığı tam Türkçe değerler
+/// kullanılır (bkz. `core/contracts/generated/series_summary.dart` —
+/// "Bilinen değer kümesi" yorumu); web'deki ongoing/completed sözlük
+/// anahtarları burada KASITLI olarak YOK.
+class _CatalogStatusDropdown extends StatelessWidget {
+  const _CatalogStatusDropdown({required this.selected, required this.onSelect});
 
-  final String label;
-  final bool isSelected;
-  final String semanticsLabel;
-  final VoidCallback onTap;
+  final String? selected;
+  final ValueChanged<String?> onSelect;
+
+  static const _statuses = <String>['Devam Ediyor', 'Tamamlandı'];
 
   @override
   Widget build(BuildContext context) {
-    final tokens = context.tokens;
-
-    return Semantics(
-      button: true,
-      selected: isSelected,
-      label: semanticsLabel,
-      child: Material(
-        color: isSelected ? tokens.colors.mint : tokens.colors.surface2,
-        borderRadius: BorderRadius.circular(tokens.radii.pill),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(tokens.radii.pill),
-          child: Container(
-            constraints: BoxConstraints(minHeight: tokens.sizes.minTouchTarget),
-            padding: EdgeInsets.symmetric(horizontal: tokens.spacing.md),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(tokens.radii.pill),
-              border: Border.all(
-                color: isSelected ? tokens.colors.mint : tokens.colors.line,
-              ),
-            ),
-            child: Text(
-              label,
-              style: tokens.typography.label.copyWith(
-                color: isSelected ? tokens.colors.background : tokens.colors.ink,
-              ),
-            ),
-          ),
+    return _CatalogDropdownField<String?>(
+      key: const ValueKey('catalog-status-dropdown'),
+      label: 'Durum',
+      value: selected,
+      onChanged: onSelect,
+      items: [
+        const _CatalogDropdownOption<String?>(value: null, label: 'Tümü'),
+        ..._statuses.map(
+          (status) => _CatalogDropdownOption<String?>(value: status, label: status),
         ),
-      ),
+      ],
+    );
+  }
+}
+
+/// Web'in "Sırala" `<select>`'inin karşılığı (bkz. [_CatalogDropdownField]
+/// doc yorumu). Sıralamanın her zaman tam olarak bir aktif değeri vardır
+/// (web `<select>`'in aksine "seçimi kaldır" durumu yok); bu yüzden
+/// tür/durum dropdown'larındaki `null` seçeneği burada KASITLI olarak yok.
+class _CatalogSortDropdown extends StatelessWidget {
+  const _CatalogSortDropdown({required this.selected, required this.onSelect});
+
+  final _CatalogSort selected;
+  final ValueChanged<_CatalogSort> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return _CatalogDropdownField<_CatalogSort>(
+      key: const ValueKey('catalog-sort-dropdown'),
+      label: 'Sırala',
+      value: selected,
+      onChanged: onSelect,
+      items: _CatalogSort.values
+          .map(
+            (option) =>
+                _CatalogDropdownOption<_CatalogSort>(value: option, label: option.label),
+          )
+          .toList(growable: false),
     );
   }
 }

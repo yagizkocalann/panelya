@@ -78,42 +78,76 @@ DiscoveryResponse _discoveryGenres(List<String> genres) {
 }
 
 Finder _seriesCard(String slug) => find.byKey(ValueKey('series-card-$slug'));
-Finder _genreChip(String genre) =>
-    find.byKey(ValueKey('catalog-genre-chip-$genre'));
-Finder _statusChip(String status) =>
-    find.byKey(ValueKey('catalog-status-chip-$status'));
-Finder _sortChip(String sortName) =>
-    find.byKey(ValueKey('catalog-sort-chip-$sortName'));
 
-final Finder _statusBarScrollable = find.descendant(
-  of: find.byKey(const ValueKey('catalog-status-bar-scrollable')),
-  matching: find.byType(Scrollable),
+final Finder _genreDropdown = find.byKey(
+  const ValueKey('catalog-genre-dropdown'),
 );
-final Finder _sortBarScrollable = find.descendant(
-  of: find.byKey(const ValueKey('catalog-sort-bar-scrollable')),
-  matching: find.byType(Scrollable),
+final Finder _statusDropdown = find.byKey(
+  const ValueKey('catalog-status-dropdown'),
+);
+final Finder _sortDropdown = find.byKey(
+  const ValueKey('catalog-sort-dropdown'),
 );
 
-/// Durum/sıralama çubukları yatay kaydırılabilir ve LAZY inşa edilir (bkz.
-/// `ListView.separated`); dar bir telefon genişliğinde (bkz.
-/// [usePhoneViewport]) sondaki chip'ler yalnız görsel olarak ekran dışında
-/// kalmakla kalmaz, henüz İNŞA BİLE EDİLMEMİŞ olabilir. `ensureVisible`
-/// yalnız zaten inşa edilmiş widget'lar için çalışır; bu yüzden [scrollable]
-/// verildiğinde `scrollUntilVisible` kullanılır — bu, hedef widget henüz
-/// inşa edilmemişken bile ilgili `Scrollable`'ı adım adım kaydırıp inşa
-/// olana kadar dener (bkz. `WidgetController.scrollUntilVisible` doc'u).
-Future<void> _tapChip(
+/// Web'in `<select>` alanlarının Flutter karşılığı olan `DropdownMenu`
+/// (bkz. `_CatalogDropdownField` doc yorumu, `catalog_screen.dart`)
+/// seçeneklerini `MenuItemButton` olarak render eder; `DropdownMenuEntry`
+/// kendi başına bir `Key` taşımadığından seçenekler GÖRÜNÜR ETİKETLERİNDEN
+/// bulunur. `MenuItemButton` ile sınırlamak (yalnız `find.text(label)`
+/// değil) [SeriesCard] üzerindeki aynı metni (örn. bir tür adı hem menü
+/// seçeneği hem de bir kartın tür rozeti olabilir) YANLIŞLIKLA eşleştirmeyi
+/// önler.
+///
+/// `DropdownMenu` HER seçenek için iki `MenuItemButton` inşa eder: biri
+/// alanın kapalı genişliğini hesaplamak için görünmez bir ölçüm kopyası
+/// (`_DropdownMenuBody` atası altında — bkz. Flutter SDK
+/// `dropdown_menu.dart`), diğeri açık menüdeki gerçek/dokunulabilir satır.
+/// Bu yüzden varlık kontrolleri `findsOneWidget` DEĞİL `findsWidgets` (en az
+/// bir) kullanır. Dokunma hedefi seçmek için ise sıra (`.first`/`.last`)
+/// GÜVENİLİR DEĞİLDİR: menü seçili öğeyi görünür kılmak üzere kendi kendine
+/// kaydırdığında (Material 3 "exposed dropdown menu" — seçili öğeye otomatik
+/// kaydırma — bkz. m3.material.io/components/menus/overview) iki eşleşmenin
+/// ağaçtaki SIRASI kararlı kalsa da EKRANDAKİ konumu değişebilir; bu yüzden
+/// [_selectDropdownOption] sıraya değil, atalarında `_DropdownMenuBody`
+/// OLMAYAN eşleşmeye göre gerçek satırı seçer ve dokunmadan önce
+/// `ensureVisible` ile kaydırılmış olabilecek satırı görünür kılar.
+Finder _dropdownOption(String label) =>
+    find.widgetWithText(MenuItemButton, label);
+
+/// [dropdown] alanına dokunup açılan menüde [label] etiketli GERÇEK (ölçüm
+/// kopyası değil) satırı bulup dokunur. Menü bir [Overlay] içinde açıldığı
+/// için önce [dropdown] alanının kendisi görünür/inşa edilmiş olmalı.
+Future<void> _selectDropdownOption(
   WidgetTester tester,
-  Finder finder, {
-  Finder? scrollable,
-}) async {
-  if (scrollable != null) {
-    await tester.scrollUntilVisible(finder, 80, scrollable: scrollable);
-  } else {
-    await tester.ensureVisible(finder);
-  }
+  Finder dropdown,
+  String label,
+) async {
+  await tester.ensureVisible(dropdown);
   await tester.pumpAndSettle();
-  await tester.tap(finder);
+  await tester.tap(dropdown);
+  await tester.pumpAndSettle();
+
+  Element? real;
+  for (final element in _dropdownOption(label).evaluate()) {
+    var isMeasurementCopy = false;
+    element.visitAncestorElements((ancestor) {
+      if (ancestor.widget.runtimeType.toString() == '_DropdownMenuBody') {
+        isMeasurementCopy = true;
+        return false;
+      }
+      return true;
+    });
+    if (!isMeasurementCopy) real = element;
+  }
+  expect(
+    real,
+    isNotNull,
+    reason: 'No interactive (non-measurement) MenuItemButton found for "$label"',
+  );
+  final target = find.byElementPredicate((element) => element == real);
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.tap(target);
   await tester.pumpAndSettle();
 }
 
@@ -283,8 +317,8 @@ void main() {
 
   group('tür filtresi — GET /api/discovery genres alanından gelir', () {
     testWidgets(
-      'genre chips come from discoveryResponse.genres, not a client-side '
-      'aggregation of the full catalog',
+      'genre dropdown options come from discoveryResponse.genres, not a '
+      'client-side aggregation of the full catalog',
       (tester) async {
         usePhoneViewport(tester);
         final repository = _FakeCatalogRepository(
@@ -302,19 +336,23 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(_genreChip('all'), findsOneWidget);
-        expect(_genreChip('Gizem'), findsOneWidget);
-        expect(_genreChip('Romantizm'), findsOneWidget);
-        // Kataloğun kendi "Dram" türü, discovery `genres`'te YOK ve chip
+        await tester.ensureVisible(_genreDropdown);
+        await tester.tap(_genreDropdown);
+        await tester.pumpAndSettle();
+
+        expect(_dropdownOption('Tüm türler'), findsWidgets);
+        expect(_dropdownOption('Gizem'), findsWidgets);
+        expect(_dropdownOption('Romantizm'), findsWidgets);
+        // Kataloğun kendi "Dram" türü, discovery `genres`'te YOK ve seçenek
         // olarak da GÖRÜNMEMELİ — kaynak bilerek `discoveryResponse.genres`,
         // tam kataloğun istemci tarafı türetmesi değil (bkz.
         // `catalog_screen.dart` doc yorumu).
-        expect(_genreChip('Dram'), findsNothing);
+        expect(_dropdownOption('Dram'), findsNothing);
       },
     );
 
     testWidgets(
-      'selecting a genre chip filters the visible series to that genre',
+      'selecting a genre option filters the visible series to that genre',
       (tester) async {
         usePhoneViewport(tester);
         final repository = _FakeCatalogRepository(
@@ -332,8 +370,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(_genreChip('Romantizm'));
-        await tester.pumpAndSettle();
+        await _selectDropdownOption(tester, _genreDropdown, 'Romantizm');
 
         expect(_seriesCard('b'), findsOneWidget);
         expect(_seriesCard('a'), findsNothing);
@@ -492,9 +529,13 @@ void main() {
       await tester.pumpWidget(_wrap(catalogRepository: repository));
       await tester.pumpAndSettle();
 
-      expect(_statusChip('all'), findsOneWidget);
-      expect(_statusChip('Devam Ediyor'), findsOneWidget);
-      expect(_statusChip('Tamamlandı'), findsOneWidget);
+      await tester.ensureVisible(_statusDropdown);
+      await tester.tap(_statusDropdown);
+      await tester.pumpAndSettle();
+
+      expect(_dropdownOption('Tümü'), findsWidgets);
+      expect(_dropdownOption('Devam Ediyor'), findsWidgets);
+      expect(_dropdownOption('Tamamlandı'), findsWidgets);
       expect(_seriesCard('devam'), findsOneWidget);
       expect(_seriesCard('tamam'), findsOneWidget);
     });
@@ -513,13 +554,13 @@ void main() {
       await tester.pumpWidget(_wrap(catalogRepository: repository));
       await tester.pumpAndSettle();
 
-      await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+      await _selectDropdownOption(tester, _statusDropdown, 'Tamamlandı');
 
       expect(_seriesCard('tamam'), findsOneWidget);
       expect(_seriesCard('devam'), findsNothing);
     });
 
-    testWidgets('durum chip\'ine tekrar dokunmak filtreyi kaldırır ("Tümü"ne döner)', (
+    testWidgets('"Tümü" seçmek durum filtresini kaldırır (web select\'in aynısı)', (
       tester,
     ) async {
       usePhoneViewport(tester);
@@ -533,10 +574,10 @@ void main() {
       await tester.pumpWidget(_wrap(catalogRepository: repository));
       await tester.pumpAndSettle();
 
-      await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+      await _selectDropdownOption(tester, _statusDropdown, 'Tamamlandı');
       expect(_seriesCard('devam'), findsNothing);
 
-      await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+      await _selectDropdownOption(tester, _statusDropdown, 'Tümü');
       expect(_seriesCard('devam'), findsOneWidget);
       expect(_seriesCard('tamam'), findsOneWidget);
     });
@@ -581,8 +622,8 @@ void main() {
           'gece',
         );
         await tester.pumpAndSettle();
-        await _tapChip(tester, _genreChip('Gizem'));
-        await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
+        await _selectDropdownOption(tester, _genreDropdown, 'Gizem');
+        await _selectDropdownOption(tester, _statusDropdown, 'Tamamlandı');
 
         // Yalnız 'b' hem "gece" araması, hem "Gizem" türü, hem de
         // "Tamamlandı" durumuyla eşleşir.
@@ -615,7 +656,11 @@ void main() {
         await tester.pumpWidget(_wrap(catalogRepository: repository));
         await tester.pumpAndSettle();
 
-        expect(_sortChip('updated'), findsOneWidget);
+        // `findsWidgets` (en az bir), `findsOneWidget` DEĞİL: `DropdownMenu`
+        // kapalı alanın gösterdiği metne (bir `EditableText`) ek olarak,
+        // genişlik ölçümü için görünmez bir `Text` kopyası da her zaman
+        // tutar (bkz. [_dropdownOption] doc yorumu).
+        expect(find.text('Son güncellenen'), findsWidgets);
         expect(
           _visibleSeriesOrder(tester),
           ['z-serisi', 'a-serisi', 'm-serisi'],
@@ -638,7 +683,7 @@ void main() {
       await tester.pumpWidget(_wrap(catalogRepository: repository));
       await tester.pumpAndSettle();
 
-      await _tapChip(tester, _sortChip('rating'), scrollable: _sortBarScrollable);
+      await _selectDropdownOption(tester, _sortDropdown, 'Puana göre');
 
       expect(
         _visibleSeriesOrder(tester),
@@ -660,7 +705,7 @@ void main() {
         await tester.pumpWidget(_wrap(catalogRepository: repository));
         await tester.pumpAndSettle();
 
-        await _tapChip(tester, _sortChip('rating'), scrollable: _sortBarScrollable);
+        await _selectDropdownOption(tester, _sortDropdown, 'Puana göre');
 
         expect(_visibleSeriesOrder(tester), ['a-slug', 'z-slug']);
       },
@@ -682,7 +727,7 @@ void main() {
         await tester.pumpWidget(_wrap(catalogRepository: repository));
         await tester.pumpAndSettle();
 
-        await _tapChip(tester, _sortChip('title'), scrollable: _sortBarScrollable);
+        await _selectDropdownOption(tester, _sortDropdown, 'Ada göre');
 
         // normalizeCatalogSearch: 'Araba Yolu' -> 'araba yolu',
         // 'Çay Bahçesi' -> 'cay bahcesi', 'İstanbul Geceleri' ->
@@ -737,9 +782,9 @@ void main() {
           'gece',
         );
         await tester.pumpAndSettle();
-        await _tapChip(tester, _genreChip('Gizem'));
-        await _tapChip(tester, _statusChip('Tamamlandı'), scrollable: _statusBarScrollable);
-        await _tapChip(tester, _sortChip('rating'), scrollable: _sortBarScrollable);
+        await _selectDropdownOption(tester, _genreDropdown, 'Gizem');
+        await _selectDropdownOption(tester, _statusDropdown, 'Tamamlandı');
+        await _selectDropdownOption(tester, _sortDropdown, 'Puana göre');
 
         // 'c' Romantizm türünde olduğu için filtrelenip ELENİR; kalan 'a'
         // ve 'b' arasında rating'e göre azalan sıralanır (b: 4.9 > a: 3.0).
