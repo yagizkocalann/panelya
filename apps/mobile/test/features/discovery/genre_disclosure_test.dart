@@ -1,5 +1,3 @@
-import 'dart:ui' show Tristate;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -259,10 +257,16 @@ void main() {
           expect(find.byKey(const ValueKey('series-card-yarinki-ses')),
               findsOneWidget);
 
-          final allChipSemantics = tester
-              .getSemantics(find.byKey(const ValueKey('catalog-genre-chip-all')))
-              .getSemanticsData();
-          expect(allChipSemantics.flagsCollection.isSelected, Tristate.isTrue);
+          // Kataloğun kendi "Tür" alanı (bkz. `catalog_screen.dart` —
+          // `_CatalogGenreDropdown`, artık chip DEĞİL bir Material 3
+          // `DropdownMenu`) filtresiz durumda "Tüm türler" gösterir; bu,
+          // eski chip tabanlı `isSelected` semantics kontrolünün dropdown
+          // sonrası karşılığıdır. `findsWidgets` (en az bir), tam sayı
+          // bekleyen `findsOneWidget` DEĞİL: `DropdownMenu` kapalı alanın
+          // gösterdiği metne ek olarak genişlik ölçümü için görünmez bir
+          // `Text` kopyası da tutar (bkz. `catalog_screen_test.dart`'taki
+          // aynı not).
+          expect(find.text('Tüm türler'), findsWidgets);
 
           semanticsHandle.dispose();
         },
