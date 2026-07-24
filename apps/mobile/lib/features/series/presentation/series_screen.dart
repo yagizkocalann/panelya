@@ -366,6 +366,14 @@ class _DownloadAllButtonState extends ConsumerState<_DownloadAllButton> {
       setState(() => _completed++);
     }
 
+    // "İndirilenler" ekranı (bkz. `downloads_screen.dart`) ayrı bir
+    // provider'dan (`downloadedEpisodesProvider`) okur; yukarıdaki
+    // döngüdeki tekil `isEpisodeDownloadedProvider` invalidate'i onu
+    // TAZELEMEZ — bu toplu indirme bittiğinde bir kez açıkça yapılması
+    // gerekir, yoksa o ekran zaten okunmuş eski (bu indirmeden önceki)
+    // önbellek değerini göstermeye devam eder.
+    ref.invalidate(downloadedEpisodesProvider);
+
     if (!mounted) return;
     setState(() => _running = false);
     if (hadFailure) {

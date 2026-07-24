@@ -89,6 +89,18 @@ class DownloadsScreen extends ConsumerWidget {
     final repository = ref.read(offlineEpisodeRepositoryProvider);
     for (final episode in episodes) {
       await repository.deleteDownload(episode.seriesSlug, episode.episodeSlug);
+      // Seri/okuyucu ekranındaki indirme düğmesi (bkz. `EpisodeDownloadButton`)
+      // AYRI bir provider'dan (`isEpisodeDownloadedProvider`) okur; bu toplu
+      // silme yolu `EpisodeDownloadButton._confirmDelete`'i (tek tek silmede
+      // kullanılan, bu invalidate'i zaten yapan yol) atladığı için burada da
+      // açıkça yapılmazsa o ekranlar dosyalar silinmiş olsa bile eski
+      // "indirilmiş" durumunu göstermeye devam eder.
+      ref.invalidate(
+        isEpisodeDownloadedProvider((
+          seriesSlug: episode.seriesSlug,
+          episodeSlug: episode.episodeSlug,
+        )),
+      );
     }
     ref.invalidate(downloadedEpisodesProvider);
   }

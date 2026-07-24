@@ -71,6 +71,12 @@ class _EpisodeDownloadButtonState extends ConsumerState<EpisodeDownloadButton> {
       if (!mounted) return;
       setState(() => _downloadProgress = null);
       ref.invalidate(isEpisodeDownloadedProvider(_key));
+      // Bu düğme okuyucu, seri ekranı satırı VE "İndirilenler" ekranının
+      // kendi satırında (bkz. `downloads_screen.dart`) kullanılıyor; hangi
+      // ekrandan tetiklendiğine bakılmaksızın global listeyi de tazele —
+      // aksi halde "İndirilenler" ekranı zaten okunmuş eski (indirme
+      // öncesi) önbellek değerini göstermeye devam eder.
+      ref.invalidate(downloadedEpisodesProvider);
       widget.onChanged?.call();
     } catch (_) {
       if (!mounted) return;
@@ -109,6 +115,8 @@ class _EpisodeDownloadButtonState extends ConsumerState<EpisodeDownloadButton> {
         .read(offlineEpisodeRepositoryProvider)
         .deleteDownload(widget.seriesSlug, widget.episodeSlug);
     ref.invalidate(isEpisodeDownloadedProvider(_key));
+    // bkz. yukarıdaki _startDownload'daki aynı gerekçe.
+    ref.invalidate(downloadedEpisodesProvider);
     widget.onChanged?.call();
   }
 

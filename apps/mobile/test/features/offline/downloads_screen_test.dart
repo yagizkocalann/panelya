@@ -80,6 +80,53 @@ class _FakeReaderRepository implements ReaderRepository {
   }
 }
 
+/// `isEpisodeDownloadedProvider`'ın belirli bir bölüm için o anki değerini
+/// düz metin olarak gösteren prob widget. Regresyon testi için: seri/
+/// okuyucu ekranındaki indirme düğmesi bu provider'ı okur; "İndirilenler"
+/// ekranındaki "Tümünü sil" bu provider'ı tazelemezse o ekranlar dosyalar
+/// silinmiş olsa bile eski "indirilmiş" durumunu göstermeye devam eder
+/// (bkz. `episode_download_button.dart` ve `downloads_screen.dart`daki
+/// `_confirmDeleteAll` düzeltmesi).
+class _IsDownloadedProbe extends ConsumerWidget {
+  const _IsDownloadedProbe(this.key_);
+
+  final OfflineEpisodeKey key_;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDownloaded = ref.watch(isEpisodeDownloadedProvider(key_)).asData?.value;
+    return Text('probe:$isDownloaded');
+  }
+}
+
+Widget _wrapWithDownloadedProbe(
+  _FakeOfflineEpisodeRepository repository,
+  OfflineEpisodeKey probeKey,
+) {
+  final router = GoRouter(
+    initialLocation: '/downloads',
+    routes: [
+      GoRoute(
+        path: '/downloads',
+        builder: (context, state) => Column(
+          children: [
+            Expanded(child: const DownloadsScreen()),
+            _IsDownloadedProbe(probeKey),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  return ProviderScope(
+    overrides: [
+      offlineEpisodeRepositoryProvider.overrideWithValue(repository),
+      readerRepositoryProvider.overrideWithValue(_FakeReaderRepository()),
+    ],
+    child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
+  );
+}
+
 Widget _wrap(_FakeOfflineEpisodeRepository repository) {
   final router = GoRouter(
     initialLocation: '/downloads',
@@ -289,6 +336,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('HOME'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '"tüm indirmeleri sil" onaylandığında isEpisodeDownloadedProvider da '
+    'her bölüm için tazelenir (regresyon: aksi halde seri/okuyucu ekranı '
+    'dosyalar silinmiş olsa bile eski "indirilmiş" durumunu gösterirdi)',
+    (tester) async {
+      const probeKey = (
+        seriesSlug: 'gece-vardiyasi',
+        episodeSlug: 'bolum-1',
+      );
+      final repository = _FakeOfflineEpisodeRepository([_episode()]);
+
+      await tester.pumpWidget(
+        _wrapWithDownloadedProbe(repository, probeKey),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('probe:true'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Tüm indirmeleri sil'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tümünü sil'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('probe:false'), findsOneWidget);
     },
   );
 }
