@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,10 +13,12 @@ import '../../../core/api/media_url.dart';
 import '../../../core/api/media_variant_selector.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../../../features/offline/presentation/offline_providers.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
 import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
+import '../domain/reader_content.dart';
 import 'reader_providers.dart';
 
 /// Okuyucu ekranı (`/series/:slug/read/:episodeSlug`): kesintisiz dikey
@@ -36,9 +40,12 @@ class ReaderScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (seriesSlug: seriesSlug, episodeSlug: episodeSlug);
-    final manifest = ref.watch(episodeManifestProvider(key));
+    // `readerContentProvider` (bkz. `reader_providers.dart`) önce cihaza
+    // indirilmiş bir kopya olup olmadığına bakar; varsa ağ hiç
+    // çağrılmaz — indirilmiş bölümler internetsiz de açılır.
+    final content = ref.watch(readerContentProvider(key));
 
-    return manifest.when(
+    return content.when(
       loading: () => _ReaderChromeScaffold(
         seriesSlug: seriesSlug,
         body: const AppLoadingView(label: 'Bölüm yükleniyor'),
@@ -49,11 +56,11 @@ class ReaderScreen extends ConsumerWidget {
           message: error is ApiException
               ? describeApiException(error)
               : 'Beklenmeyen bir hata oluştu.',
-          onRetry: () => ref.invalidate(episodeManifestProvider(key)),
+          onRetry: () => ref.invalidate(readerContentProvider(key)),
         ),
       ),
-      data: (response) =>
-          _ReaderSuccessScaffold(seriesSlug: seriesSlug, response: response),
+      data: (content) =>
+          _ReaderSuccessScaffold(seriesSlug: seriesSlug, content: content),
     );
   }
 }
@@ -127,11 +134,11 @@ void _returnToSeries(BuildContext context, String seriesSlug) {
 class _ReaderSuccessScaffold extends ConsumerStatefulWidget {
   const _ReaderSuccessScaffold({
     required this.seriesSlug,
-    required this.response,
+    required this.content,
   });
 
   final String seriesSlug;
-  final EpisodeManifestResponse response;
+  final ReaderContent content;
 
   @override
   ConsumerState<_ReaderSuccessScaffold> createState() =>
@@ -166,7 +173,7 @@ class _ReaderSuccessScaffoldState
     // AŞAMASI bittikten sonraya erteler).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final response = widget.response;
+      final response = widget.content.manifest;
       ref
           .read(readingProgressRepositoryProvider)
           .recordEpisodeOpened(
@@ -213,7 +220,7 @@ class _ReaderSuccessScaffoldState
     if (!reachedEnd) return;
     _completionRecorded = true;
 
-    final response = widget.response;
+    final response = widget.content.manifest;
     final next = response.navigation.next;
     ref
         .read(readingProgressRepositoryProvider)
@@ -249,17 +256,20 @@ class _ReaderSuccessScaffoldState
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
-    final episode = widget.response.episode;
-    final navigation = widget.response.navigation;
+    final manifest = widget.content.manifest;
+    final episode = manifest.episode;
+    final navigation = manifest.navigation;
 
     return Scaffold(
       backgroundColor: tokens.colors.background,
       appBar: _ReaderAppBar(
         seriesSlug: widget.seriesSlug,
+        episodeSlug: episode.slug,
         episodeNumber: episode.number,
         previous: navigation.previous,
         next: navigation.next,
         progress: _progress,
+        manifest: manifest,
       ),
       body: SafeArea(
         child: episode.panels.isEmpty
@@ -268,10 +278,11 @@ class _ReaderSuccessScaffoldState
               )
             : _ReaderPanelList(
                 seriesSlug: widget.seriesSlug,
-                seriesTitle: widget.response.series.title,
+                seriesTitle: manifest.series.title,
                 episode: episode,
                 navigation: navigation,
                 scrollController: _scrollController,
+                offlinePanelImageFiles: widget.content.offlinePanelImageFiles,
               ),
       ),
     );
@@ -285,17 +296,21 @@ class _ReaderSuccessScaffoldState
 class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
   const _ReaderAppBar({
     required this.seriesSlug,
+    required this.episodeSlug,
     required this.episodeNumber,
     required this.previous,
     required this.next,
     required this.progress,
+    required this.manifest,
   });
 
   final String seriesSlug;
+  final String episodeSlug;
   final int episodeNumber;
   final EpisodeNavigationRef? previous;
   final EpisodeNavigationRef? next;
   final ValueListenable<double> progress;
+  final EpisodeManifestResponse manifest;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight + 3);
@@ -322,12 +337,156 @@ class _ReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
               '/series/$seriesSlug/read/${next!.slug}',
             ),
           ),
+        _DownloadButton(
+          seriesSlug: seriesSlug,
+          episodeSlug: episodeSlug,
+          manifest: manifest,
+        ),
         const HomeButton(),
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(3),
         child: _ReaderProgressBar(progress: progress),
       ),
+    );
+  }
+}
+
+/// Bölümü cihaza indirme/silme kontrolü (bkz. `features/offline/`,
+/// docs/local-gap-backlog.md P2 madde 3 — "Deep link, çevrimdışı okuma ve
+/// push bildirimleri"). Üç görsel durumu vardır: henüz indirilmemiş (indirme
+/// ikonu), indiriliyor (yüzde ilerlemesi, dokunulamaz) ve indirilmiş (onay
+/// ikonu — dokununca silme onayı ister). İndirme ilerlemesi bu widget'ın
+/// KENDİ (Riverpod değil) yerel state'idir — `_ReaderSuccessScaffoldState`
+/// scroll ilerlemesini nasıl kendi state'inde tutuyorsa, indirme de yalnız
+/// bu ekranda görünen ekrana-özgü, geçici bir UI durumudur (bkz. o sınıfın
+/// doc yorumu — aynı desen).
+class _DownloadButton extends ConsumerStatefulWidget {
+  const _DownloadButton({
+    required this.seriesSlug,
+    required this.episodeSlug,
+    required this.manifest,
+  });
+
+  final String seriesSlug;
+  final String episodeSlug;
+  final EpisodeManifestResponse manifest;
+
+  @override
+  ConsumerState<_DownloadButton> createState() => _DownloadButtonState();
+}
+
+class _DownloadButtonState extends ConsumerState<_DownloadButton> {
+  /// `null` iken indirme sürmüyor demektir; doluyken 0.0-1.0 arası ilerleme.
+  double? _downloadProgress;
+
+  OfflineEpisodeKey get _key =>
+      (seriesSlug: widget.seriesSlug, episodeSlug: widget.episodeSlug);
+
+  Future<void> _startDownload() async {
+    setState(() => _downloadProgress = 0);
+    final apiOrigin = ref.read(appConfigProvider).apiOrigin;
+    final repository = ref.read(offlineEpisodeRepositoryProvider);
+    try {
+      await for (final progress in repository.downloadEpisode(
+        apiOrigin: apiOrigin,
+        manifest: widget.manifest,
+      )) {
+        if (!mounted) return;
+        setState(() => _downloadProgress = progress);
+      }
+      if (!mounted) return;
+      setState(() => _downloadProgress = null);
+      ref.invalidate(isEpisodeDownloadedProvider(_key));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _downloadProgress = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bölüm indirilemedi. Lütfen tekrar deneyin.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('İndirmeyi kaldır'),
+        content: const Text(
+          'Bu bölümün cihazdaki indirilmiş kopyası silinsin mi?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sil'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await ref
+        .read(offlineEpisodeRepositoryProvider)
+        .deleteDownload(widget.seriesSlug, widget.episodeSlug);
+    ref.invalidate(isEpisodeDownloadedProvider(_key));
+    // Bu bölüm şu an OFFLINE içerikten gösteriliyor olabilir (bkz.
+    // `readerContentProvider`); silme sonrası ekranın normal ağ akışına
+    // dönmesi için o provider da tazelenir.
+    ref.invalidate(readerContentProvider(_key));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = context.tokens;
+    final progress = _downloadProgress;
+
+    if (progress != null) {
+      return IconButton(
+        icon: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            value: progress == 0 ? null : progress,
+            strokeWidth: 2,
+            color: tokens.colors.mint,
+          ),
+        ),
+        tooltip: 'İndiriliyor · %${(progress * 100).round()}',
+        onPressed: null,
+      );
+    }
+
+    final downloaded = ref.watch(isEpisodeDownloadedProvider(_key));
+    return downloaded.when(
+      // Kontrol denetimi kısa sürer (yalnız yerel bir dosya var mı bakar);
+      // bu ara durumda sabit boyutlu boş bir alan, ikonun aniden belirip
+      // düzeni kaydırmasını önler.
+      loading: () => const SizedBox(width: 48, height: 48),
+      error: (error, stackTrace) => IconButton(
+        icon: const Icon(Icons.download_outlined),
+        tooltip: 'Bölümü indir',
+        onPressed: _startDownload,
+      ),
+      data: (isDownloaded) => isDownloaded
+          ? IconButton(
+              icon: Icon(
+                Icons.download_done_rounded,
+                color: tokens.colors.mint,
+              ),
+              tooltip: 'İndirildi · kaldırmak için dokunun',
+              onPressed: _confirmDelete,
+            )
+          : IconButton(
+              icon: const Icon(Icons.download_outlined),
+              tooltip: 'Bölümü indir',
+              onPressed: _startDownload,
+            ),
     );
   }
 }
@@ -379,6 +538,7 @@ class _ReaderPanelList extends ConsumerWidget {
     required this.episode,
     required this.navigation,
     required this.scrollController,
+    required this.offlinePanelImageFiles,
   });
 
   final String seriesSlug;
@@ -386,6 +546,10 @@ class _ReaderPanelList extends ConsumerWidget {
   final Episode episode;
   final EpisodeNavigation navigation;
   final ScrollController scrollController;
+  /// Bkz. `ReaderContent.offlinePanelImageFiles` doc yorumu: yalnız bölüm
+  /// cihaza indirilmişse dolu, `episode.panels` ile paralel bir liste.
+  /// `null` ise (çevrimiçi mod) her panel her zaman ağdan yüklenir.
+  final List<File?>? offlinePanelImageFiles;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -406,7 +570,11 @@ class _ReaderPanelList extends ConsumerWidget {
               next: navigation.next,
             );
           }
-          return _PanelBlock(panel: panels[index], apiOrigin: apiOrigin);
+          return _PanelBlock(
+            panel: panels[index],
+            apiOrigin: apiOrigin,
+            localImageFile: offlinePanelImageFiles?[index],
+          );
         },
       ),
     );
@@ -419,10 +587,19 @@ class _ReaderPanelList extends ConsumerWidget {
 /// panelin görseli olur) yalnız sahne metniyle tam genişlik bir blok olarak
 /// gösterilir.
 class _PanelBlock extends StatelessWidget {
-  const _PanelBlock({required this.panel, required this.apiOrigin});
+  const _PanelBlock({
+    required this.panel,
+    required this.apiOrigin,
+    required this.localImageFile,
+  });
 
   final StoryPanel panel;
   final String apiOrigin;
+  /// Bölüm cihaza indirilmişse bu panelin yerel görsel dosyası (bkz.
+  /// `_ReaderPanelList.offlinePanelImageFiles`); doluysa ağ HİÇ
+  /// çağrılmaz — `resolveMediaUrl`/varyant seçimi tamamen atlanır, aynı
+  /// bayt'lar zaten diskte.
+  final File? localImageFile;
 
   @override
   Widget build(BuildContext context) {
@@ -446,6 +623,7 @@ class _PanelBlock extends StatelessWidget {
 
     final semanticLabel = image.alt.isNotEmpty ? image.alt : panel.scene;
     final hasText = panel.caption != null || panel.dialogue != null;
+    final localFile = localImageFile;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -460,13 +638,17 @@ class _PanelBlock extends StatelessWidget {
           // varyant seçimine göre değişir.
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final imageUrl = resolveMediaUrl(
-                apiOrigin,
-                _resolvePanelImageSrc(context, image, constraints),
-              );
+              final child = localFile != null
+                  ? _PanelImage(file: localFile)
+                  : _PanelImage(
+                      url: resolveMediaUrl(
+                        apiOrigin,
+                        _resolvePanelImageSrc(context, image, constraints),
+                      ),
+                    );
               return AspectRatio(
                 aspectRatio: image.width / image.height,
-                child: _PanelImage(url: imageUrl),
+                child: child,
               );
             },
           ),
@@ -582,18 +764,29 @@ class _TextLayer extends StatelessWidget {
 /// yükleme göstergesi dönen bir spinner yerine statik bir simgeye döner hem
 /// de fade süresi sıfırlanır — bu ekrandaki tek otomatik animasyon burada
 /// devre dışı bırakılır.
+///
+/// [url] (ağdan, `NetworkImage`) ve [file] (bkz. `_PanelBlock.localImageFile`
+/// — cihaza indirilmiş bölüm, `FileImage`) TAM OLARAK biri dolu olacak
+/// şekilde kullanılır; ikisi de aynı `Image` widget'ını, aynı yükleme/hata/
+/// fade davranışını PAYLAŞIR — yalnız hangi [ImageProvider]'ın çözüleceği
+/// değişir.
 class _PanelImage extends StatelessWidget {
-  const _PanelImage({required this.url});
+  const _PanelImage({this.url, this.file}) : assert(url != null || file != null);
 
-  final String url;
+  final String? url;
+  final File? file;
 
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final localFile = file;
+    final ImageProvider imageProvider = localFile != null
+        ? FileImage(localFile)
+        : NetworkImage(url!);
 
-    return Image.network(
-      url,
+    return Image(
+      image: imageProvider,
       fit: BoxFit.cover,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded) return child;

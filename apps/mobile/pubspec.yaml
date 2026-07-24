@@ -69,6 +69,16 @@ dependencies:
   # yalnizca hash hesaplar; ag/depolama/gomulu tarayici gibi baska hicbir
   # yetenek eklemez.
   crypto: ^3.0.7
+  # Cevrimdisi okuma (bkz. lib/features/offline/, docs/local-gap-backlog.md
+  # P2 madde 3) icin platforma gore doGru "uygulama belgeleri" dizinini
+  # cozer. Gerekce (AGENTS.md'nin gerekcesiz dependency yasagina gerekceli
+  # istisna): iOS/Android/masaustunde kalici dosya depolamasinin doGru
+  # yolu FARKLIDIR ve resmi olmayan bir platform kanalini elle yazmak,
+  # zaten Flutter ekibinin resmi/first-party cozdugu bir sorunu yeniden
+  # icat etmek olurdu. Bu paket yalniz bir dizin yolu dondurur; ag,
+  # depolama motoru veya baska bir yetenek eklemez — dosya IO'sunun kendisi
+  # hala dart:io ile yazilir (bkz. FileSystemOfflineEpisodeRepository).
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:

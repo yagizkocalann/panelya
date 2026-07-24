@@ -11,6 +11,9 @@ import 'package:panelya_mobile/app/theme/tokens.dart';
 import 'package:panelya_mobile/app/theme/tone_gradients.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/offline/domain/offline_episode_content.dart';
+import 'package:panelya_mobile/features/offline/domain/offline_episode_repository.dart';
+import 'package:panelya_mobile/features/offline/presentation/offline_providers.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress.dart';
 import 'package:panelya_mobile/features/progress/domain/reading_progress_repository.dart';
 import 'package:panelya_mobile/features/progress/presentation/reading_progress_providers.dart';
@@ -103,6 +106,90 @@ class _FakeReadingProgressRepository implements LocalReadingProgressRepository {
   }
 }
 
+/// In-memory + geçici dosya tabanlı sahte çevrimdışı depo. Gerçek
+/// implementasyonun (bkz. `FileSystemOfflineEpisodeRepository`) sözleşmesini
+/// taklit eder: [downloadEpisode] ilerleme yayınlar ve TAMAMLANMADAN
+/// [isDownloaded] `true` olmaz; [seedDownloaded] ise "önceden indirilmiş"
+/// bir bölümü doğrudan kaydedip offline render/silme testlerinin indirme
+/// akışını tekrar simüle etmesine gerek bırakmaz.
+///
+/// Panel dosyaları GERÇEK (geçici) dosyalardır — içerikleri geçerli bir
+/// görsel olmak ZORUNDA DEĞİLDİR (bkz. `_panelImageUrl`'daki aynı not:
+/// testler yalnız hangi `ImageProvider`'ın kullanıldığını, gerçek baytların
+/// çözülüp çözülmediğini değil, doğrular).
+class _FakeOfflineEpisodeRepository implements OfflineEpisodeRepository {
+  _FakeOfflineEpisodeRepository()
+    : _tempDir = Directory.systemTemp.createTempSync('offline_repo_test_');
+
+  final Directory _tempDir;
+  final Set<String> _downloadedKeys = {};
+  final Map<String, EpisodeManifestResponse> _manifests = {};
+
+  /// Test'in `downloadEpisode`'u başarısız kılmasını istediği senaryolar
+  /// için (bkz. "indirme hatası" testi).
+  bool downloadShouldThrow = false;
+  final List<double> emittedProgress = [];
+
+  String _key(String seriesSlug, String episodeSlug) =>
+      '$seriesSlug/$episodeSlug';
+
+  /// Bir bölümü, gerçek bir indirme akışı geçirmeden doğrudan "indirilmiş"
+  /// olarak kaydeder (offline render/silme testleri için).
+  void seedDownloaded(EpisodeManifestResponse manifest) {
+    final key = _key(manifest.series.slug, manifest.episode.slug);
+    _manifests[key] = manifest;
+    _downloadedKeys.add(key);
+  }
+
+  @override
+  Future<bool> isDownloaded(String seriesSlug, String episodeSlug) async =>
+      _downloadedKeys.contains(_key(seriesSlug, episodeSlug));
+
+  @override
+  Future<OfflineEpisodeContent?> loadDownloaded(
+    String seriesSlug,
+    String episodeSlug,
+  ) async {
+    final key = _key(seriesSlug, episodeSlug);
+    if (!_downloadedKeys.contains(key)) return null;
+    final manifest = _manifests[key]!;
+
+    final files = <File?>[];
+    for (var i = 0; i < manifest.episode.panels.length; i++) {
+      if (manifest.episode.panels[i].image == null) {
+        files.add(null);
+        continue;
+      }
+      final file = File('${_tempDir.path}/${key.replaceAll('/', '_')}-$i');
+      if (!file.existsSync()) {
+        file.writeAsBytesSync(const [0]);
+      }
+      files.add(file);
+    }
+    return OfflineEpisodeContent(manifest: manifest, panelImageFiles: files);
+  }
+
+  @override
+  Stream<double> downloadEpisode({
+    required String apiOrigin,
+    required EpisodeManifestResponse manifest,
+  }) async* {
+    if (downloadShouldThrow) {
+      throw Exception('indirme hatası (test)');
+    }
+    yield 0.5;
+    emittedProgress.add(0.5);
+    yield 1.0;
+    emittedProgress.add(1.0);
+    seedDownloaded(manifest);
+  }
+
+  @override
+  Future<void> deleteDownload(String seriesSlug, String episodeSlug) async {
+    _downloadedKeys.remove(_key(seriesSlug, episodeSlug));
+  }
+}
+
 /// `.invalid` bir RFC 2606 rezerve alan adıdır: DNS çözümü daima ve hızlı
 /// biçimde başarısız olur, bu yüzden `Image.network` testlerde gerçek ağ
 /// erişimine muhtaç kalmadan (ve asılı kalmadan) her zaman `errorBuilder`'a
@@ -183,6 +270,7 @@ Widget _wrap(
   bool reduceMotion = false,
   double? textScale,
   LocalReadingProgressRepository? progressRepository,
+  OfflineEpisodeRepository? offlineRepository,
 }) {
   final needsBuilder = reduceMotion || textScale != null;
   return ProviderScope(
@@ -190,6 +278,9 @@ Widget _wrap(
       readerRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+      offlineEpisodeRepositoryProvider.overrideWithValue(
+        offlineRepository ?? _FakeOfflineEpisodeRepository(),
       ),
     ],
     child: MaterialApp(
@@ -218,6 +309,7 @@ Widget _wrapWithRouter(
   required String seriesSlug,
   required String episodeSlug,
   LocalReadingProgressRepository? progressRepository,
+  OfflineEpisodeRepository? offlineRepository,
 }) {
   final router = GoRouter(
     initialLocation: '/series/$seriesSlug/read/$episodeSlug',
@@ -254,6 +346,9 @@ Widget _wrapWithRouter(
       readerRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+      offlineEpisodeRepositoryProvider.overrideWithValue(
+        offlineRepository ?? _FakeOfflineEpisodeRepository(),
       ),
     ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
@@ -701,6 +796,9 @@ void main() {
           readerRepositoryProvider.overrideWithValue(repository),
           readingProgressRepositoryProvider.overrideWithValue(
             _FakeReadingProgressRepository(),
+          ),
+          offlineEpisodeRepositoryProvider.overrideWithValue(
+            _FakeOfflineEpisodeRepository(),
           ),
         ],
         child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
@@ -1374,6 +1472,233 @@ void main() {
             find.byType(AspectRatio),
           );
           expect(aspectRatio.aspectRatio, 1080 / 1920);
+        },
+      );
+    },
+  );
+
+  group(
+    'çevrimdışı bölüm indirme (bkz. docs/local-gap-backlog.md P2 madde 3)',
+    () {
+      testWidgets(
+        'indirilmemiş bir bölümde indirme ikonu görünür',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async =>
+                _manifest(episodeSlug: episodeSlug, number: 1),
+          );
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byTooltip('Bölümü indir'), findsOneWidget);
+          expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'indirme ikonuna dokunmak ilerlemeyi yayınlayarak indirir ve '
+        'sonunda "indirildi" ikonuna döner',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async =>
+                _manifest(episodeSlug: episodeSlug, number: 1),
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository();
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.byTooltip('Bölümü indir'));
+          await tester.pumpAndSettle();
+
+          expect(offlineRepository.emittedProgress, [0.5, 1.0]);
+          expect(
+            await offlineRepository.isDownloaded('gece-vardiyasi', 'bolum-1'),
+            isTrue,
+          );
+          expect(
+            find.byTooltip('İndirildi · kaldırmak için dokunun'),
+            findsOneWidget,
+          );
+          expect(find.byIcon(Icons.download_done_rounded), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'indirme başarısız olursa bir snackbar gösterir ve indirme ikonu '
+        'kalır (indirilmiş görünmez)',
+        (tester) async {
+          usePhoneViewport(tester);
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async =>
+                _manifest(episodeSlug: episodeSlug, number: 1),
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository()
+            ..downloadShouldThrow = true;
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.byTooltip('Bölümü indir'));
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('Bölüm indirilemedi. Lütfen tekrar deneyin.'),
+            findsOneWidget,
+          );
+          expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+          expect(
+            await offlineRepository.isDownloaded('gece-vardiyasi', 'bolum-1'),
+            isFalse,
+          );
+        },
+      );
+
+      testWidgets(
+        '"indirildi" ikonuna dokunmak bir onay diyaloğu açar; onaylamak '
+        'indirmeyi siler ve indirme ikonuna geri döner',
+        (tester) async {
+          usePhoneViewport(tester);
+          final manifest = _manifest(episodeSlug: 'bolum-1', number: 1);
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async => manifest,
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository()
+            ..seedDownloaded(manifest);
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(
+            find.byTooltip('İndirildi · kaldırmak için dokunun'),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('İndirmeyi kaldır'), findsOneWidget);
+
+          await tester.tap(find.text('Sil'));
+          await tester.pumpAndSettle();
+
+          expect(
+            await offlineRepository.isDownloaded('gece-vardiyasi', 'bolum-1'),
+            isFalse,
+          );
+          expect(find.byIcon(Icons.download_outlined), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        '"indirildi" ikonuna dokunup "Vazgeç" seçmek indirmeyi KORUR',
+        (tester) async {
+          usePhoneViewport(tester);
+          final manifest = _manifest(episodeSlug: 'bolum-1', number: 1);
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async => manifest,
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository()
+            ..seedDownloaded(manifest);
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(
+            find.byTooltip('İndirildi · kaldırmak için dokunun'),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.text('Vazgeç'));
+          await tester.pumpAndSettle();
+
+          expect(
+            await offlineRepository.isDownloaded('gece-vardiyasi', 'bolum-1'),
+            isTrue,
+          );
+          expect(
+            find.byTooltip('İndirildi · kaldırmak için dokunun'),
+            findsOneWidget,
+          );
+        },
+      );
+
+      testWidgets(
+        'daha önce indirilmiş bir bölüm panel görselini AĞ DEĞİL yerel bir '
+        'dosyadan (FileImage) render eder — okuyucu repository\'si '
+        'çağrılsa ağ hatası fırlatacak olsa bile (uçak modu simülasyonu)',
+        (tester) async {
+          usePhoneViewport(tester);
+          final manifest = _manifest(
+            episodeSlug: 'bolum-1',
+            number: 1,
+            panels: const [_panelWithText],
+          );
+          final repository = _FakeReaderRepository(
+            (seriesSlug, episodeSlug) async =>
+                throw const NetworkException('bağlantı yok (test)'),
+          );
+          final offlineRepository = _FakeOfflineEpisodeRepository()
+            ..seedDownloaded(manifest);
+
+          await tester.pumpWidget(
+            _wrap(
+              repository,
+              seriesSlug: 'gece-vardiyasi',
+              episodeSlug: 'bolum-1',
+              offlineRepository: offlineRepository,
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Ağ hiç çağrılmadı (aksi halde hata ekranı gelirdi) ve bölüm
+          // normal şekilde render edildi.
+          expect(find.text('Bölüm 1'), findsOneWidget);
+          final image = tester.widget<Image>(find.byType(Image));
+          expect(image.image, isA<FileImage>());
+
+          // Zaten indirilmiş bölüm de "indirildi" ikonunu gösterir —
+          // durum, okuyucunun offline içerikle mi yoksa ayrı bir
+          // `isEpisodeDownloadedProvider` sorgusuyla mı geldiğinden
+          // bağımsız olarak TUTARLIDIR.
+          expect(
+            find.byTooltip('İndirildi · kaldırmak için dokunun'),
+            findsOneWidget,
+          );
         },
       );
     },
