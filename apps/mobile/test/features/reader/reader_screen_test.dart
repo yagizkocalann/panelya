@@ -11,6 +11,7 @@ import 'package:panelya_mobile/app/theme/tokens.dart';
 import 'package:panelya_mobile/app/theme/tone_gradients.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/offline/domain/downloaded_episode.dart';
 import 'package:panelya_mobile/features/offline/domain/offline_episode_content.dart';
 import 'package:panelya_mobile/features/offline/domain/offline_episode_repository.dart';
 import 'package:panelya_mobile/features/offline/presentation/offline_providers.dart';
@@ -187,6 +188,22 @@ class _FakeOfflineEpisodeRepository implements OfflineEpisodeRepository {
   @override
   Future<void> deleteDownload(String seriesSlug, String episodeSlug) async {
     _downloadedKeys.remove(_key(seriesSlug, episodeSlug));
+  }
+
+  @override
+  Future<List<DownloadedEpisode>> listDownloaded() async {
+    return [
+      for (final entry in _manifests.entries)
+        if (_downloadedKeys.contains(entry.key))
+          DownloadedEpisode(
+            seriesSlug: entry.value.series.slug,
+            seriesTitle: entry.value.series.title,
+            episodeSlug: entry.value.episode.slug,
+            episodeNumber: entry.value.episode.number,
+            episodeTitle: entry.value.episode.title,
+            sizeBytes: 0,
+          ),
+    ];
   }
 }
 

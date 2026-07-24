@@ -10,18 +10,17 @@ import 'package:panelya_mobile/features/offline/data/file_system_offline_episode
 
 EpisodeManifestResponse _manifest({
   String seriesSlug = 'gece-vardiyasi',
+  String seriesTitle = 'Gece Vardiyası',
   String episodeSlug = 'bolum-1',
+  int number = 1,
   List<StoryPanel> panels = const [],
 }) {
   return EpisodeManifestResponse(
     schemaVersion: '1.0',
-    series: EpisodeManifestSeriesRef(
-      slug: seriesSlug,
-      title: 'Gece Vardiyası',
-    ),
+    series: EpisodeManifestSeriesRef(slug: seriesSlug, title: seriesTitle),
     episode: Episode(
       slug: episodeSlug,
-      number: 1,
+      number: number,
       title: 'Kayıp Dakika',
       publishedAt: '18 Temmuz 2026',
       readTime: '7 dk',
@@ -296,6 +295,101 @@ void main() {
           await repository.isDownloaded('gece-vardiyasi', 'hic-yok'),
           isFalse,
         );
+      },
+    );
+  });
+
+  group('listDownloaded (bkz. "İndirilenler" ekranı, downloads_screen.dart)', () {
+    test('hiç indirme yoksa boş liste döner', () async {
+      final repository = FileSystemOfflineEpisodeRepository(tempDir);
+      expect(await repository.listDownloaded(), isEmpty);
+    });
+
+    test(
+      'birden fazla seri/bölüm indirildiğinde hepsini, seri adına sonra '
+      'bölüm numarasına göre sıralı döner; boyutlar gerçek dosya '
+      'baytlarını yansıtır',
+      () async {
+        final mockClient = MockClient(
+          (request) async => http.Response.bytes([1, 2, 3, 4], 200),
+        );
+        final repository = FileSystemOfflineEpisodeRepository(
+          tempDir,
+          httpClient: mockClient,
+        );
+
+        // "Z Serisi" alfabetik olarak "Gece Vardiyası"ndan SONRA gelir;
+        // sıralamanın dosya sistemi/indirme sırasına değil seri adına
+        // dayandığını doğrulamak için bilerek TERS sırayla indirilir.
+        await repository
+            .downloadEpisode(
+              apiOrigin: 'http://localhost:3000',
+              manifest: _manifest(
+                seriesSlug: 'z-serisi',
+                seriesTitle: 'Z Serisi',
+                episodeSlug: 'bolum-1',
+                number: 1,
+                panels: const [_panelWithImage],
+              ),
+            )
+            .drain<void>();
+        await repository
+            .downloadEpisode(
+              apiOrigin: 'http://localhost:3000',
+              manifest: _manifest(
+                seriesSlug: 'gece-vardiyasi',
+                episodeSlug: 'bolum-2',
+                number: 2,
+                panels: const [_panelWithImage, _secondPanelWithImage],
+              ),
+            )
+            .drain<void>();
+        await repository
+            .downloadEpisode(
+              apiOrigin: 'http://localhost:3000',
+              manifest: _manifest(
+                seriesSlug: 'gece-vardiyasi',
+                episodeSlug: 'bolum-1',
+                number: 1,
+                panels: const [_panelWithImage],
+              ),
+            )
+            .drain<void>();
+
+        final downloaded = await repository.listDownloaded();
+
+        expect(downloaded, hasLength(3));
+        expect(
+          downloaded.map((e) => '${e.seriesSlug}/${e.episodeSlug}').toList(),
+          ['gece-vardiyasi/bolum-1', 'gece-vardiyasi/bolum-2', 'z-serisi/bolum-1'],
+        );
+        // 1 panelli bölüm: manifest.json + 4 baytlık tek panel dosyası.
+        final single = downloaded.firstWhere(
+          (e) => e.episodeSlug == 'bolum-1' && e.seriesSlug == 'gece-vardiyasi',
+        );
+        expect(single.sizeBytes, greaterThan(4));
+        // 2 panelli bölüm daha büyük olmalı (aynı manifest yükü + iki kat
+        // panel bayt'ı).
+        final double_ = downloaded.firstWhere((e) => e.episodeSlug == 'bolum-2');
+        expect(double_.sizeBytes, greaterThan(single.sizeBytes));
+      },
+    );
+
+    test(
+      'yarım kalan (manifest.json yazılmamış) bir indirme dizini listede '
+      'GÖRÜNMEZ',
+      () async {
+        final repository = FileSystemOfflineEpisodeRepository(tempDir);
+        // Gerçek bir indirmenin ARA durumunu taklit eder: dizin ve
+        // panels/ var ama manifest.json henüz yazılmadı (bkz.
+        // `downloadEpisode` doc yorumu — bilerek EN SON yazılır).
+        final partialDir = Directory(
+          '${tempDir.path}/offline_episodes/yarim-seri/bolum-1/panels',
+        );
+        await partialDir.create(recursive: true);
+        await File('${partialDir.path}/0').writeAsBytes([1, 2, 3]);
+
+        expect(await repository.listDownloaded(), isEmpty);
       },
     );
   });

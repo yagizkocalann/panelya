@@ -16,6 +16,11 @@ import 'package:panelya_mobile/features/discovery/domain/discovery_repository.da
 import 'package:panelya_mobile/features/discovery/presentation/discovery_providers.dart';
 import 'package:panelya_mobile/features/discovery/presentation/new_episodes_screen.dart';
 import 'package:panelya_mobile/features/discovery/presentation/new_series_screen.dart';
+import 'package:panelya_mobile/features/offline/domain/downloaded_episode.dart';
+import 'package:panelya_mobile/features/offline/domain/offline_episode_content.dart';
+import 'package:panelya_mobile/features/offline/domain/offline_episode_repository.dart';
+import 'package:panelya_mobile/features/offline/presentation/downloads_screen.dart';
+import 'package:panelya_mobile/features/offline/presentation/offline_providers.dart';
 import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_providers.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_screen.dart';
@@ -53,6 +58,33 @@ class _NeverResolvingReaderRepository implements ReaderRepository {
   ) => Completer<EpisodeManifestResponse>().future;
 }
 
+class _NeverResolvingOfflineEpisodeRepository
+    implements OfflineEpisodeRepository {
+  @override
+  Future<bool> isDownloaded(String seriesSlug, String episodeSlug) =>
+      Completer<bool>().future;
+
+  @override
+  Future<OfflineEpisodeContent?> loadDownloaded(
+    String seriesSlug,
+    String episodeSlug,
+  ) => Completer<OfflineEpisodeContent?>().future;
+
+  @override
+  Stream<double> downloadEpisode({
+    required String apiOrigin,
+    required EpisodeManifestResponse manifest,
+  }) => const Stream.empty();
+
+  @override
+  Future<void> deleteDownload(String seriesSlug, String episodeSlug) =>
+      Completer<void>().future;
+
+  @override
+  Future<List<DownloadedEpisode>> listDownloaded() =>
+      Completer<List<DownloadedEpisode>>().future;
+}
+
 void main() {
   /// Gerçek `routerProvider` GoRouter'ını, üç ekranın da gerçek ağa
   /// çıkmadan (loading durumunda asılı kalarak) inşa edilebildiği bir
@@ -71,6 +103,9 @@ void main() {
         ),
         readerRepositoryProvider.overrideWithValue(
           _NeverResolvingReaderRepository(),
+        ),
+        offlineEpisodeRepositoryProvider.overrideWithValue(
+          _NeverResolvingOfflineEpisodeRepository(),
         ),
       ],
     );
@@ -264,6 +299,22 @@ void main() {
         expect(find.byType(NewEpisodesScreen), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
+
+      testWidgets(
+        '"/downloads" resolves to DownloadsScreen (mobile-only, bkz. '
+        'docs/local-gap-backlog.md P2 madde 3)',
+        (tester) async {
+          final built = buildRouter();
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/downloads');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(DownloadsScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
     },
   );
 }

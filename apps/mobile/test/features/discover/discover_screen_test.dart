@@ -204,6 +204,11 @@ Widget _wrapWithRouter(
         builder: (context, state) =>
             const Scaffold(body: Text('NEW_EPISODES_SCREEN')),
       ),
+      GoRoute(
+        path: '/downloads',
+        builder: (context, state) =>
+            const Scaffold(body: Text('DOWNLOADS_SCREEN')),
+      ),
     ],
   );
 
@@ -666,6 +671,26 @@ void main() {
       expect(find.text('READER:gece-vardiyasi/bolum-2'), findsOneWidget);
     });
   });
+
+  testWidgets(
+    'the app bar offers an "İndirilenler" action that navigates to '
+    '/downloads (bkz. docs/local-gap-backlog.md P2 madde 3, '
+    'features/offline/)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(),
+      );
+
+      await tester.pumpWidget(_wrapWithRouter(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('İndirilenler'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('DOWNLOADS_SCREEN'), findsOneWidget);
+    },
+  );
 
   group('genişlik/viewport ve büyük yazı tipinde taşma yok (PLAN Görev A/B.1)', () {
     for (final entry in {

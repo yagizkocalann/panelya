@@ -90,7 +90,16 @@ class DiscoverScreen extends ConsumerWidget {
     final discovery = ref.watch(discoveryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Panelya')),
+      appBar: AppBar(
+        title: const Text('Panelya'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_done_rounded),
+            tooltip: 'İndirilenler',
+            onPressed: () => context.push('/downloads'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: discovery.when(
           loading: () => const AppLoadingView(label: 'Keşif yükleniyor'),

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/api/api_exception.dart';
 import '../../../core/api/media_url.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../domain/downloaded_episode.dart';
 import '../domain/offline_episode_content.dart';
 import '../domain/offline_episode_repository.dart';
 
@@ -165,5 +166,60 @@ class FileSystemOfflineEpisodeRepository implements OfflineEpisodeRepository {
     if (await dir.exists()) {
       await dir.delete(recursive: true);
     }
+  }
+
+  @override
+  Future<List<DownloadedEpisode>> listDownloaded() async {
+    final root = Directory('${_baseDirectory.path}/offline_episodes');
+    if (!await root.exists()) return const [];
+
+    final results = <DownloadedEpisode>[];
+    await for (final seriesEntity in root.list()) {
+      if (seriesEntity is! Directory) continue;
+      await for (final episodeEntity in seriesEntity.list()) {
+        if (episodeEntity is! Directory) continue;
+
+        final manifestFile = File('${episodeEntity.path}/manifest.json');
+        // Manifest yoksa bu ya hiç tamamlanmamış (bkz. [downloadEpisode]
+        // doc yorumu) ya da tam o an silinmekte olan bir dizin — her iki
+        // durumda da listede GÖRÜNMEMELİ.
+        if (!await manifestFile.exists()) continue;
+
+        final EpisodeManifestResponse manifest;
+        try {
+          final json =
+              jsonDecode(await manifestFile.readAsString())
+                  as Map<String, dynamic>;
+          manifest = EpisodeManifestResponse.fromJson(json);
+        } on FormatException {
+          continue;
+        }
+
+        var sizeBytes = await manifestFile.length();
+        final panelsDir = Directory('${episodeEntity.path}/panels');
+        if (await panelsDir.exists()) {
+          await for (final panelEntity in panelsDir.list()) {
+            if (panelEntity is File) sizeBytes += await panelEntity.length();
+          }
+        }
+
+        results.add(
+          DownloadedEpisode(
+            seriesSlug: manifest.series.slug,
+            seriesTitle: manifest.series.title,
+            episodeSlug: manifest.episode.slug,
+            episodeNumber: manifest.episode.number,
+            episodeTitle: manifest.episode.title,
+            sizeBytes: sizeBytes,
+          ),
+        );
+      }
+    }
+
+    results.sort((a, b) {
+      final byTitle = a.seriesTitle.compareTo(b.seriesTitle);
+      return byTitle != 0 ? byTitle : a.episodeNumber.compareTo(b.episodeNumber);
+    });
+    return results;
   }
 }

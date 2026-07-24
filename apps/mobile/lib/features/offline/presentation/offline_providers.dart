@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/storage/offline_storage_provider.dart';
 import '../data/file_system_offline_episode_repository.dart';
+import '../domain/downloaded_episode.dart';
 import '../domain/offline_episode_repository.dart';
 
 /// Aktif [OfflineEpisodeRepository]. Ekranlar `dart:io`'yu değil bu
@@ -25,3 +26,13 @@ final isEpisodeDownloadedProvider = FutureProvider.family<bool, OfflineEpisodeKe
       .watch(offlineEpisodeRepositoryProvider)
       .isDownloaded(key.seriesSlug, key.episodeSlug),
 );
+
+/// Cihaza indirilmiş TÜM bölümler (bkz. "İndirilenler" ekranı,
+/// `downloads_screen.dart`). İndirme/silme sonrası bu provider açıkça
+/// `ref.invalidate` edilir (bkz. [EpisodeDownloadButton.onChanged]
+/// kullanımı o ekranda).
+final downloadedEpisodesProvider = FutureProvider<List<DownloadedEpisode>>((
+  ref,
+) {
+  return ref.watch(offlineEpisodeRepositoryProvider).listDownloaded();
+});

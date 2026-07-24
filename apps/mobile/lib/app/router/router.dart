@@ -5,6 +5,7 @@ import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/discover/presentation/discover_screen.dart';
 import '../../features/discovery/presentation/new_episodes_screen.dart';
 import '../../features/discovery/presentation/new_series_screen.dart';
+import '../../features/offline/presentation/downloads_screen.dart';
 import '../../features/reader/presentation/reader_screen.dart';
 import '../../features/series/presentation/series_screen.dart';
 import 'deep_link.dart';
@@ -18,6 +19,10 @@ import 'route_args.dart';
 /// - `/new-episodes` — Yeni Eklenen Bölümler'in tam listesi
 /// - `/series/:slug` — Seri detay
 /// - `/series/:slug/read/:episodeSlug` — Okuyucu
+/// - `/downloads` — İndirilenler (cihaz-yerel çevrimdışı bölümler; bkz.
+///   docs/local-gap-backlog.md P2 madde 3, `features/offline/`). Web'de
+///   karşılığı YOK — mobile-only, bu yüzden `mapWebPathToMobileRoute`de
+///   bilerek bir eşlemesi bulunmuyor.
 ///
 /// Auth, kütüphane, Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
 ///
@@ -83,6 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           seriesSlug: state.pathParameters['slug']!,
           episodeSlug: state.pathParameters['episodeSlug']!,
         ),
+      ),
+      GoRoute(
+        path: '/downloads',
+        builder: (context, state) => const DownloadsScreen(),
       ),
     ],
   );

@@ -1,4 +1,5 @@
 import '../../../core/contracts/generated/generated.dart';
+import 'downloaded_episode.dart';
 import 'offline_episode_content.dart';
 
 /// Cihaz-yerel çevrimdışı bölüm indirme sözleşmesi (bkz.
@@ -43,4 +44,10 @@ abstract class OfflineEpisodeRepository {
   /// Daha önce indirilmiş bir bölümü ve tüm yerel dosyalarını siler.
   /// Bölüm zaten indirilmemişse sessizce hiçbir şey yapmaz.
   Future<void> deleteDownload(String seriesSlug, String episodeSlug);
+
+  /// Cihaza indirilmiş TÜM bölümleri (tüm seriler dahil) döner — bkz.
+  /// "İndirilenler" ekranı (`downloads_screen.dart`). Seri adına, sonra
+  /// bölüm numarasına göre sıralı gelir. Hiç indirme yoksa boş liste
+  /// döner (asla `null`/hata değil).
+  Future<List<DownloadedEpisode>> listDownloaded();
 }
