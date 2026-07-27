@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/push/presentation/push_providers.dart';
+import 'router/deep_link.dart';
 import 'router/router.dart';
 import 'theme/theme.dart';
 
@@ -20,6 +22,14 @@ class PanelyaApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    // Arka planda/kapalıyken dokunulan bir push bildirimini ilgili rotaya
+    // yönlendirir (bkz. `features/push/`). `resolveCustomSchemeRoute` zaten
+    // `panelya://` custom scheme deep-link'lerini çözen AYNI fonksiyon —
+    // push'un veri yükü de bu şemayı taşıdığı için burada tekrar
+    // kullanılıyor, ikinci bir eşleme mantığı yazılmadı.
+    ref.listen(pendingNotificationRouteProvider, (previous, next) {
+      next.whenData((uri) => router.go(resolveCustomSchemeRoute(uri)));
+    });
     return MaterialApp.router(
       title: 'Panelya',
       debugShowCheckedModeBanner: false,

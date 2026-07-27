@@ -79,6 +79,17 @@ dependencies:
   # depolama motoru veya baska bir yetenek eklemez — dosya IO'sunun kendisi
   # hala dart:io ile yazilir (bkz. FileSystemOfflineEpisodeRepository).
   path_provider: ^2.1.5
+  # Push bildirimleri (bkz. docs/local-gap-backlog.md P2 madde 3, ADR-019
+  # firebase katmani tasinmaz kararinin ISTISNASI — o karar Novel-Project'in
+  # Firebase VERI katmanini (auth/db) kapsiyordu; burada Firebase yalniz
+  # push bildirim TESLIMATI icin, Google/Apple'in kendi push altyapilarina
+  # (FCM/APNs) dogrudan sarmalayici olarak kullaniliyor). Gerekce
+  # (AGENTS.md'nin gerekcesiz dependency yasagina gerekceli istisna):
+  # uzaktan push bildirimi platform SDK'si gerektirir; bunu elle (native
+  # platform kanali) yazmak Google'in resmi/first-party cozdugu bir sorunu
+  # yeniden icat etmek olurdu.
+  firebase_core: ^4.12.1
+  firebase_messaging: ^16.4.3
 
 dev_dependencies:
   flutter_test:

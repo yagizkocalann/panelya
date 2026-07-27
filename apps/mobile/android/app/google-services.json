@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "494046715306",
+    "project_id": "panelya-c2785",
+    "storage_bucket": "panelya-c2785.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:494046715306:android:a46dbfe2bb1fca2983dfd3",
+        "android_client_info": {
+          "package_name": "com.panelya.panelya_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAZYiKCM26P_TsG93jFJ9rpH1ybMTl2qzY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
