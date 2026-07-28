@@ -216,6 +216,11 @@ Widget _wrapWithRouter(
         builder: (context, state) =>
             const Scaffold(body: Text('DOWNLOADS_SCREEN')),
       ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) =>
+            const Scaffold(body: Text('NOTIFICATIONS_SCREEN')),
+      ),
     ],
   );
 
@@ -699,6 +704,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('DOWNLOADS_SCREEN'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the app bar offers a "Bildirimler" action that navigates to '
+    '/notifications — hesap gerektirmez, AuthFeatureConfig\'den bağımsız '
+    'her zaman görünür (bkz. features/push/)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(),
+      );
+
+      await tester.pumpWidget(_wrapWithRouter(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Bildirimler'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('NOTIFICATIONS_SCREEN'), findsOneWidget);
     },
   );
 

@@ -22,6 +22,9 @@ import 'package:panelya_mobile/features/offline/domain/offline_episode_content.d
 import 'package:panelya_mobile/features/offline/domain/offline_episode_repository.dart';
 import 'package:panelya_mobile/features/offline/presentation/downloads_screen.dart';
 import 'package:panelya_mobile/features/offline/presentation/offline_providers.dart';
+import 'package:panelya_mobile/features/push/domain/push_notification_repository.dart';
+import 'package:panelya_mobile/features/push/presentation/notification_settings_screen.dart';
+import 'package:panelya_mobile/features/push/presentation/push_providers.dart';
 import 'package:panelya_mobile/features/reader/domain/reader_repository.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_providers.dart';
 import 'package:panelya_mobile/features/reader/presentation/reader_screen.dart';
@@ -86,6 +89,36 @@ class _NeverResolvingOfflineEpisodeRepository
       Completer<List<DownloadedEpisode>>().future;
 }
 
+class _NeverResolvingPushNotificationRepository
+    implements PushNotificationRepository {
+  @override
+  Future<bool> requestPermission() => Completer<bool>().future;
+
+  @override
+  Future<bool> hasPermission() => Completer<bool>().future;
+
+  @override
+  Future<void> subscribeToNewEpisodes() => Completer<void>().future;
+
+  @override
+  Future<void> unsubscribeFromNewEpisodes() => Completer<void>().future;
+
+  @override
+  Stream<Uri> get notificationTaps => const Stream.empty();
+}
+
+/// `NotificationPreferenceNotifier`in gerçek gövdesi `sharedPreferencesProvider`ı
+/// okur (bkz. `push_providers.dart`); bu router testinde gereksiz bir
+/// `SharedPreferences` mock kurulumundan kaçınmak için sahte bir sabit
+/// değerle değiştirilir (aynı desen: diğer testler de düşük seviyeli
+/// sistem sağlayıcılarını değil, özellik seviyesindeki provider'ı override
+/// eder).
+class _FakeNotificationPreferenceNotifier
+    extends NotificationPreferenceNotifier {
+  @override
+  bool build() => true;
+}
+
 void main() {
   /// Gerçek `routerProvider` GoRouter'ını, üç ekranın da gerçek ağa
   /// çıkmadan (loading durumunda asılı kalarak) inşa edilebildiği bir
@@ -107,6 +140,12 @@ void main() {
         ),
         offlineEpisodeRepositoryProvider.overrideWithValue(
           _NeverResolvingOfflineEpisodeRepository(),
+        ),
+        pushNotificationRepositoryProvider.overrideWithValue(
+          _NeverResolvingPushNotificationRepository(),
+        ),
+        notificationPreferenceProvider.overrideWith(
+          _FakeNotificationPreferenceNotifier.new,
         ),
       ],
     );
@@ -330,6 +369,22 @@ void main() {
           await tester.pump();
 
           expect(find.byType(AccountScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/notifications" resolves to NotificationSettingsScreen '
+        '(mobile-only, hesap gerektirmez, her zaman erişilebilir)',
+        (tester) async {
+          final built = buildRouter();
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/notifications');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(NotificationSettingsScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );

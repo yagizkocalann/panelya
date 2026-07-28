@@ -86,10 +86,16 @@ class _FakePushNotificationRepository implements PushNotificationRepository {
   final _controller = StreamController<Uri>.broadcast();
 
   @override
-  Future<void> requestPermission() async {}
+  Future<bool> requestPermission() async => true;
 
   @override
-  Future<String?> getToken() async => null;
+  Future<bool> hasPermission() async => true;
+
+  @override
+  Future<void> subscribeToNewEpisodes() async {}
+
+  @override
+  Future<void> unsubscribeFromNewEpisodes() async {}
 
   @override
   Stream<Uri> get notificationTaps => _controller.stream;

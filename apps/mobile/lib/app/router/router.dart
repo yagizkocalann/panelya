@@ -7,6 +7,7 @@ import '../../features/discover/presentation/discover_screen.dart';
 import '../../features/discovery/presentation/new_episodes_screen.dart';
 import '../../features/discovery/presentation/new_series_screen.dart';
 import '../../features/offline/presentation/downloads_screen.dart';
+import '../../features/push/presentation/notification_settings_screen.dart';
 import '../../features/reader/presentation/reader_screen.dart';
 import '../../features/series/presentation/series_screen.dart';
 import 'deep_link.dart';
@@ -28,6 +29,10 @@ import 'route_args.dart';
 ///   `AuthFeatureConfig.enabled` açıkken `discover_screen.dart`daki giriş
 ///   noktasından erişilebilir; `/downloads` ile aynı gerekçeyle mobile-only,
 ///   `mapWebPathToMobileRoute`de eşlemesi yok.
+/// - `/notifications` — Bildirimler (bkz. `features/push/`). Hesap
+///   gerektirmez, her zaman erişilebilir (`/account`in aksine
+///   `AuthFeatureConfig`den bağımsız); `/downloads` ile aynı gerekçeyle
+///   mobile-only.
 ///
 /// Kütüphane, Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
 ///
@@ -101,6 +106,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/account',
         builder: (context, state) => const AccountScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
     ],
   );

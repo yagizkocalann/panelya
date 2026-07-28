@@ -1,38 +1,51 @@
 /// Push bildirimi (FCM) sözleşmesi (bkz. docs/local-gap-backlog.md P2
-/// madde 3 — "Deep link, çevrimdışı okuma ve push bildirimleri").
+/// madde 3 — "Deep link, çevrimdışı okuma ve push bildirimleri",
+/// docs/mobile-handoff.md "FCM topic sınırı").
 ///
-/// Bu arayüzün arkasında bugün TEK gerçek implementasyon var
-/// (`FirebasePushNotificationRepository`, bkz. `data/`) — backend tarafı
-/// (cihaz token'ını kaydetme uç noktası, yeni bölüm yayınlandığında FCM'e
-/// gönderim) henüz AYRI bir iş olarak bekliyor (bkz. proje notu: "şimdilik
-/// sadece mobil, backend'i not al"). Bu ara dönemde gerçek teslimat yalnız
-/// Firebase Console'un "Send test message" özelliğiyle [getToken]'dan
-/// alınan token'a elle gönderilerek doğrulanabilir.
+/// Yeni bölüm duyuruları herkese açık bilgidir (hesap/giriş gerektirmez):
+/// backend cihaz token'ı toplamaz/saklamaz, tek bir FCM konu (`topic`)
+/// mesajı gönderir (bkz. [newEpisodesPushTopic]). Mobil istemci yalnız bu
+/// sabit konuya abone olur/olmaktan çıkar — token yönetimi, yeniden abone
+/// olma ve iletim tamamen Firebase SDK sınırında kalır.
 abstract class PushNotificationRepository {
   /// Kullanıcıdan bildirim izni ister (iOS: sistem izin diyaloğu; Android
-  /// 13+: `POST_NOTIFICATIONS` çalışma zamanı izni). Reddedilirse push hiç
-  /// gelmez ama uygulama normal çalışmaya devam eder — bu çağrı asla hata
-  /// fırlatmaz.
-  Future<void> requestPermission();
+  /// 13+: `POST_NOTIFICATIONS` çalışma zamanı izni) ve izin verilip
+  /// verilmediğini döner. Bu çağrı asla hata fırlatmaz.
+  Future<bool> requestPermission();
 
-  /// Bu cihazın FCM kayıt token'ı (backend'in bu cihaza mesaj
-  /// gönderebilmesi için ihtiyaç duyacağı kimlik). İzin verilmemişse veya
-  /// token henüz hazır değilse `null` döner.
-  Future<String?> getToken();
+  /// Daha önce izin isteği yapılmadan/OS ayarlarından mevcut izin
+  /// durumunu (yeniden bir sistem diyaloğu göstermeden) sorgular. Ayar
+  /// ekranının, kullanıcı OS ayarlarından izni geri almış olsa bile
+  /// güncel durumu göstermesi için kullanılır.
+  Future<bool> hasPermission();
+
+  /// [newEpisodesPushTopic] konusuna abone olur (bkz. sınıf doc yorumu).
+  /// Yalnız izin verilmişken çağrılmalıdır (bkz. docs/mobile-handoff.md
+  /// "Bildirim izni verilmeden topic aboneliği yapılmaz").
+  Future<void> subscribeToNewEpisodes();
+
+  /// [newEpisodesPushTopic] konusundan aboneliği kaldırır. İzin durumundan
+  /// bağımsız her zaman güvenle çağrılabilir (hiç abone olunmamışsa
+  /// no-op).
+  Future<void> unsubscribeFromNewEpisodes();
 
   /// Uygulama arka plandayken/kapalıyken bir bildirime dokunulduğunda
   /// (veya soğuk başlangıçta zaten bekleyen bir bildirim varsa) o
   /// bildirimin veri yükünden çözülen deep-link URI'sini yayınlar (bkz.
-  /// [deepLinkDataKey] — backend'in mesaj veri yüküne koyması gereken
-  /// alan). Uygulama ÖN PLANDAYKEN gelen bildirimler bu stream'e YANSIMAZ
-  /// (bkz. sınıf doc yorumu — v1 kapsamı yalnız arka plan/kapalı
-  /// durumdaki dokunma akışını kapsar; ön planda sistem bandı göstermek
-  /// `flutter_local_notifications` gerektirir, ayrı bir iş).
+  /// [deepLinkDataKey]). Uygulama ÖN PLANDAYKEN gelen bildirimler bu
+  /// stream'e YANSIMAZ (bkz. sınıf doc yorumu — v1 kapsamı yalnız arka
+  /// plan/kapalı durumdaki dokunma akışını kapsar; ön planda sistem bandı
+  /// göstermek `flutter_local_notifications` gerektirir, ayrı bir iş).
   Stream<Uri> get notificationTaps;
 }
 
-/// Backend'in (ileride) FCM mesajının `data` yüküne koyması GEREKEN alan
-/// adı — değeri `panelya://series/<slug>/read/<episodeSlug>` gibi
+/// Backend'in `dispatchPushBroadcast`'in gönderdiği sabit FCM konusu (bkz.
+/// `app/lib/push-notifications.ts` -> `NEW_EPISODES_PUSH_TOPIC`). Bu
+/// değer API'den tahmin edilmez, kullanıcı/seri kimliği taşımaz.
+const newEpisodesPushTopic = 'panelya-new-episodes';
+
+/// Backend'in FCM mesajının `data` yüküne koyduğu alan adı — değeri
+/// `panelya://series/<slug>/read/<episodeSlug>` gibi
 /// `app/router/deep_link.dart`nin zaten çözebildiği bir `panelya://`
-/// URI'si olmalı.
+/// URI'si olur.
 const deepLinkDataKey = 'deepLink';

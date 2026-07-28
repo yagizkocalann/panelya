@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -7,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/api/api_client.dart';
-import '../../core/config/app_config.dart';
 import '../../core/storage/offline_storage_provider.dart';
 import '../../core/storage/shared_preferences_provider.dart';
 import '../../features/push/data/firebase_push_notification_repository.dart';
@@ -30,9 +26,9 @@ import '../app.dart';
 /// [ProviderScope]'a enjekte edilir; bu sayede alt katmandaki repository'ler
 /// senkron kurulabilir, ekranlar ek bir yükleniyor durumuyla uğraşmaz.
 ///
-/// Bildirim izni isteme ve token loglama İLK KARE'yi geciktirmemesi için
-/// `runApp` SONRASINA, fire-and-forget olarak bırakılır (izin diyaloğu
-/// zaten bir sistem UI'ı — Flutter'ın ilk çizimini beklemesi gerekmez).
+/// Bildirim izni isteme İLK KARE'yi geciktirmemesi için `runApp` SONRASINA,
+/// fire-and-forget olarak bırakılır (izin diyaloğu zaten bir sistem UI'ı —
+/// Flutter'ın ilk çizimini beklemesi gerekmez).
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   final sharedPreferences = await SharedPreferences.getInstance();
@@ -54,23 +50,19 @@ Future<void> bootstrap() async {
     ),
   );
 
-  await pushRepository.requestPermission();
-  final token = await pushRepository.getToken();
-  debugPrint('FCM device token: $token');
-  if (token != null) {
-    // Hesap/giriş olmadan çalışan "broadcast" modeli (bkz.
-    // `push_notification_repository.dart` doc yorumu) — bu çağrı
-    // başarısız olsa bile (ağ yok, backend kapalı) uygulama normal
-    // çalışmaya devam eder, bu yüzden hatası yutulur.
-    try {
-      await PanelyaApiClient(
-        apiOrigin: AppConfig.fromDartDefines().apiOrigin,
-      ).registerPushToken(
-        token: token,
-        platform: Platform.isIOS ? 'ios' : 'android',
-      );
-    } catch (_) {
-      // Sessizce yut — bkz. yukarıdaki yorum.
+  // Bildirim izni verilirse VE kullanıcı daha önce tercihini kapatmadıysa
+  // (bkz. `push_providers.dart` — `notifyNewEpisodesPreferenceKey`,
+  // varsayılan `true`) sabit "panelya-new-episodes" konusuna abone olunur
+  // (bkz. docs/mobile-handoff.md "FCM topic sınırı" — izin olmadan
+  // abonelik YOK). Cihaz FCM token'ı hiçbir zaman Panelya API'sine
+  // gönderilmez; token/yeniden abone olma tamamen Firebase SDK sınırında
+  // kalır.
+  final granted = await pushRepository.requestPermission();
+  if (granted) {
+    final wantsNewEpisodes =
+        sharedPreferences.getBool(notifyNewEpisodesPreferenceKey) ?? true;
+    if (wantsNewEpisodes) {
+      await pushRepository.subscribeToNewEpisodes();
     }
   }
 }

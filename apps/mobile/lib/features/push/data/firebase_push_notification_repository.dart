@@ -8,13 +8,33 @@ class FirebasePushNotificationRepository
 
   final FirebaseMessaging _messaging;
 
+  bool _isAuthorized(AuthorizationStatus status) =>
+      status == AuthorizationStatus.authorized ||
+      status == AuthorizationStatus.provisional;
+
   @override
-  Future<void> requestPermission() async {
-    await _messaging.requestPermission(alert: true, badge: true, sound: true);
+  Future<bool> requestPermission() async {
+    final settings = await _messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    return _isAuthorized(settings.authorizationStatus);
   }
 
   @override
-  Future<String?> getToken() => _messaging.getToken();
+  Future<bool> hasPermission() async {
+    final settings = await _messaging.getNotificationSettings();
+    return _isAuthorized(settings.authorizationStatus);
+  }
+
+  @override
+  Future<void> subscribeToNewEpisodes() =>
+      _messaging.subscribeToTopic(newEpisodesPushTopic);
+
+  @override
+  Future<void> unsubscribeFromNewEpisodes() =>
+      _messaging.unsubscribeFromTopic(newEpisodesPushTopic);
 
   @override
   Stream<Uri> get notificationTaps async* {

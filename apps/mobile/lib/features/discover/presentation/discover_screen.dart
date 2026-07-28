@@ -105,6 +105,11 @@ class DiscoverScreen extends ConsumerWidget {
               onPressed: () => context.push('/account'),
             ),
           IconButton(
+            icon: const Icon(Icons.notifications_none_rounded),
+            tooltip: 'Bildirimler',
+            onPressed: () => context.push('/notifications'),
+          ),
+          IconButton(
             icon: const Icon(Icons.download_done_rounded),
             tooltip: 'İndirilenler',
             onPressed: () => context.push('/downloads'),
