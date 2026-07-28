@@ -218,9 +218,7 @@ export function ReaderExperience({ series, episode, previous, next, preview }: R
 
       <main id="main-content" className="reader-main">
         <article className="webtoon-canvas" aria-label={`${series.title}, bölüm ${episode.number}: ${episode.title}`}>
-          <div className={`story-title-panel story-panel--${episode.panels[0]?.tone ?? "blue"}`}>
-            <span>Panelya Originals sunar</span><h1>{series.title}</h1><p>Bölüm {episode.number} · {episode.title}</p>
-          </div>
+          <h1 className="sr-only">{series.title} · Bölüm {episode.number}: {episode.title}</h1>
           {episode.panels.map((panel, index) => (
             panel.image ? (
               <section key={panel.id} className="story-image-panel" aria-label={panel.scene}>
