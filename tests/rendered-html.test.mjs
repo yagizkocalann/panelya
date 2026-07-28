@@ -1134,45 +1134,29 @@ test("oturum kapsami, idle timeout ve hassas Studio yeniden dogrulamasi sunucuda
   assert.match(response.headers.get("location") ?? "", /^http:\/\/studio\.localhost:3000\/login\?return_to=%2F(?:users|account)&notice=/);
 });
 
-test("push bildirimi: hesap gerektirmeyen cihaz token kaydı ve fail-closed broadcast modu", async () => {
-  const [schema, database, runtimeConfig, pushLib, pushApi, episodeApi, envExample, migration] = await Promise.all([
-    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/lib/database.ts", import.meta.url), "utf8"),
+test("push bildirimi: cihaz tokeni toplamayan FCM topic broadcast ve fail-closed mod", async () => {
+  const [runtimeConfig, pushLib, episodeApi, envExample, manualQa, mobileHandoff, studioAdmin, auditPage] = await Promise.all([
     readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/push-notifications.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/push/register/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
-    readFile(new URL("../drizzle/0016_even_forge.sql", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/mobile-handoff.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/studio-admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/audit/page.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(schema, /sqliteTable\("device_push_tokens"/);
-  assert.match(database, /CREATE TABLE IF NOT EXISTS device_push_tokens/);
   assert.match(runtimeConfig, /pushDeliveryMode/);
   assert.match(pushLib, /class PushDeliveryUnavailableError/);
-  assert.match(pushLib, /ON CONFLICT\(token\) DO UPDATE/);
-  assert.match(pushLib, /UNREGISTERED/);
-  assert.doesNotMatch(pushApi, /assertSameOrigin\(request\)/);
-  assert.match(pushApi, /consumeRateLimit\("push-register"/);
+  assert.match(pushLib, /NEW_EPISODES_PUSH_TOPIC = "panelya-new-episodes"/);
+  assert.match(pushLib, /topic: NEW_EPISODES_PUSH_TOPIC/);
+  assert.match(pushLib, /encodeURIComponent\(projectId\)/);
+  assert.equal((pushLib.match(/AbortSignal\.timeout\(10_000\)/g) ?? []).length, 2);
+  assert.doesNotMatch(pushLib, /device_push_tokens|registerDeviceToken|token: row\.token/);
   assert.match(episodeApi, /dispatchPushBroadcast/);
+  assert.match(episodeApi, /content\.episode_push_failed/);
   assert.match(envExample, /PUSH_DELIVERY_MODE=disabled/);
-  assert.match(migration, /CREATE TABLE `device_push_tokens`/);
-
-  const missingToken = await request("/api/push/register", "application/json", "http://localhost", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: "", platform: "android" }),
-  });
-  assert.equal(missingToken.status, 400);
-
-  const invalidPlatform = await request("/api/push/register", "application/json", "http://localhost", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token: "abc", platform: "windows" }),
-  });
-  assert.equal(invalidPlatform.status, 400);
-  // Bu harness'te gerçek bir D1 binding'i yok (bkz. bu dosyadaki diğer
-  // testlerin de yalnız auth/origin ön-kontrollerini doğrulaması, hiçbiri
-  // başarılı bir D1 yazma yolunu buradan geçirmiyor); bu yüzden başarılı
-  // kayıt senaryosu burada değil, `npm run db:generate` sonrası gerçek
-  // dev sunucusunda canlı doğrulandı (bkz. commit mesajı).
+  assert.match(manualQa, /QA-PUSH-01/);
+  assert.match(mobileHandoff, /panelya-new-episodes/);
+  assert.match(studioAdmin, /"topic", "dispatched"/);
+  assert.match(auditPage, /content\.episode_push_dispatched/);
 });

@@ -1,22 +1,9 @@
-import { getDatabase } from "./database";
 import { pushDeliveryMode, runtimeValue } from "./runtime-config";
 
-// Hesap/giriş olmadan (mobilde henüz gerçek Auth0 tenant'ı yok) çalışan bir
-// "broadcast" modeli: cihaz token'ı hiçbir kullanıcıya bağlanmaz, yeni
-// yayınlanan HER bölüm kayıtlı TÜM cihazlara gider. Seri bazlı kişiselleştirme
-// (yalnız takip edilen serilerin bildirimi) gerçek hesaplar geldiğinde ayrı
-// bir iş olarak eklenir.
-
-export type DevicePlatform = "ios" | "android";
-
-export async function registerDeviceToken(token: string, platform: DevicePlatform) {
-  const db = await getDatabase();
-  const now = Date.now();
-  await db.prepare(`INSERT INTO device_push_tokens (id, token, platform, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(token) DO UPDATE SET platform = excluded.platform, updated_at = excluded.updated_at`)
-    .bind(crypto.randomUUID(), token, platform, now, now).run();
-}
+// Yeni bolum duyurulari herkese acik bilgidir. Mobil istemci sabit FCM
+// konusuna dogrudan abone olur; sunucu cihaz tokeni toplamaz veya saklamaz.
+// Firebase konu fan-out'unu tek bir HTTP v1 isteginden yonetir.
+export const NEW_EPISODES_PUSH_TOPIC = "panelya-new-episodes";
 
 export class PushDeliveryUnavailableError extends Error {
   constructor(public readonly mode: string) {
@@ -77,6 +64,7 @@ async function exchangeForAccessToken(jwt: string) {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(10_000),
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion: jwt,
@@ -94,7 +82,10 @@ export type PushBroadcastInput = {
   episodeTitle: string;
 };
 
-export type PushBroadcastResult = { tokens: number; sent: number; failed: number };
+export type PushBroadcastResult = {
+  topic: typeof NEW_EPISODES_PUSH_TOPIC;
+  dispatched: boolean;
+};
 
 // Production providers add a real transport here; today only "fcm" exists
 // (Google Cloud Messaging). Mirrors the fail-closed factory pattern in
@@ -102,17 +93,13 @@ export type PushBroadcastResult = { tokens: number; sent: number; failed: number
 // no-op'ing, but the documented default ("disabled") is a legitimate no-op.
 export async function dispatchPushBroadcast(input: PushBroadcastInput): Promise<PushBroadcastResult> {
   const mode = await pushDeliveryMode();
-  if (mode === "disabled") return { tokens: 0, sent: 0, failed: 0 };
+  if (mode === "disabled") return { topic: NEW_EPISODES_PUSH_TOPIC, dispatched: false };
   if (mode !== "fcm") throw new PushDeliveryUnavailableError(mode);
 
   const projectId = await runtimeValue("FCM_PROJECT_ID");
   const clientEmail = await runtimeValue("FCM_CLIENT_EMAIL");
   const privateKeyRaw = await runtimeValue("FCM_PRIVATE_KEY");
   if (!projectId || !clientEmail || !privateKeyRaw) throw new PushDeliveryUnavailableError(mode);
-
-  const db = await getDatabase();
-  const rows = await db.prepare("SELECT id, token FROM device_push_tokens").all<{ id: string; token: string }>();
-  if (rows.results.length === 0) return { tokens: 0, sent: 0, failed: 0 };
 
   // Secret bir tek satırda saklanırken PEM'in gerçek satır sonları `\n`
   // olarak escape edilir (bkz. .env.example yorumu); burada geri çözülür.
@@ -124,35 +111,21 @@ export async function dispatchPushBroadcast(input: PushBroadcastInput): Promise<
   const title = `${input.seriesTitle}: ${input.episodeTitle} yayında`;
   const body = `${input.seriesTitle} serisinin yeni bölümü "${input.episodeTitle}" şimdi okunabilir.`;
 
-  let sent = 0;
-  let failed = 0;
-  for (const row of rows.results) {
-    try {
-      const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: {
-            token: row.token,
-            notification: { title, body },
-            data: { deepLink },
-          },
-        }),
-      });
-      if (response.ok) {
-        sent += 1;
-        continue;
-      }
-      failed += 1;
-      // FCM stale/geçersiz token için UNREGISTERED veya NOT_FOUND döner —
-      // bu token'ı silip listeyi kendiliğinden temiz tutuyoruz.
-      const errorBody = await response.json().catch(() => null) as { error?: { status?: string } } | null;
-      if (errorBody?.error?.status === "UNREGISTERED" || errorBody?.error?.status === "NOT_FOUND") {
-        await db.prepare("DELETE FROM device_push_tokens WHERE id = ?").bind(row.id).run();
-      }
-    } catch {
-      failed += 1;
-    }
-  }
-  return { tokens: rows.results.length, sent, failed };
+  const response = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({
+        message: {
+          topic: NEW_EPISODES_PUSH_TOPIC,
+          notification: { title, body },
+          data: { deepLink },
+        },
+      }),
+    },
+  );
+  if (!response.ok) throw new Error("fcm_topic_send_failed");
+  return { topic: NEW_EPISODES_PUSH_TOPIC, dispatched: true };
 }
