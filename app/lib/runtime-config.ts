@@ -31,3 +31,12 @@ export type RateLimitMode = "d1_strict" | "cloudflare_hybrid";
 export async function rateLimitMode(): Promise<RateLimitMode | string> {
   return (await runtimeValue("RATE_LIMIT_MODE")).trim().toLowerCase() || "d1_strict";
 }
+
+// "disabled" is a legitimate, deliberate default (no FCM project configured
+// yet) — distinct from an unrecognized mode string, which fails closed (see
+// `push-notifications.ts`).
+export type PushDeliveryMode = "disabled" | "fcm";
+
+export async function pushDeliveryMode(): Promise<PushDeliveryMode | string> {
+  return (await runtimeValue("PUSH_DELIVERY_MODE")).trim().toLowerCase() || "disabled";
+}
