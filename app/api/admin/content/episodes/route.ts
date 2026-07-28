@@ -109,9 +109,8 @@ export async function POST(request: Request) {
     await writeAudit(user.id, "content.episode_push_dispatched", {
       seriesSlug: input.seriesSlug,
       episodeSlug: input.slug,
-      tokenCount: pushResult.tokens,
-      sentCount: pushResult.sent,
-      failedCount: pushResult.failed,
+      topic: pushResult.topic,
+      dispatched: pushResult.dispatched,
     });
   } catch {
     await writeAudit(user.id, "content.episode_push_failed", { seriesSlug: input.seriesSlug, episodeSlug: input.slug });

@@ -22,6 +22,8 @@ const actionLabels: Record<string, string> = {
   "content.series_updated": "Seri güncellendi",
   "content.episode_created": "Bölüm oluşturuldu",
   "content.episode_updated": "Bölüm güncellendi",
+  "content.episode_push_dispatched": "Yeni bölüm push bildirimi işlendi",
+  "content.episode_push_failed": "Yeni bölüm push bildirimi başarısız",
   "media.uploaded": "Medya yüklendi",
   "media.derivative_completed": "Responsive varyant tamamlandı",
   "preview.created": "Taslak önizleme oluşturuldu",
@@ -37,7 +39,7 @@ const actionLabels: Record<string, string> = {
 };
 
 function metadataLabel(key: string) {
-  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", replyId: "Yanıt", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü", noticeId: "Telif bildirimi", previousStatus: "Eski durum", newStatus: "Yeni durum" };
+  const labels: Record<string, string> = { seriesSlug: "Seri", episodeSlug: "Bölüm", publicationStatus: "Yayın", mediaId: "Medya", mimeType: "MIME", byteSize: "Boyut", width: "Genişlik", height: "Yükseklik", jobs: "İş", jobId: "Kuyruk işi", panelId: "Panel", from: "Önce", to: "Sonra", grantId: "Önizleme", expiresAt: "Bitiş", reviewId: "Yorum", replyId: "Yanıt", reason: "Neden", containsSpoiler: "Spoiler", rating: "Puan", messageId: "Mesaj", role: "Rol", targetUserId: "Hedef kullanıcı", previousRole: "Eski rol", newRole: "Yeni rol", position: "Konum", reportId: "Rapor", invitationId: "Davet", deletedCount: "Silinen kayıt", policyVersion: "Politika sürümü", noticeId: "Telif bildirimi", previousStatus: "Eski durum", newStatus: "Yeni durum", topic: "FCM konusu", dispatched: "Gönderildi" };
   return labels[key] ?? key;
 }
 

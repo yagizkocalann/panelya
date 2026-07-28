@@ -16,7 +16,7 @@ Mobil geliştirme `codex/mobile` branch'inde ve `apps/mobile` dizininde başlar.
 4. API hata/boş/yükleniyor durumları
 5. Deep-link taslağı
 
-Hesap ve kütüphane entegrasyonu, ADR-039 ortak auth sözleşmesi `main` dalına girdikten ve gerçek Auth0 tenant/gateway değerleri sağlandıktan sonra eklenir. Çevrimdışı okuma ve bildirimler sonraki mobil fazlarda kalır.
+Hesap ve kütüphane entegrasyonu, ADR-039 ortak auth sözleşmesi `main` dalına girdikten ve gerçek Auth0 tenant/gateway değerleri sağlandıktan sonra eklenir. Çevrimdışı okuma sonraki mobil fazda kalır. Yeni bölüm push bildiriminin sunucu sınırı ADR-046 ile hazırdır; gerçek Firebase native yapılandırması ve cihaz testi ayrı mobil teslimdir.
 
 ## Mevcut API başlangıç noktaları
 
@@ -43,8 +43,17 @@ Mobil taraf aşağıdaki iki ortak teslimi `origin/main` uzerinden alip adapter/
 | Responsive medya varyantları | MAIN'E MERGE EDILDI (PR #20, `ab1c92e`) | Public katalog, seri ve bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | `PublicMediaVariant` ile değişen `StoryPanelImage`/`SeriesMetadataFields` tanımları, response `schemaVersion: 1.0` (geriye uyumlu opsiyonel alanlar), OpenAPI `1.1.0` ve üç v1 fixture |
 | Production auth/session | MAIN'E MERGE EDILDI (PR #21, `7ca0f24`) | ADR-039 Auth0'yu, sistem tarayıcılı Authorization Code + PKCE'yi, 15 dakikalık access tokenini ve 30 günlük dönen refresh tokenini seçer. Giriş/code exchange, refresh, revoke, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme değildir. Gercek tenant/gateway/JWKS degerleri gelmeden fixture degerleri runtime config sayilmaz. | OpenAPI `1.2.0`, ADR-039, `AuthProviderConfigResponse`/token/state/error tanımları ve sentetik `auth-*.v1.json` fixture listesi |
 | Editorial keşif akışı | MAIN'E MERGE EDILDI (bu teslim) | `GET /api/discovery`; öne çıkan seri ve ilk bölümü, ortak tür listesi, sunucunun 30 günlük kuralıyla belirlediği yeni seriler ve gerçek yayın sırasındaki en fazla 100 bölüm güncellemesini tek cevapta taşır. Yerelleştirilmiş tarih metninden sıralama yapılmaz; panel gövdeleri keşif payload'ına girmez. | OpenAPI `1.3.0`, `DiscoveryResponse`/`DiscoverySeriesSummary`/`DiscoveryEpisodeUpdate`, `discovery.v1.json` ve ADR-044 |
+| Yeni bölüm push bildirimi | MAIN'E MERGE EDILDI (PR #35) | Herkese açık yeni bölüm duyurusu FCM topic fan-out kullanır. Web cihaz tokeni toplamaz, saklamaz veya mobil kayıt endpoint'i açmaz. Studio ilk yayın geçişinde tek topic mesajı dener; push hatası yayını ve e-posta outbox'ını geri almaz. | Flutter Firebase Messaging ile izin sonrası `panelya-new-episodes` konusuna `subscribeToTopic`, tercih kapanınca `unsubscribeFromTopic` uygular. Bildirim `data.deepLink` değerini mevcut custom-scheme router'a verir. |
 
 Bir teslim yalnız pull request `main` dalına merge edildiğinde ve zorunlu CI kontrolleri geçtiğinde hazır sayılır. Web tarafı bu noktada mobil tarafa merge commit'ini ve yukarıdaki değişiklik özetini gönderir; mobil taraf `origin/main` aldıktan sonra codegen/adapter entegrasyonunu ayrı committe yapar.
+
+## FCM topic sınırı
+
+- Sabit konu adı `panelya-new-episodes` olur; bu değer API'den tahmin edilmez ve kullanıcı/seri kimliği taşımaz.
+- Bildirim izni verilmeden topic aboneliği yapılmaz. Kullanıcı tercihi kapanınca `unsubscribeFromTopic` çağrılır.
+- Mobil cihaz tokenini Panelya API'sine göndermez. Token yenileme, topic abonelik durumu ve yeniden deneme Firebase SDK sınırında kalır.
+- Bildirim `data.deepLink` alanında `panelya://series/<seriesSlug>/read/<episodeSlug>` taşır. Mobil mevcut `resolveCustomSchemeRoute` sınırını kullanır; bilinmeyen veya bozuk hedef keşfe düşer.
+- Foreground, background ve uygulama kapalı durumlarında açılış davranışı; Android 13+ izin akışı ve iOS APNs/FCM bağlantısı `QA-PUSH-01` ile fiziksel cihazda doğrulanır.
 
 ## Güncel web bilgi mimarisinin Flutter karşılığı
 
