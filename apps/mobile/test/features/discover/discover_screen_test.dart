@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/api/api_exception.dart';
+import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_screen.dart';
 import 'package:panelya_mobile/features/discovery/domain/discovery_repository.dart';
@@ -175,11 +176,17 @@ Widget _wrap(
 Widget _wrapWithRouter(
   DiscoveryRepository repository, {
   LocalReadingProgressRepository? progressRepository,
+  bool authEnabled = false,
 }) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
       GoRoute(path: '/', builder: (context, state) => const DiscoverScreen()),
+      GoRoute(
+        path: '/account',
+        builder: (context, state) =>
+            const Scaffold(body: Text('ACCOUNT_SCREEN')),
+      ),
       GoRoute(
         path: '/series/:slug/read/:episodeSlug',
         builder: (context, state) => Scaffold(
@@ -217,6 +224,9 @@ Widget _wrapWithRouter(
       discoveryRepositoryProvider.overrideWithValue(repository),
       readingProgressRepositoryProvider.overrideWithValue(
         progressRepository ?? _FakeReadingProgressRepository(),
+      ),
+      authFeatureConfigProvider.overrideWithValue(
+        AuthFeatureConfig(enabled: authEnabled),
       ),
     ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
@@ -689,6 +699,43 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('DOWNLOADS_SCREEN'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'AuthFeatureConfig.enabled false (varsayılan) iken "Hesabım" aksiyonu '
+    'HİÇ görünmez (ADR-010, bkz. features/auth/)',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(),
+      );
+
+      await tester.pumpWidget(_wrapWithRouter(repository));
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Hesabım'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'AuthFeatureConfig.enabled true iken "Hesabım" aksiyonu /account\'a '
+    'gider',
+    (tester) async {
+      usePhoneViewport(tester);
+      final repository = _FakeDiscoveryRepository(
+        () async => _discoveryWith(),
+      );
+
+      await tester.pumpWidget(
+        _wrapWithRouter(repository, authEnabled: true),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Hesabım'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ACCOUNT_SCREEN'), findsOneWidget);
     },
   );
 

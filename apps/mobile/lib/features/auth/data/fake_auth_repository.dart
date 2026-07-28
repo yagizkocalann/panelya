@@ -9,11 +9,14 @@ import '../domain/auth_repository.dart';
 import '../domain/auth_session_state.dart';
 import 'pkce.dart';
 
-/// [AuthRepository]'nin in-memory sahte implementasyonu — testler ve
-/// geliştirme için (bkz. görev talimatı madde 2a). Riverpod provider'ları
-/// bugün BUNU bağlar (`authRepositoryProvider`); gerçek Auth0 tenant/
-/// gateway/JWKS değerleri sağlandığında `HttpAuthRepository`'ye geçiş tek
-/// satırda yapılır.
+/// [AuthRepository]'nin in-memory sahte implementasyonu — yalnız
+/// testlerde `authRepositoryProvider.overrideWithValue(...)` ile kullanılır
+/// (bkz. `test/features/auth/auth_providers_test.dart`). Riverpod
+/// provider'ları bugün gerçek `HttpAuthRepository`'yi bağlar (bkz.
+/// `presentation/auth_providers.dart`) — web tarafı gerçek Auth0 tenant'ı
+/// sağlanana kadar `/api/auth/*`'ı bilerek "fail closed" döndürdüğü için
+/// bu sahte sınıf, gerçek HTTP/network'e hiç dokunmadan tam akışı
+/// (anonim→login→refresh→revoke) test etmenin tek yoludur.
 ///
 /// Ürettiği token/kullanıcı DEĞERLERİ hiçbir zaman
 /// `packages/contracts/fixtures/auth-*.v1.json` içindeki sentetik

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/account_screen.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/discover/presentation/discover_screen.dart';
 import '../../features/discovery/presentation/new_episodes_screen.dart';
@@ -23,8 +24,12 @@ import 'route_args.dart';
 ///   docs/local-gap-backlog.md P2 madde 3, `features/offline/`). Web'de
 ///   karşılığı YOK — mobile-only, bu yüzden `mapWebPathToMobileRoute`de
 ///   bilerek bir eşlemesi bulunmuyor.
+/// - `/account` — Hesabım (bkz. `features/auth/`). Yalnız
+///   `AuthFeatureConfig.enabled` açıkken `discover_screen.dart`daki giriş
+///   noktasından erişilebilir; `/downloads` ile aynı gerekçeyle mobile-only,
+///   `mapWebPathToMobileRoute`de eşlemesi yok.
 ///
-/// Auth, kütüphane, Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
+/// Kütüphane, Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
 ///
 /// Güvenli düşüş (PLAN Görev 3): `panelya://` custom scheme linkleri
 /// [redirect] içinde [resolveCustomSchemeRoute] ile bilinen rotalardan birine
@@ -92,6 +97,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/downloads',
         builder: (context, state) => const DownloadsScreen(),
+      ),
+      GoRoute(
+        path: '/account',
+        builder: (context, state) => const AccountScreen(),
       ),
     ],
   );

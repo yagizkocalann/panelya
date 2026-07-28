@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
+import 'package:panelya_mobile/features/auth/data/fake_auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
 import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
@@ -94,6 +95,12 @@ void main() {
             authFeatureConfigProvider.overrideWithValue(
               const AuthFeatureConfig(enabled: true),
             ),
+            // Gerçek Auth0 tenant'ı sağlanana kadar varsayılan
+            // `HttpAuthRepository` gerçek ağ/HTTP'ye ihtiyaç duyar (bkz.
+            // `auth_providers.dart` doc yorumu); bu test tam akışı
+            // (anonim→login→refresh→revoke) sahte, in-memory bir
+            // repository üzerinden doğrular.
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
           ],
         );
         addTearDown(container.dispose);

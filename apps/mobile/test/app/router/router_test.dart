@@ -8,6 +8,7 @@ import 'package:panelya_mobile/app/router/route_args.dart';
 import 'package:panelya_mobile/app/router/router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/auth/presentation/account_screen.dart';
 import 'package:panelya_mobile/features/catalog/presentation/catalog_screen.dart';
 import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
@@ -312,6 +313,23 @@ void main() {
           await tester.pump();
 
           expect(find.byType(DownloadsScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/account" resolves to AccountScreen (mobile-only, yalnız '
+        'AuthFeatureConfig.enabled açıkken discover_screen.dart\'taki giriş '
+        'noktasından erişilir)',
+        (tester) async {
+          final built = buildRouter();
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(AccountScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );

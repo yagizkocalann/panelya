@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
+import '../../../core/config/auth_feature_config.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../features/discovery/presentation/discovery_providers.dart';
 import '../../../features/discovery/presentation/genre_disclosure.dart';
@@ -88,11 +89,21 @@ class DiscoverScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final discovery = ref.watch(discoveryProvider);
+    // ADR-010: Auth0 tenant'ı sağlanana kadar (bkz. `AuthFeatureConfig`
+    // doc yorumu) bu aksiyon HİÇ render edilmez — görünüp de hiçbir şey
+    // yapmayan bir hesap ikonu olmaz.
+    final authEnabled = ref.watch(authFeatureConfigProvider).enabled;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Panelya'),
         actions: [
+          if (authEnabled)
+            IconButton(
+              icon: const Icon(Icons.person_outline_rounded),
+              tooltip: 'Hesabım',
+              onPressed: () => context.push('/account'),
+            ),
           IconButton(
             icon: const Icon(Icons.download_done_rounded),
             tooltip: 'İndirilenler',

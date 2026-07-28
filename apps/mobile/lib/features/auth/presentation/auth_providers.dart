@@ -2,22 +2,30 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/api_client.dart';
 import '../../../core/config/auth_feature_config.dart';
 import '../../../core/storage/token_store.dart';
 import '../data/auth_browser.dart';
-import '../data/fake_auth_repository.dart';
+import '../data/http_auth_repository.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_session_state.dart';
 
-/// Aktif [AuthRepository]. BUGÜN YALNIZ [FakeAuthRepository]'yi bağlar
-/// (bkz. görev talimatı madde 2 — testler ve geliştirme için in-memory
-/// sahte). Gerçek Auth0 tenant/gateway/JWKS değerleri sağlandığında geçiş
-/// TEK NOKTADAN yapılır: bu provider'ın gövdesi `HttpAuthRepository(...)`
-/// örneklemesiyle değiştirilir (bkz. `data/http_auth_repository.dart`
-/// sınıf dokümantasyonu); çağıran kod (`authSessionProvider` ve ileride
-/// eklenecek ekranlar) DEĞİŞMEZ.
+/// Aktif [AuthRepository]. Gerçek `/api/auth/*` uçlarına konuşan
+/// [HttpAuthRepository]'yi bağlar (bkz. o dosyadaki sınıf dokümantasyonu
+/// — mantığı zaten ADR-039 sözleşmesine göre yazılmış). Gerçek Auth0
+/// tenant/gateway/JWKS değerleri sağlanana kadar web tarafı
+/// `/api/auth/config`'i bilerek "fail closed" 503 döndürür; bu, ekranların
+/// (bkz. `account_screen.dart`) dürüstçe "servis şu an kullanılamıyor"
+/// göstermesiyle sonuçlanır — sahte bir "başarılı giriş" GÖSTERİLMEZ.
+///
+/// Testlerde bu provider `FakeAuthRepository` (bkz. `data/
+/// fake_auth_repository.dart`) ile override edilir; gerçek HTTP/secure
+/// storage hiç çağrılmaz.
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final repository = FakeAuthRepository(tokenStore: ref.watch(tokenStoreProvider));
+  final repository = HttpAuthRepository(
+    client: ref.watch(apiClientProvider),
+    tokenStore: ref.watch(tokenStoreProvider),
+  );
   ref.onDispose(repository.dispose);
   return repository;
 });
