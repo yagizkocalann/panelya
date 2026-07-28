@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/api/api_client.dart';
+import '../../core/config/app_config.dart';
 import '../../core/storage/offline_storage_provider.dart';
 import '../../core/storage/shared_preferences_provider.dart';
 import '../../features/push/data/firebase_push_notification_repository.dart';
@@ -51,10 +55,22 @@ Future<void> bootstrap() async {
   );
 
   await pushRepository.requestPermission();
-  // Backend'in cihaz token kaydı uç noktası henüz yok (bkz.
-  // `push_notification_repository.dart` doc yorumu); bu ara dönemde
-  // gerçek teslimi Firebase Console'un "Send test message" özelliğiyle
-  // doğrulamak için token'ı debug konsoluna basıyoruz.
   final token = await pushRepository.getToken();
   debugPrint('FCM device token: $token');
+  if (token != null) {
+    // Hesap/giriş olmadan çalışan "broadcast" modeli (bkz.
+    // `push_notification_repository.dart` doc yorumu) — bu çağrı
+    // başarısız olsa bile (ağ yok, backend kapalı) uygulama normal
+    // çalışmaya devam eder, bu yüzden hatası yutulur.
+    try {
+      await PanelyaApiClient(
+        apiOrigin: AppConfig.fromDartDefines().apiOrigin,
+      ).registerPushToken(
+        token: token,
+        platform: Platform.isIOS ? 'ios' : 'android',
+      );
+    } catch (_) {
+      // Sessizce yut — bkz. yukarıdaki yorum.
+    }
+  }
 }

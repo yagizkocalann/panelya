@@ -286,4 +286,56 @@ void main() {
       );
     });
   });
+
+  group('registerPushToken', () {
+    test('POSTs the token/platform as JSON and succeeds on 204', () async {
+      http.Request? captured;
+      final mock = MockClient((request) async {
+        captured = request;
+        return http.Response('', 204);
+      });
+      final client = PanelyaApiClient(
+        apiOrigin: 'http://localhost:3000',
+        httpClient: mock,
+      );
+
+      await client.registerPushToken(token: 'device-token-1', platform: 'android');
+
+      expect(captured, isNotNull);
+      expect(captured!.method, 'POST');
+      expect(captured!.url.path, '/api/push/register');
+      expect(
+        jsonDecode(captured!.body),
+        {'token': 'device-token-1', 'platform': 'android'},
+      );
+    });
+
+    test('maps a non-204 response to HttpStatusException', () async {
+      final mock = MockClient((request) async => http.Response('', 429));
+      final client = PanelyaApiClient(
+        apiOrigin: 'http://localhost:3000',
+        httpClient: mock,
+      );
+
+      await expectLater(
+        client.registerPushToken(token: 'device-token-1', platform: 'android'),
+        throwsA(isA<HttpStatusException>()),
+      );
+    });
+
+    test('maps a socket error to NetworkException', () async {
+      final mock = MockClient((request) {
+        throw const SocketException('connection refused');
+      });
+      final client = PanelyaApiClient(
+        apiOrigin: 'http://localhost:3000',
+        httpClient: mock,
+      );
+
+      await expectLater(
+        client.registerPushToken(token: 'device-token-1', platform: 'android'),
+        throwsA(isA<NetworkException>()),
+      );
+    });
+  });
 }

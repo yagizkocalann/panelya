@@ -98,6 +98,14 @@ export const seriesSubscriptions = sqliteTable("series_subscriptions", {
   index("series_subscriptions_series_idx").on(table.seriesSlug, table.notifyNewEpisodes),
 ]);
 
+export const devicePushTokens = sqliteTable("device_push_tokens", {
+  id: text("id").primaryKey(),
+  token: text("token").notNull(),
+  platform: text("platform", { enum: ["ios", "android"] }).notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [uniqueIndex("device_push_tokens_token_unique").on(table.token)]);
+
 export const readingProgress = sqliteTable("reading_progress", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   seriesSlug: text("series_slug").notNull(),

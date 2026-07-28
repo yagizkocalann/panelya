@@ -68,6 +68,37 @@ class PanelyaApiClient {
     );
   }
 
+  /// `POST /api/push/register` — bu cihazın FCM token'ını backend'e
+  /// kaydeder (bkz. `features/push/`, docs/local-gap-backlog.md P2 madde
+  /// 3). Kimlik doğrulaması GEREKMEZ — hesap/giriş olmadan çalışan bir
+  /// "broadcast" modeli (yeni yayınlanan HER bölüm kayıtlı TÜM cihazlara
+  /// gider, seri bazlı kişiselleştirme yok). Başarıda gövdesiz `204` döner.
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+  }) async {
+    final path = '/api/push/register';
+    http.Response response;
+    try {
+      response = await _httpClient
+          .post(
+            Uri.parse('$apiOrigin$path'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'token': token, 'platform': platform}),
+          )
+          .timeout(timeout);
+    } on TimeoutException catch (cause) {
+      throw NetworkException('İstek zaman aşımına uğradı: $path', cause: cause);
+    } on SocketException catch (cause) {
+      throw NetworkException('Sunucuya bağlanılamadı: $path', cause: cause);
+    } on http.ClientException catch (cause) {
+      throw NetworkException('Ağ hatası: $path', cause: cause);
+    }
+    if (response.statusCode != 204) {
+      throw HttpStatusException(statusCode: response.statusCode, path: path);
+    }
+  }
+
   // --- Auth (bkz. ADR-039, docs/production-auth-session.md) ----------------
   //
   // Bu dört metot yalnız `HttpAuthRepository` (bkz.
