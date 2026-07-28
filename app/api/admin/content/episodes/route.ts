@@ -5,6 +5,7 @@ import { writeAudit } from "../../../../lib/database";
 import { assessEpisodePublishing } from "../../../../lib/publishing-readiness";
 import { isStudioRequest, publicSiteOrigin } from "../../../../lib/site-origins";
 import { dispatchNewEpisodeNotifications } from "../../../../lib/series-subscriptions";
+import { dispatchPushBroadcast } from "../../../../lib/push-notifications";
 
 const publicationStatuses = new Set<PublicationStatus>(["draft", "published", "archived"]);
 const tones = new Set(["coral", "mint", "violet", "blue", "amber", "rose"]);
@@ -93,6 +94,27 @@ export async function POST(request: Request) {
     && input.publicationStatus === "published"
     && (mode === "create" || previousEpisode?.publicationStatus !== "published");
   if (!shouldNotify) return redirectTo(request, `/content/${input.seriesSlug}/episodes/${input.slug}?saved=1`);
+
+  // Push (bkz. `push-notifications.ts`) e-posta outbox'undan bağımsız,
+  // hesap/giriş gerektirmeyen bir "broadcast" kanalı — biri başarısız olsa
+  // diğerini etkilememesi için AYRI bir try/catch ve audit kaydı ile
+  // gönderilir; e-posta akışının kendi başarı/hata redirect'ini değiştirmez.
+  try {
+    const pushResult = await dispatchPushBroadcast({
+      seriesSlug: input.seriesSlug,
+      seriesTitle: series.title,
+      episodeSlug: input.slug,
+      episodeTitle: input.title,
+    });
+    await writeAudit(user.id, "content.episode_push_dispatched", {
+      seriesSlug: input.seriesSlug,
+      episodeSlug: input.slug,
+      topic: pushResult.topic,
+      dispatched: pushResult.dispatched,
+    });
+  } catch {
+    await writeAudit(user.id, "content.episode_push_failed", { seriesSlug: input.seriesSlug, episodeSlug: input.slug });
+  }
 
   try {
     const result = await dispatchNewEpisodeNotifications({

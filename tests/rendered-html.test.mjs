@@ -1133,3 +1133,30 @@ test("oturum kapsami, idle timeout ve hassas Studio yeniden dogrulamasi sunucuda
   assert.equal(response.status, 307);
   assert.match(response.headers.get("location") ?? "", /^http:\/\/studio\.localhost:3000\/login\?return_to=%2F(?:users|account)&notice=/);
 });
+
+test("push bildirimi: cihaz tokeni toplamayan FCM topic broadcast ve fail-closed mod", async () => {
+  const [runtimeConfig, pushLib, episodeApi, envExample, manualQa, mobileHandoff, studioAdmin, auditPage] = await Promise.all([
+    readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/push-notifications.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/content/episodes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.env.example", import.meta.url), "utf8"),
+    readFile(new URL("../docs/manual-qa-checklist.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/mobile-handoff.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/studio-admin.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/studio/audit/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeConfig, /pushDeliveryMode/);
+  assert.match(pushLib, /class PushDeliveryUnavailableError/);
+  assert.match(pushLib, /NEW_EPISODES_PUSH_TOPIC = "panelya-new-episodes"/);
+  assert.match(pushLib, /topic: NEW_EPISODES_PUSH_TOPIC/);
+  assert.match(pushLib, /encodeURIComponent\(projectId\)/);
+  assert.equal((pushLib.match(/AbortSignal\.timeout\(10_000\)/g) ?? []).length, 2);
+  assert.doesNotMatch(pushLib, /device_push_tokens|registerDeviceToken|token: row\.token/);
+  assert.match(episodeApi, /dispatchPushBroadcast/);
+  assert.match(episodeApi, /content\.episode_push_failed/);
+  assert.match(envExample, /PUSH_DELIVERY_MODE=disabled/);
+  assert.match(manualQa, /QA-PUSH-01/);
+  assert.match(mobileHandoff, /panelya-new-episodes/);
+  assert.match(studioAdmin, /"topic", "dispatched"/);
+  assert.match(auditPage, /content\.episode_push_dispatched/);
+});
