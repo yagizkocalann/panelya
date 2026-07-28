@@ -164,6 +164,8 @@ test("seri sayfası ve okuyucu route'ları sunucuda render edilir", async () => 
   const episodeHtml = await episodeResponse.text();
   assert.match(episodeHtml, /Son Teslimat/);
   assert.match(episodeHtml, /Bu bölüm burada bitti/);
+  assert.doesNotMatch(episodeHtml, /Panelya Originals sunar/);
+  assert.doesNotMatch(episodeHtml, /story-title-panel/);
   assert.match(episodeHtml, /name="robots" content="noindex, follow"/i);
 });
 
