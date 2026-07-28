@@ -96,6 +96,13 @@ async function ensureSchema(db: D1Database) {
       metadata TEXT,
       created_at INTEGER NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS device_push_tokens (
+      id TEXT PRIMARY KEY NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      platform TEXT NOT NULL CHECK(platform IN ('ios','android')),
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS reading_progress (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       series_slug TEXT NOT NULL,

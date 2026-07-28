@@ -33,6 +33,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# wrangler local dev secrets (Cloudflare Workers runtime reads these, not
+# process.env — see runtime-config.ts's cloudflare:workers fallback)
+.dev.vars*
+
 # vercel
 .vercel
 
