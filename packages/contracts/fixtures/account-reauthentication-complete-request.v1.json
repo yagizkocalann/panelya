@@ -1,0 +1,7 @@
+{
+  "requestId": "reauth_request_fixture_01",
+  "authorizationCode": "fixture_authorization_code_0000000001",
+  "state": "fixture_state_0000000000000001",
+  "codeVerifier": "fixture_code_verifier_0000000000000000000000000",
+  "redirectUri": "panelya://auth/callback"
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "user": {
+    "id": "user_fixture_01",
+    "displayName": "Deniz Kaya",
+    "email": "deniz@example.test",
+    "emailVerified": true,
+    "role": "reader"
+  },
+  "provider": "database",
+  "capabilities": {
+    "profileEditing": "enabled",
+    "avatarEditing": "unavailable",
+    "emailChange": "reauthentication_required",
+    "passwordAction": "enabled",
+    "sessionManagement": "enabled",
+    "blockedAccounts": "enabled",
+    "accountDeletion": "reauthentication_required"
+  }
+}

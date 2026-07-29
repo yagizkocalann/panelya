@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "sessions": [
+    {
+      "id": "session_fixture_android_01",
+      "deviceLabel": "Android telefon",
+      "platform": "android",
+      "lastActiveAt": "2030-01-01T12:00:00.000Z",
+      "current": true,
+      "revocable": true
+    },
+    {
+      "id": "session_fixture_web_01",
+      "deviceLabel": "Web tarayicisi",
+      "platform": "web",
+      "lastActiveAt": "2030-01-01T10:00:00.000Z",
+      "current": false,
+      "revocable": true
+    }
+  ]
+}

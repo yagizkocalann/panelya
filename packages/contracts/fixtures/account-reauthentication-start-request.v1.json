@@ -1,0 +1,6 @@
+{
+  "purpose": "account_deletion",
+  "redirectUri": "panelya://auth/callback",
+  "codeChallenge": "fixture_code_challenge_000000000000000000000000",
+  "codeChallengeMethod": "S256"
+}

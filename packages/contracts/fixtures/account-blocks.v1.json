@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "accounts": [
+    {
+      "id": "user_fixture_blocked_01",
+      "displayName": "Ornek Okur",
+      "avatarUrl": "https://images.example/blocked-avatar-fixture.png"
+    }
+  ]
+}

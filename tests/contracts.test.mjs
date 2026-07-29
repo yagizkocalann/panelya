@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 
@@ -34,6 +34,23 @@ const validators = {
   authState: validator("AuthStateResponse"),
   authError: validator("AuthErrorResponse"),
   authLogout: validator("AuthLogoutResponse"),
+  accountOverview: validator("AccountOverviewResponse"),
+  accountProfileUpdate: validator("AccountProfileUpdateRequest"),
+  accountPasswordReset: validator("AccountPasswordResetRequest"),
+  accountEmailChange: validator("AccountEmailChangeRequest"),
+  accountActionAccepted: validator("AccountActionAcceptedResponse"),
+  accountReauthStartRequest: validator("AccountReauthenticationStartRequest"),
+  accountReauthStartResponse: validator("AccountReauthenticationStartResponse"),
+  accountReauthCompleteRequest: validator("AccountReauthenticationCompleteRequest"),
+  accountReauthCompleteResponse: validator("AccountReauthenticationCompleteResponse"),
+  accountSessions: validator("AccountSessionsResponse"),
+  accountSessionRevocationRequest: validator("AccountSessionRevocationRequest"),
+  accountSessionRevocationResponse: validator("AccountSessionRevocationResponse"),
+  blockedAccounts: validator("BlockedAccountsResponse"),
+  accountDeletionSummary: validator("AccountDeletionSummaryResponse"),
+  accountDeletionRequest: validator("AccountDeletionRequest"),
+  accountDeletionOperation: validator("AccountDeletionOperationResponse"),
+  accountError: validator("AccountErrorResponse"),
 };
 
 const fixtureCases = [
@@ -50,6 +67,24 @@ const fixtureCases = [
   ["auth-state-anonymous.v1.json", validators.authState],
   ["auth-error.v1.json", validators.authError],
   ["auth-logout.v1.json", validators.authLogout],
+  ["account-overview-database.v1.json", validators.accountOverview],
+  ["account-overview-google.v1.json", validators.accountOverview],
+  ["account-profile-update-request.v1.json", validators.accountProfileUpdate],
+  ["account-password-reset-request.v1.json", validators.accountPasswordReset],
+  ["account-email-change-request.v1.json", validators.accountEmailChange],
+  ["account-action-accepted.v1.json", validators.accountActionAccepted],
+  ["account-reauthentication-start-request.v1.json", validators.accountReauthStartRequest],
+  ["account-reauthentication-start-response.v1.json", validators.accountReauthStartResponse],
+  ["account-reauthentication-complete-request.v1.json", validators.accountReauthCompleteRequest],
+  ["account-reauthentication-complete-response.v1.json", validators.accountReauthCompleteResponse],
+  ["account-sessions.v1.json", validators.accountSessions],
+  ["account-session-revocation-request.v1.json", validators.accountSessionRevocationRequest],
+  ["account-session-revocation-response.v1.json", validators.accountSessionRevocationResponse],
+  ["account-blocks.v1.json", validators.blockedAccounts],
+  ["account-deletion-summary.v1.json", validators.accountDeletionSummary],
+  ["account-deletion-request.v1.json", validators.accountDeletionRequest],
+  ["account-deletion-response.v1.json", validators.accountDeletionOperation],
+  ["account-error.v1.json", validators.accountError],
 ];
 
 test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () => {
@@ -60,6 +95,18 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
   assert.deepEqual(
     Object.keys(openapi.paths).sort(),
     [
+      "/api/account",
+      "/api/account/blocks",
+      "/api/account/blocks/{userId}",
+      "/api/account/deletion",
+      "/api/account/email-change",
+      "/api/account/password-reset",
+      "/api/account/profile",
+      "/api/account/reauthentication/complete",
+      "/api/account/reauthentication/start",
+      "/api/account/sessions",
+      "/api/account/sessions/revoke",
+      "/api/account/sessions/{sessionId}",
       "/api/auth/config",
       "/api/auth/me",
       "/api/auth/mobile/revoke",
@@ -70,6 +117,7 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       "/api/series/{slug}/episodes/{episodeSlug}",
     ],
   );
+  assert.equal(openapi.info.version, "1.4.0");
 
   const refs = JSON.stringify(openapi).match(/\.\/schema\.json#\/\$defs\/[A-Za-z]+/g) ?? [];
   assert.ok(refs.length >= 5, "OpenAPI response'ları ortak schema tanımlarına bağlanmalı");
@@ -79,6 +127,16 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
   }
   assert.equal(openapi.components.securitySchemes.PanelyaAccessToken.scheme, "bearer");
   assert.equal(openapi.components.securitySchemes.PanelyaWebSession.in, "cookie");
+  for (const [path, item] of Object.entries(openapi.paths)) {
+    if (!path.startsWith("/api/account")) continue;
+    for (const operation of Object.values(item)) {
+      assert.deepEqual(
+        operation.security,
+        [{ PanelyaAccessToken: [] }, { PanelyaWebSession: [] }],
+        `${path} yalniz mobil Bearer veya web host-only session kabul etmeli`,
+      );
+    }
+  }
 });
 
 test("paylaşılan fixture'lar JSON Schema sözleşmesine uyar", async () => {
@@ -150,6 +208,50 @@ test("auth state kapali, kosullu ve Dart codegen ile yapisal olarak uyumludur", 
     false,
     "authenticated=false iken user null olmali",
   );
+});
+
+test("hesap sozlesmesi server capability ve tek kullanimlik reauthentication sinirini korur", async () => {
+  const [database, google, start, complete, deletion, sessions] = await Promise.all([
+    readFile(new URL("../packages/contracts/fixtures/account-overview-database.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/account-overview-google.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/account-reauthentication-start-request.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/account-reauthentication-complete-response.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/account-deletion-summary.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/account-sessions.v1.json", import.meta.url), "utf8").then(JSON.parse),
+  ]);
+
+  assert.equal(database.capabilities.passwordAction, "enabled");
+  assert.equal(database.capabilities.emailChange, "reauthentication_required");
+  assert.equal(google.capabilities.passwordAction, "provider_managed");
+  assert.equal(google.capabilities.emailChange, "provider_managed");
+  assert.equal(start.codeChallengeMethod, "S256");
+  assert.equal(complete.purpose, "account_deletion");
+  assert.match(complete.reauthenticationToken, /^fixture_/);
+  assert.ok(!("authorizationCode" in complete));
+  assert.ok(deletion.deleted.includes("auth_identity"));
+  assert.ok(deletion.anonymized.includes("community_contributions"));
+  assert.ok(deletion.retained.includes("legal_and_audit_records"));
+  assert.ok(sessions.sessions.every((session) => !("ip" in session)));
+  assert.doesNotMatch(
+    JSON.stringify({ database, google, start, complete, deletion, sessions }),
+    /clientSecret|refreshToken|providerSubject|managementToken|storageKey/i,
+  );
+
+  const fixtureDirectory = new URL("../packages/contracts/fixtures/", import.meta.url);
+  const accountFixtureNames = (await readdir(fixtureDirectory))
+    .filter((name) => name.startsWith("account-"));
+  assert.equal(accountFixtureNames.length, 18);
+  const allAccountFixtures = await Promise.all(
+    accountFixtureNames.map((name) =>
+      readFile(new URL(name, fixtureDirectory), "utf8").then(JSON.parse),
+    ),
+  );
+  const serialized = JSON.stringify(allAccountFixtures);
+  assert.doesNotMatch(
+    serialized,
+    /"(?:clientSecret|privateKey|refreshToken|providerSubject|managementToken|password)"\s*:/i,
+  );
+  assert.doesNotMatch(serialized, /panelya-dev|auth0\.com/i);
 });
 
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);

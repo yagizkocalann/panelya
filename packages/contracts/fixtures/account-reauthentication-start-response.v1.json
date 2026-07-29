@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0",
+  "requestId": "reauth_request_fixture_01",
+  "authorizationUrl": "https://identity.example/authorize?fixture=reauthentication",
+  "callbackUrlScheme": "panelya",
+  "expiresAt": "2030-01-01T12:05:00.000Z"
+}

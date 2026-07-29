@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "1.0",
+  "error": "reauthentication_expired",
+  "errorDescription": "Fixture reauthentication proof expired.",
+  "reauthenticate": true
+}
