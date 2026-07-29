@@ -23,6 +23,7 @@ export const REQUIRED_D1_TABLES = Object.freeze([
   "media_variants",
   "notification_outbox",
   "preview_tokens",
+  "provider_identities",
   "rate_limit_buckets",
   "reading_progress",
   "review_likes",

@@ -61,13 +61,13 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 
 1. Bu ADR ve ortak schema/OpenAPI/fixture'lar `main` dalina girer.
 2. Auth0 tenant, custom domain, API audience, native/web callback ve logout URI'lari olusturulur.
-3. Web gateway, JWKS dogrulama, provider identity D1 migration'i ve Auth0 callback'i ayri runtime PR'inda uygulanir.
+3. Mobil token gateway, JWKS doğrulama ve provider identity D1 migration'i runtime katmanında uygulanır; web callback/BFF oturumu aynı tenantın ayrı Regular Web Application istemcisiyle tamamlanır.
 4. Flutter ortak fixture'lari parse eder, Auth0 native Web Authentication ve secure credential storage adapter'ini ekler.
 5. Web ve mobil gercek tenant smoke testleri gecmeden local auth production'da kapatilmaz.
 
 ## Kalan deployment kapilari
 
-- Auth0 tenant ve custom domain henuz provision edilmedi.
+- Auth0 tenant, Native Application ve Panelya API henüz provision edilmedi; runtime kodu gerçek değerler yokken fail-closed kalır.
 - Production callback/deep-link alan adlari kesin deployment domainiyle kaydedilmelidir.
 - Admin MFA, breach protection, bot/rate-limit ve e-posta sender ayarlari tenant acilisinda manuel dogrulanmalidir.
-- Runtime token gateway ve JWKS dogrulama bu sozlesme PR'inin degil, izleyen production auth entegrasyon PR'inin kapsamidir.
+- Mobil runtime token gateway, RS256 JWKS doğrulama, exact redirect allowlist ve hashli provider identity eşlemesi uygulanmıştır; gerçek tenant smoke testi ile web callback/açık hesap bağlama akışı beklemektedir.
