@@ -12,6 +12,20 @@ export const users = sqliteTable("users", {
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [uniqueIndex("users_email_unique").on(table.email)]);
 
+export const providerIdentities = sqliteTable("provider_identities", {
+  provider: text("provider", { enum: ["auth0"] }).notNull(),
+  issuer: text("issuer").notNull(),
+  subjectHash: text("subject_hash").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  lastLoginAt: integer("last_login_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.provider, table.issuer, table.subjectHash] }),
+  uniqueIndex("provider_identities_user_provider_unique").on(table.userId, table.provider, table.issuer),
+  index("provider_identities_user_idx").on(table.userId),
+]);
+
 export const sessions = sqliteTable("sessions", {
   tokenHash: text("token_hash").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),

@@ -20,6 +20,17 @@ async function ensureSchema(db: D1Database) {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS provider_identities (
+      provider TEXT NOT NULL CHECK(provider = 'auth0'),
+      issuer TEXT NOT NULL,
+      subject_hash TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_login_at INTEGER NOT NULL,
+      PRIMARY KEY (provider, issuer, subject_hash),
+      UNIQUE(user_id, provider, issuer)
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS account_tokens (
       id TEXT PRIMARY KEY NOT NULL,
       token_hash TEXT NOT NULL UNIQUE,
@@ -273,6 +284,7 @@ async function ensureSchema(db: D1Database) {
       created_at INTEGER NOT NULL
     )`),
     db.prepare("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS provider_identities_user_idx ON provider_identities(user_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS library_user_idx ON library_items(user_id, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS progress_user_idx ON reading_progress(user_id, updated_at DESC)"),
