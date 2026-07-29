@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Panelya Public API",
-    "version": "1.3.0",
-    "description": "Public reading and production authentication contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
+    "version": "1.4.0",
+    "description": "Public reading, production authentication and account-lifecycle contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
   },
   "servers": [
     { "url": "http://localhost:3000", "description": "Local web API" }
@@ -243,6 +243,434 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account": {
+      "get": {
+        "operationId": "getAccountOverview",
+        "summary": "Get the current account and server-defined capabilities",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account overview and provider capabilities",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountOverviewResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/profile": {
+      "patch": {
+        "operationId": "updateAccountProfile",
+        "summary": "Update the current user's editable Panelya profile",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountProfileUpdateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated account overview",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountOverviewResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid profile update",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/password-reset": {
+      "post": {
+        "operationId": "requestAccountPasswordReset",
+        "summary": "Request a provider-hosted password reset email",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountPasswordResetRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Request accepted without disclosing account existence",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountActionAcceptedResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Password is managed by the external provider",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/email-change": {
+      "post": {
+        "operationId": "requestAccountEmailChange",
+        "summary": "Change a database identity email after fresh authentication",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountEmailChangeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Email change and verification request accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountActionAcceptedResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Provider-managed email or conflicting address",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/reauthentication/start": {
+      "post": {
+        "operationId": "startAccountReauthentication",
+        "summary": "Start purpose-bound fresh Auth0 authentication with PKCE",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountReauthenticationStartRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Single-use reauthentication request and system-browser URL",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountReauthenticationStartResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid purpose, redirect URI or PKCE challenge",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/reauthentication/complete": {
+      "post": {
+        "operationId": "completeAccountReauthentication",
+        "summary": "Exchange and verify the fresh Auth0 callback without replacing the live session",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountReauthenticationCompleteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Purpose-bound single-use Panelya reauthentication token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountReauthenticationCompleteResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid, expired or already consumed callback context",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/sessions": {
+      "get": {
+        "operationId": "listAccountSessions",
+        "summary": "List merged web and native sessions",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public session inventory without credentials or IP addresses",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountSessionsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "revokeAccountSession",
+        "summary": "Revoke one web or native session",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Idempotent revocation result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountSessionRevocationResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/sessions/revoke": {
+      "post": {
+        "operationId": "revokeAccountSessions",
+        "summary": "Revoke other or all account sessions",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountSessionRevocationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Aggregate revocation result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountSessionRevocationResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/blocks": {
+      "get": {
+        "operationId": "listBlockedAccounts",
+        "summary": "List accounts blocked by the current user",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Blocked account summaries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/BlockedAccountsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/blocks/{userId}": {
+      "put": {
+        "operationId": "blockAccount",
+        "summary": "Idempotently block an account",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Block accepted",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountActionAcceptedResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unblockAccount",
+        "summary": "Idempotently remove an account block",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block removed or already absent",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountActionAcceptedResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/deletion": {
+      "get": {
+        "operationId": "getAccountDeletionSummary",
+        "summary": "Get structured deletion, anonymization and retention effects",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Structured deletion effects for client-side localization",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountDeletionSummaryResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "deleteAccount",
+        "summary": "Start the idempotent account deletion saga",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string", "minLength": 16, "maxLength": 128 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/AccountDeletionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Deletion saga accepted or idempotently resumed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountDeletionOperationResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Invalid, expired, reused or wrong-purpose reauthentication token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/AccountErrorResponse" }
               }
             }
           }

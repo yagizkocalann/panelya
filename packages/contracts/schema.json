@@ -479,6 +479,298 @@
         "retryAfterSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
       }
     },
+    "AccountProviderKind": {
+      "type": "string",
+      "enum": ["database", "google", "other_social"]
+    },
+    "AccountActionCapability": {
+      "type": "string",
+      "enum": ["enabled", "reauthentication_required", "provider_managed", "unavailable"]
+    },
+    "AccountCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileEditing",
+        "avatarEditing",
+        "emailChange",
+        "passwordAction",
+        "sessionManagement",
+        "blockedAccounts",
+        "accountDeletion"
+      ],
+      "properties": {
+        "profileEditing": { "$ref": "#/$defs/AccountActionCapability" },
+        "avatarEditing": { "$ref": "#/$defs/AccountActionCapability" },
+        "emailChange": { "$ref": "#/$defs/AccountActionCapability" },
+        "passwordAction": { "$ref": "#/$defs/AccountActionCapability" },
+        "sessionManagement": { "$ref": "#/$defs/AccountActionCapability" },
+        "blockedAccounts": { "$ref": "#/$defs/AccountActionCapability" },
+        "accountDeletion": { "$ref": "#/$defs/AccountActionCapability" }
+      }
+    },
+    "AccountOverviewResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "user", "provider", "capabilities"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "user": { "$ref": "#/$defs/AuthUser" },
+        "provider": { "$ref": "#/$defs/AccountProviderKind" },
+        "capabilities": { "$ref": "#/$defs/AccountCapabilities" }
+      }
+    },
+    "AccountProfileUpdateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["displayName"],
+      "properties": {
+        "displayName": { "type": "string", "minLength": 2, "maxLength": 80 }
+      }
+    },
+    "AccountActionAcceptedResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "accepted"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "accepted": { "type": "boolean", "const": true }
+      }
+    },
+    "AccountPasswordResetRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 0
+    },
+    "AccountEmailChangeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["newEmail", "reauthenticationToken"],
+      "properties": {
+        "newEmail": { "type": "string", "minLength": 3, "maxLength": 254 },
+        "reauthenticationToken": { "type": "string", "minLength": 32, "maxLength": 2048 }
+      }
+    },
+    "AccountReauthenticationPurpose": {
+      "type": "string",
+      "enum": ["email_change", "account_deletion"]
+    },
+    "AccountReauthenticationStartRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "redirectUri", "codeChallenge", "codeChallengeMethod"],
+      "properties": {
+        "purpose": { "$ref": "#/$defs/AccountReauthenticationPurpose" },
+        "redirectUri": { "type": "string", "minLength": 1, "maxLength": 2048 },
+        "codeChallenge": { "type": "string", "minLength": 43, "maxLength": 128 },
+        "codeChallengeMethod": { "type": "string", "const": "S256" }
+      }
+    },
+    "AccountReauthenticationStartResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "authorizationUrl",
+        "callbackUrlScheme",
+        "expiresAt"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "requestId": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "authorizationUrl": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "callbackUrlScheme": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "expiresAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AccountReauthenticationCompleteRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestId",
+        "authorizationCode",
+        "state",
+        "codeVerifier",
+        "redirectUri"
+      ],
+      "properties": {
+        "requestId": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "authorizationCode": { "type": "string", "minLength": 16, "maxLength": 4096 },
+        "state": { "type": "string", "minLength": 16, "maxLength": 512 },
+        "codeVerifier": { "type": "string", "minLength": 43, "maxLength": 128 },
+        "redirectUri": { "type": "string", "minLength": 1, "maxLength": 2048 }
+      }
+    },
+    "AccountReauthenticationCompleteResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "purpose", "reauthenticationToken", "expiresAt"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "purpose": { "$ref": "#/$defs/AccountReauthenticationPurpose" },
+        "reauthenticationToken": { "type": "string", "minLength": 32, "maxLength": 2048 },
+        "expiresAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AccountSessionPlatform": {
+      "type": "string",
+      "enum": ["web", "android", "ios", "unknown"]
+    },
+    "AccountSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "deviceLabel",
+        "platform",
+        "lastActiveAt",
+        "current",
+        "revocable"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "deviceLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "platform": { "$ref": "#/$defs/AccountSessionPlatform" },
+        "lastActiveAt": { "type": "string", "minLength": 1 },
+        "current": { "type": "boolean" },
+        "revocable": { "type": "boolean" }
+      }
+    },
+    "AccountSessionsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sessions"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "sessions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AccountSession" }
+        }
+      }
+    },
+    "AccountSessionRevocationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope"],
+      "properties": {
+        "scope": { "type": "string", "enum": ["others", "all"] }
+      }
+    },
+    "AccountSessionRevocationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "revokedCount", "currentSessionRevoked"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "revokedCount": { "type": "integer", "minimum": 0 },
+        "currentSessionRevoked": { "type": "boolean" }
+      }
+    },
+    "BlockedAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "avatarUrl": { "type": "string", "minLength": 1, "maxLength": 2048 }
+      }
+    },
+    "BlockedAccountsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "accounts"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "accounts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/BlockedAccount" }
+        }
+      }
+    },
+    "AccountDeletionEffect": {
+      "type": "string",
+      "enum": [
+        "auth_identity",
+        "profile",
+        "active_sessions",
+        "library",
+        "reading_progress",
+        "block_relationships",
+        "community_contributions",
+        "legal_and_audit_records"
+      ]
+    },
+    "AccountDeletionSummaryResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "deleted", "anonymized", "retained"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "deleted": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/AccountDeletionEffect" }
+        },
+        "anonymized": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/AccountDeletionEffect" }
+        },
+        "retained": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/AccountDeletionEffect" }
+        }
+      }
+    },
+    "AccountDeletionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation", "reauthenticationToken"],
+      "properties": {
+        "confirmation": { "type": "string", "const": "delete_my_account" },
+        "reauthenticationToken": { "type": "string", "minLength": 32, "maxLength": 2048 }
+      }
+    },
+    "AccountDeletionOperationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requestId", "status"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "requestId": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "status": { "type": "string", "enum": ["pending", "completed"] }
+      }
+    },
+    "AccountErrorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "error", "reauthenticate"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "error": {
+          "type": "string",
+          "enum": [
+            "not_authenticated",
+            "invalid_request",
+            "unsupported_action",
+            "reauthentication_required",
+            "reauthentication_invalid",
+            "reauthentication_expired",
+            "reauthentication_reused",
+            "not_found",
+            "conflict",
+            "rate_limited",
+            "service_unavailable"
+          ]
+        },
+        "errorDescription": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "reauthenticate": { "type": "boolean" },
+        "retryAfterSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
+      }
+    },
     "ErrorResponse": {
       "type": "object",
       "additionalProperties": false,

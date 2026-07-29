@@ -28,3 +28,22 @@ V1'de `updatedAt`, `publishedAt` ve `followers` alanları mevcut API davranış�
 Production auth sözleşmesi ADR-039 uyarınca Auth0, Authorization Code + PKCE, 15 dakikalık Bearer access tokeni ve dönen refresh tokeni modelini tanımlar. `auth-*.v1.json` fixture'ları `.example`/`.test` alan adları ve açıkça geçersiz sentetik tokenlar kullanır. Bunlar runtime yapılandırması veya geliştirici kimlik bilgisi değildir. Web host-only cookie kullanabilir; Flutter bu cookie'yi taklit etmez ve tokenları yalnız OS secure storage'da saklar.
 
 Editorial keşif sözleşmesi ADR-044 uyarınca `GET /api/discovery` üzerinden öne çıkan seri/ilk bölüm, türler, en fazla 100 yeni seri ve gerçek yayın sırasındaki en fazla 100 bölüm güncellemesini taşır. `publishedAt` gösterim metnidir; istemci sıralamayı yeniden hesaplamaz ve API sırasını korur. Discovery cevapları panel gövdeleri veya dahili timestamp/storage/Queue metadata'sı taşımaz.
+
+Production hesap sözleşmesi ADR-047 uyarınca web host-only session cookie'si
+ve Flutter Bearer tokenini aynı `/api/account/*` yüzeyinde kabul eder.
+`AccountOverviewResponse` sağlayıcı türü yanında ekran kararlarını sunucudan
+gelen capability alanlarıyla taşır; istemci provider davranışını tahmin etmez.
+Aktif oturumlar credential veya IP adresi açmaz, silme etkileri
+yerelleştirilmiş cümleler yerine yapılandırılmış kodlardır.
+
+Taze doğrulama iki aşamalıdır:
+`/api/account/reauthentication/start`, `S256` challenge ve amaca göre
+`max_age=0` sistem tarayıcısı URL'si üretir; `complete`, authorization code'u
+request/state/PKCE/redirect/nonce/`auth_time` bağlamında doğruladıktan sonra
+en fazla 10 dakikalık, amaca bağlı ve tek kullanımlık Panelya
+`reauthenticationToken` döndürür. Ham authorization code hassas mutation'a
+verilmez ve bu akış mevcut mobil login tokenlarını değiştirmez.
+
+`account-*.v1.json` fixture'ları yalnız sentetik `.example`/`.test`
+değerleridir. Gerçek Auth0 domaini, kullanıcı parolası, access/refresh token,
+client secret veya Management API credential'ı değildir.

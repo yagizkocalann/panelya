@@ -56,6 +56,10 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Mevcut yerel hesap yalniz kullanici mevcut yerel oturumunu yeniden dogrularken Auth0 girisini de tamamladiginda baglanir. Sadece ayni e-posta metnine bakarak sessiz hesap birlestirme yapilmaz.
 - Yerel PBKDF2 parola, reset ve dogrulama akislari localhost QA icin kalir; production kimlik kaynagi sayilmaz.
 - Studio production girisi Auth0 + yerel admin rolu ister. Adminler icin MFA ve hassas islemlerde yeniden kimlik dogrulama production tenant acilis kapisidir.
+- Production sifre, e-posta, oturum envanteri, engellenen hesaplar ve hesap
+  silme davranisi ADR-047'de (`docs/production-account-lifecycle.md`)
+  tanimlanir. Web cookie'si ve mobil Bearer tokeni ayni `/api/account/*`
+  JSON yuzeyini kullanir; `/api/account/mobile/*` acilmaz.
 
 ## Uygulama sirasi
 
@@ -67,7 +71,14 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 
 ## Kalan deployment kapilari
 
-- Auth0 tenant, Native Application ve Panelya API henüz provision edilmedi; runtime kodu gerçek değerler yokken fail-closed kalır.
-- Production callback/deep-link alan adlari kesin deployment domainiyle kaydedilmelidir.
+- Development Auth0 tenant, Native Application ve Panelya API provision edildi;
+  Android sistem tarayicisi callback, code exchange, refresh ve revoke canli
+  testten gecti. Production tenant/deployment degerleri yine ayri provision
+  edilir ve kaynak koda yazilmaz.
+- Production callback/deep-link alan adlari kesin deployment domainiyle
+  yeniden kaydedilmelidir.
 - Admin MFA, breach protection, bot/rate-limit ve e-posta sender ayarlari tenant acilisinda manuel dogrulanmalidir.
-- Mobil runtime token gateway, RS256 JWKS doğrulama, exact redirect allowlist ve hashli provider identity eşlemesi uygulanmıştır; gerçek tenant smoke testi ile web callback/açık hesap bağlama akışı beklemektedir.
+- Mobil runtime token gateway, RS256 JWKS doğrulama, exact redirect allowlist,
+  hashli provider identity eşlemesi ve gerçek tenant smoke testi
+  tamamlanmıştır. Web BFF callback/acik hesap baglama ile ADR-047 hesap yasam
+  dongusu runtime'i beklemektedir.
