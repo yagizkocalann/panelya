@@ -18,15 +18,22 @@ import 'account_providers.dart';
 /// ister; ikisi de aynı `showDialog<bool>` + `AlertDialog` + `TextButton`
 /// (`Vazgeç`/yıkıcı fiil) kalıbını kullanır, yalnız zincirlenmiştir.
 ///
-/// Silme öncesi taze bir Auth0 kimlik doğrulaması gerekir (bkz. görev
-/// talimatı "Sistem tarayıcısında taze Auth0 doğrulaması"). Bu ekran
-/// `AccountRepository`nin KENDİSİNİ `AuthBrowser`a bağımlı KILMAZ — tıpkı
-/// `features/auth/presentation/account_screen.dart`daki `_signIn` gibi
-/// `authRepositoryProvider.beginSignIn()` + `authBrowserProvider.authenticate()`yi
-/// BURADA, çağıran katmanda orkestre eder ve yalnız dönen callback'in
-/// `code`'unu opak bir kanıt olarak `AccountRepository.deleteAccount`a
-/// geçirir (bkz. `AccountRepository.deleteAccount` doc yorumu) —
-/// `completeSignIn` ÇAĞRILMAZ, çünkü bu canlı oturumu MUTASYONA UĞRATIR.
+/// TAZE KİMLİK DOĞRULAMASI — MEVCUT ORKESTRASYON GEÇİCİDİR, DEĞİŞECEK:
+///
+/// Bu ekran bugün `authRepositoryProvider.beginSignIn()` +
+/// `authBrowserProvider.authenticate()`yi çağırıp dönen callback'in
+/// `code`'unu `AccountRepository.deleteAccount`a geçirir. Bu YALNIZ
+/// presentation-only demo içindir — web tarafı bu zinciri açıkça REDDETTİ
+/// (Auth0 authorization code'u gerçek hesap mutation'ına doğrudan
+/// verilmeyecek). Gerçek akış (`/api/account/reauthentication/start` ->
+/// `max_age=0` + PKCE -> `.../complete` -> tek kullanımlık, amaca bağlı
+/// `reauthenticationToken`) için bkz. `AccountRepository`nin sınıf
+/// dokümantasyonundaki ayrıntılı not; sözleşme `main`e girdiğinde bu
+/// metodun (`_startDeletion`) gövdesi ona göre değişecek.
+///
+/// Değişmeyecek olan: `completeSignIn` ÇAĞRILMAZ — bu canlı oturumu
+/// MUTASYONA UĞRATIR; gerçek sözleşme de mevcut `AuthRepository` oturumunu
+/// ve `TokenStore`u değiştirmemeyi garanti ediyor.
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 

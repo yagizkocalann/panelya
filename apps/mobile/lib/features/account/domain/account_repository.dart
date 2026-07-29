@@ -15,14 +15,27 @@ import 'blocked_account.dart';
 /// uçları web ile AYNI `/api/account/*` sözleşmesini paylaşacak — ayrı bir
 /// `/api/account/mobile/*` AÇILMAYACAK).
 ///
-/// "Taze kimlik doğrulaması" gerektiren [deleteAccount] KASITLI OLARAK
-/// `AuthBrowser`'a bağımlı DEĞİLDİR (bkz. `features/auth/data/
-/// auth_browser.dart`) — bu, `AuthRepository`'nin de kendi çağıranından
-/// (`AccountScreen`/`DeleteAccountScreen`) `AuthBrowser`'ı ayrı tutmasıyla
-/// aynı katman sınırını korur. Çağıran (`DeleteAccountScreen`) taze kimlik
-/// doğrulamasını KENDİSİ `authRepositoryProvider.beginSignIn()` +
-/// `authBrowserProvider.authenticate()` ile elde eder, sonucu opak bir
-/// `reauthCredential` olarak buraya geçirir.
+/// TAZE KİMLİK DOĞRULAMASI — MEVCUT İMZA GEÇİCİDİR, DEĞİŞECEK:
+///
+/// Bugünkü [deleteAccount] imzası (`reauthCredential` olarak callback'ten
+/// alınan Auth0 authorization `code`'unu geçirmek) YALNIZ presentation-only
+/// `FakeAccountRepository` demosu içindir. Web tarafı bu zinciri açıkça
+/// REDDETTİ: Auth0 authorization code'u gerçek bir hesap mutation'ına
+/// DOĞRUDAN VERİLMEYECEK.
+///
+/// Ortak sözleşmenin tanımlayacağı gerçek akış (web tarafından iletildi):
+/// 1. `POST /api/account/reauthentication/start`
+/// 2. Sistem tarayıcısında `max_age=0` + PKCE ile doğrulama
+/// 3. `POST /api/account/reauthentication/complete`
+/// 4. Sunucudan AMACA BAĞLI, kısa ömürlü, TEK KULLANIMLIK
+///    `reauthenticationToken`
+/// 5. E-posta değiştirme/hesap silme mutation'ında bu token kullanılır
+///
+/// Bu akış mevcut `AuthRepository` oturumunu ve `TokenStore`'u
+/// DEĞİŞTİRMEYECEK. Sözleşme/schema/OpenAPI/fixture `main`e girdiğinde bu
+/// arayüzün imzası (ve `DeleteAccountScreen`'in orkestrasyonu) buna göre
+/// güncellenecek — o zamana kadar aşağıdaki `reauthCredential` parametresi
+/// bir YER TUTUCUdur, gerçek güvenlik sınırını temsil etmez.
 abstract class AccountRepository {
   /// Kullanıcının Auth0'a hangi sağlayıcıyla giriş yaptığı (bkz.
   /// `AccountOverview`, `account_providers.dart` -> `accountOverviewProvider`).
@@ -68,9 +81,10 @@ abstract class AccountRepository {
   /// aktif oturumları kapsar (bkz. ADR-047 — yalnız yerel `users` satırı
   /// değil).
   ///
-  /// [reauthCredential]: çağıranın (`DeleteAccountScreen`) sistem
-  /// tarayıcısında taze bir Auth0 oturumu açıp elde ettiği opak kanıt (bkz.
-  /// bu sınıfın dokümantasyonu). Sağlayıcı bunu geçersiz/süresi dolmuş
-  /// bulursa [AccountReauthRequiredException] fırlatır.
+  /// [reauthCredential]: GEÇİCİ yer tutucu — bkz. bu sınıfın "TAZE KİMLİK
+  /// DOĞRULAMASI" notu. Gerçek sözleşmede bunun yerine sunucudan alınan,
+  /// amaca bağlı ve tek kullanımlık bir `reauthenticationToken` gelecek.
+  /// Sağlayıcı bunu geçersiz/süresi dolmuş bulursa
+  /// [AccountReauthRequiredException] fırlatır.
   Future<void> deleteAccount({required String reauthCredential});
 }
