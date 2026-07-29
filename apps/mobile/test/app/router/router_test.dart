@@ -2,13 +2,29 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/router/route_args.dart';
 import 'package:panelya_mobile/app/router/router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
+import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
+import 'package:panelya_mobile/features/account/domain/account_provider.dart';
+import 'package:panelya_mobile/features/account/domain/account_repository.dart';
+import 'package:panelya_mobile/features/account/domain/account_session.dart';
+import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
+import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
+import 'package:panelya_mobile/features/account/presentation/profile_screen.dart';
+import 'package:panelya_mobile/features/account/presentation/security_screen.dart';
+import 'package:panelya_mobile/features/account/presentation/blocked_accounts_screen.dart';
+import 'package:panelya_mobile/features/account/presentation/delete_account_screen.dart';
+import 'package:panelya_mobile/features/account/presentation/sessions_screen.dart';
+import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
+import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
 import 'package:panelya_mobile/features/auth/presentation/account_screen.dart';
+import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
 import 'package:panelya_mobile/features/catalog/presentation/catalog_screen.dart';
 import 'package:panelya_mobile/features/discover/domain/discover_repository.dart';
 import 'package:panelya_mobile/features/discover/presentation/discover_providers.dart';
@@ -107,6 +123,90 @@ class _NeverResolvingPushNotificationRepository
   Stream<Uri> get notificationTaps => const Stream.empty();
 }
 
+/// `accountOverviewProvider`ı sonsuza kadar "yükleniyor" durumunda dondurmak
+/// için (bkz. bu dosyanın "hiç tamamlanmayan Future" gerekçesi) — yalnız
+/// `AccountHomeScreen`in gerçekten çağırdığı [fetchSignInProvider] anlamlı
+/// bir şekilde uygulanır.
+class _NeverResolvingAccountRepository implements AccountRepository {
+  @override
+  Future<AccountProvider> fetchSignInProvider() =>
+      Completer<AccountProvider>().future;
+
+  @override
+  Future<void> updateProfile({required String displayName}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> requestEmailChange({required String newEmail}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> requestPasswordReset() => throw UnimplementedError();
+
+  @override
+  Future<List<AccountSession>> listSessions() => throw UnimplementedError();
+
+  @override
+  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
+
+  @override
+  Future<void> revokeOtherSessions() => throw UnimplementedError();
+
+  @override
+  Future<List<BlockedAccount>> listBlockedAccounts() =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> unblockAccount(String blockedAccountId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AccountDeletionSummary> fetchDeletionSummary() =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteAccount({required String reauthCredential}) =>
+      throw UnimplementedError();
+}
+
+/// `features/account/` rotaları (bkz. ADR-047) yalnız kimliği doğrulanmış
+/// durumda anlamlıdır (`accountOverviewProvider` -> `authSessionProvider`).
+/// Sabit, senkron bir kimliği doğrulanmış durum döner — bu rotaların
+/// SADECE doğru EKRANA çözüldüğünü doğrulamak için yeterlidir (ekranın
+/// veri durumları kendi widget testlerinde kapsanıyor, bkz.
+/// `test/features/account/presentation/`).
+class _AuthenticatedFakeAuthRepository implements AuthRepository {
+  static const _user = AuthUser(
+    id: 'router-test-user',
+    displayName: 'Router Test Kullanıcısı',
+    email: 'router-test@panelya.invalid',
+    emailVerified: true,
+    role: 'reader',
+  );
+
+  @override
+  AuthSessionState get currentState =>
+      const AuthSessionState.authenticated(_user);
+
+  @override
+  Stream<AuthSessionState> get stateChanges => Stream.value(currentState);
+
+  @override
+  Future<AuthorizationRequest> beginSignIn() => throw UnimplementedError();
+
+  @override
+  Future<void> completeSignIn(Uri callbackUri) => throw UnimplementedError();
+
+  @override
+  Future<void> refresh() => throw UnimplementedError();
+
+  @override
+  Future<void> logout() => throw UnimplementedError();
+
+  @override
+  void dispose() {}
+}
+
 /// `NotificationPreferenceNotifier`in gerçek gövdesi `sharedPreferencesProvider`ı
 /// okur (bkz. `push_providers.dart`); bu router testinde gereksiz bir
 /// `SharedPreferences` mock kurulumundan kaçınmak için sahte bir sabit
@@ -123,7 +223,9 @@ void main() {
   /// Gerçek `routerProvider` GoRouter'ını, üç ekranın da gerçek ağa
   /// çıkmadan (loading durumunda asılı kalarak) inşa edilebildiği bir
   /// `ProviderScope` içinde döndürür.
-  ({GoRouter router, ProviderContainer container}) buildRouter() {
+  ({GoRouter router, ProviderContainer container}) buildRouter({
+    List<Override> extraOverrides = const [],
+  }) {
     final container = ProviderContainer(
       overrides: [
         discoverRepositoryProvider.overrideWithValue(
@@ -147,6 +249,7 @@ void main() {
         notificationPreferenceProvider.overrideWith(
           _FakeNotificationPreferenceNotifier.new,
         ),
+        ...extraOverrides,
       ],
     );
     addTearDown(container.dispose);
@@ -369,6 +472,151 @@ void main() {
           await tester.pump();
 
           expect(find.byType(AccountScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/account/profile" resolves to ProfileScreen (mobile-only, bkz. '
+        'ADR-047 — yalnız AccountHomeScreen\'in gezinme satırından '
+        'erişilir)',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: [
+              authFeatureConfigProvider.overrideWithValue(
+                const AuthFeatureConfig(enabled: true),
+              ),
+              authRepositoryProvider.overrideWithValue(
+                _AuthenticatedFakeAuthRepository(),
+              ),
+              accountRepositoryProvider.overrideWithValue(
+                _NeverResolvingAccountRepository(),
+              ),
+            ],
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account/profile');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(ProfileScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/account/security" resolves to SecurityScreen (mobile-only, bkz. '
+        'ADR-047 — yalnız AccountHomeScreen\'in gezinme satırından '
+        'erişilir)',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: [
+              authFeatureConfigProvider.overrideWithValue(
+                const AuthFeatureConfig(enabled: true),
+              ),
+              authRepositoryProvider.overrideWithValue(
+                _AuthenticatedFakeAuthRepository(),
+              ),
+              accountRepositoryProvider.overrideWithValue(
+                _NeverResolvingAccountRepository(),
+              ),
+            ],
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account/security');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(SecurityScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/account/sessions" resolves to SessionsScreen (mobile-only, bkz. '
+        'ADR-047 — yalnız AccountHomeScreen\'in gezinme satırından '
+        'erişilir)',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: [
+              authFeatureConfigProvider.overrideWithValue(
+                const AuthFeatureConfig(enabled: true),
+              ),
+              authRepositoryProvider.overrideWithValue(
+                _AuthenticatedFakeAuthRepository(),
+              ),
+              accountRepositoryProvider.overrideWithValue(
+                _NeverResolvingAccountRepository(),
+              ),
+            ],
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account/sessions');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(SessionsScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/account/blocked" resolves to BlockedAccountsScreen (mobile-only, '
+        'bkz. ADR-047 — yalnız AccountHomeScreen\'in gezinme satırından '
+        'erişilir)',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: [
+              authFeatureConfigProvider.overrideWithValue(
+                const AuthFeatureConfig(enabled: true),
+              ),
+              authRepositoryProvider.overrideWithValue(
+                _AuthenticatedFakeAuthRepository(),
+              ),
+              accountRepositoryProvider.overrideWithValue(
+                _NeverResolvingAccountRepository(),
+              ),
+            ],
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account/blocked');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(BlockedAccountsScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        '"/account/delete" resolves to DeleteAccountScreen (mobile-only, '
+        'bkz. ADR-047 — yalnız AccountHomeScreen\'in gezinme satırından '
+        'erişilir)',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: [
+              authFeatureConfigProvider.overrideWithValue(
+                const AuthFeatureConfig(enabled: true),
+              ),
+              authRepositoryProvider.overrideWithValue(
+                _AuthenticatedFakeAuthRepository(),
+              ),
+              accountRepositoryProvider.overrideWithValue(
+                _NeverResolvingAccountRepository(),
+              ),
+            ],
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account/delete');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(DeleteAccountScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );

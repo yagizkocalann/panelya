@@ -7,6 +7,9 @@ import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
+import 'package:panelya_mobile/features/account/presentation/account_home_screen.dart';
+import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/auth/data/auth_browser.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_exceptions.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
@@ -128,6 +131,12 @@ Widget _wrap({
       authBrowserProvider.overrideWithValue(
         browser ?? const _FakeAuthBrowser(callbackUri: null),
       ),
+      // `AccountHomeScreen` (bkz. ADR-047), kimliği doğrulanmış durumda bu
+      // ekranın gösterdiği içerik — kendi testleri
+      // `test/features/account/presentation/account_home_screen_test.dart`ta;
+      // burada yalnız `AccountScreen`in doğru ekrana DEVRETTİĞİNİ
+      // doğrulamak için her zaman başarılı bir sahte kullanılır.
+      accountRepositoryProvider.overrideWithValue(FakeAccountRepository()),
     ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
   );
@@ -193,8 +202,8 @@ void main() {
   );
 
   testWidgets(
-    'başarılı giriş sonrası kullanıcı adı/e-postası ve "Çıkış yap" '
-    'gösterilir',
+    'başarılı giriş sonrası "Hesabım ana ekranı"na (AccountHomeScreen, '
+    'bkz. ADR-047) devredilir',
     (tester) async {
       await tester.pumpWidget(
         _wrap(
@@ -209,9 +218,7 @@ void main() {
       await tester.tap(find.text('Giriş yap'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ece Yılmaz'), findsOneWidget);
-      expect(find.text('ece@example.invalid'), findsOneWidget);
-      expect(find.text('Çıkış yap'), findsOneWidget);
+      expect(find.byType(AccountHomeScreen), findsOneWidget);
     },
   );
 

@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
-import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
+import '../../account/presentation/account_home_screen.dart';
 import '../domain/auth_exceptions.dart';
 import '../domain/auth_session_state.dart';
 import 'auth_providers.dart';
 
 /// Hesap ekranı (bkz. docs/mobile-handoff.md "Hesap ve kütüphane
-/// entegrasyonu", ADR-039). Gerçek Auth0 dev tenant'ı canlıda doğrulandı
-/// (PR #36, `main@b8e39da`); bu ekran sistem tarayıcısında gerçek bir
-/// Authorization Code + PKCE oturumu açar (bkz. `HttpAuthRepository`,
-/// `SystemAuthBrowser`).
+/// entegrasyonu", ADR-039, ADR-047). Gerçek Auth0 dev tenant'ı canlıda
+/// doğrulandı (PR #36, `main@b8e39da`); bu ekran sistem tarayıcısında
+/// gerçek bir Authorization Code + PKCE oturumu açar (bkz.
+/// `HttpAuthRepository`, `SystemAuthBrowser`).
 ///
 /// Bu ekran bilerek O GERÇEK isteği yapar — sahte/mock bir "başarılı
 /// giriş" GÖSTERMEZ; sağlayıcı/gateway hatası olursa dürüstçe hatayı
@@ -21,6 +21,13 @@ import 'auth_providers.dart';
 /// çalışmayan/hiçbir şey yapmayan bir buton değil, gerçek bir isteğin
 /// doğru raporlanan başarısızlık durumudur (aynı desen:
 /// `discover_screen.dart`daki API hataları).
+///
+/// Kimliği doğrulanmışken bu ekran yalnız Scaffold/AppBar/anonim kapıyı
+/// taşır — "Hesabım ana ekranı"nın gerçek içeriği (ADR-047: avatar/görünen
+/// ad, e-posta/sağlayıcı, Profil/E-posta ve şifre/Aktif oturumlar/
+/// Engellenen hesaplar/Hesabı sil/Çıkış yap) `features/account/`
+/// modülündeki `AccountHomeScreen`'e devredilir (bkz. o dosyanın
+/// dokümantasyonu).
 ///
 /// Yalnız `AuthFeatureConfig.enabled` (`AUTH_ENABLED` dart-define) açıkken
 /// erişilebilir — bkz. `discover_screen.dart`daki giriş noktası, o
@@ -66,12 +73,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    setState(() => _busy = true);
-    await ref.read(authRepositoryProvider).logout();
-    if (mounted) setState(() => _busy = false);
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(authSessionProvider);
@@ -88,11 +89,11 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             errorMessage: _errorMessage,
             onSignIn: _signIn,
           ),
-          AuthAuthenticated(:final user) => _AuthenticatedView(
-            user: user,
-            busy: _busy,
-            onSignOut: _signOut,
-          ),
+          // Kimliği doğrulanmışken bu ekranın gösterdiği içerik (bkz.
+          // ADR-047 "Hesabım ana ekranı") `features/account/` modülüne
+          // devredilir — bu ekran yalnız Scaffold/AppBar/anonim kapıyı
+          // taşır.
+          AuthAuthenticated() => const AccountHomeScreen(),
         },
       ),
     );
@@ -136,49 +137,6 @@ class _AnonymousView extends StatelessWidget {
               const CircularProgressIndicator()
             else
               FilledButton(onPressed: onSignIn, child: const Text('Giriş yap')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AuthenticatedView extends StatelessWidget {
-  const _AuthenticatedView({
-    required this.user,
-    required this.busy,
-    required this.onSignOut,
-  });
-
-  final AuthUser user;
-  final bool busy;
-  final VoidCallback onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(tokens.spacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(user.displayName, style: tokens.typography.titleMedium),
-            SizedBox(height: tokens.spacing.xs),
-            Text(
-              user.email,
-              style: tokens.typography.bodySmall.copyWith(
-                color: tokens.colors.muted,
-              ),
-            ),
-            SizedBox(height: tokens.spacing.lg),
-            if (busy)
-              const CircularProgressIndicator()
-            else
-              OutlinedButton(
-                onPressed: onSignOut,
-                child: const Text('Çıkış yap'),
-              ),
           ],
         ),
       ),

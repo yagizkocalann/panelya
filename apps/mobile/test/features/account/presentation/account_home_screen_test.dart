@@ -1,0 +1,383 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:panelya_mobile/app/theme/theme.dart';
+import 'package:panelya_mobile/core/config/auth_feature_config.dart';
+import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
+import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
+import 'package:panelya_mobile/features/account/domain/account_provider.dart';
+import 'package:panelya_mobile/features/account/domain/account_repository.dart';
+import 'package:panelya_mobile/features/account/domain/account_session.dart';
+import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
+import 'package:panelya_mobile/features/account/presentation/account_home_screen.dart';
+import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
+import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
+import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
+import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
+import 'package:panelya_mobile/shared/widgets/state_views.dart';
+
+import '../../../support/overflow_watcher.dart';
+
+const _fakeUser = AuthUser(
+  id: 'user-1',
+  displayName: 'Ece Yılmaz',
+  email: 'ece@example.invalid',
+  emailVerified: true,
+  role: 'reader',
+);
+
+/// [AccountHomeScreen], `authSessionProvider` üzerinden gerçek oturum
+/// kullanıcısını okur (bkz. `AccountOverview`'in dokümantasyonu — sahte
+/// bir kimlik ASLA üretilmez); bu yüzden bu testler de gerçek
+/// `AuthRepository` sözleşmesini uygulayan minimal bir sahte kullanır.
+class _FakeAuthRepository implements AuthRepository {
+  _FakeAuthRepository({AuthSessionState? initialState})
+    : _state = initialState ?? const AuthSessionState.authenticated(_fakeUser);
+
+  AuthSessionState _state;
+  final _controller = StreamController<AuthSessionState>.broadcast();
+  final List<String> logoutCalls = [];
+
+  @override
+  AuthSessionState get currentState => _state;
+
+  @override
+  Stream<AuthSessionState> get stateChanges async* {
+    yield _state;
+    yield* _controller.stream;
+  }
+
+  void _emit(AuthSessionState next) {
+    _state = next;
+    _controller.add(next);
+  }
+
+  @override
+  Future<AuthorizationRequest> beginSignIn() => throw UnimplementedError();
+
+  @override
+  Future<void> completeSignIn(Uri callbackUri) => throw UnimplementedError();
+
+  @override
+  Future<void> refresh() => throw UnimplementedError();
+
+  @override
+  Future<void> logout() async {
+    logoutCalls.add('logout');
+    _emit(const AuthSessionState.anonymous());
+  }
+
+  @override
+  void dispose() {
+    _controller.close();
+  }
+}
+
+/// `accountOverviewProvider`'ı sonsuza kadar "loading" durumunda dondurmak
+/// için (bkz. `test/app/router/router_test.dart`'taki aynı desen) —
+/// yalnız [AccountHomeScreen]'in gerçekten çağırdığı [fetchSignInProvider]
+/// anlamlı bir şekilde uygulanır, geri kalanı bu test dosyasında hiç
+/// çağrılmadığı için kasıtlı olarak uygulanmamıştır.
+class _NeverResolvingAccountRepository implements AccountRepository {
+  @override
+  Future<AccountProvider> fetchSignInProvider() =>
+      Completer<AccountProvider>().future;
+
+  @override
+  Future<void> updateProfile({required String displayName}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> requestEmailChange({required String newEmail}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> requestPasswordReset() => throw UnimplementedError();
+
+  @override
+  Future<List<AccountSession>> listSessions() => throw UnimplementedError();
+
+  @override
+  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
+
+  @override
+  Future<void> revokeOtherSessions() => throw UnimplementedError();
+
+  @override
+  Future<List<BlockedAccount>> listBlockedAccounts() =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> unblockAccount(String blockedAccountId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<AccountDeletionSummary> fetchDeletionSummary() =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteAccount({required String reauthCredential}) =>
+      throw UnimplementedError();
+}
+
+Widget _wrap({
+  required AccountRepository accountRepository,
+  _FakeAuthRepository? authRepository,
+  double? textScale,
+}) {
+  final router = GoRouter(
+    initialLocation: '/account',
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const Scaffold(body: Text('HOME')),
+      ),
+      GoRoute(
+        path: '/account',
+        builder: (context, state) =>
+            const Scaffold(body: AccountHomeScreen()),
+      ),
+      GoRoute(
+        path: '/account/profile',
+        builder: (context, state) =>
+            const Scaffold(body: Text('PROFILE_SCREEN')),
+      ),
+      GoRoute(
+        path: '/account/security',
+        builder: (context, state) =>
+            const Scaffold(body: Text('SECURITY_SCREEN')),
+      ),
+      GoRoute(
+        path: '/account/sessions',
+        builder: (context, state) =>
+            const Scaffold(body: Text('SESSIONS_SCREEN')),
+      ),
+      GoRoute(
+        path: '/account/blocked',
+        builder: (context, state) =>
+            const Scaffold(body: Text('BLOCKED_SCREEN')),
+      ),
+      GoRoute(
+        path: '/account/delete',
+        builder: (context, state) =>
+            const Scaffold(body: Text('DELETE_SCREEN')),
+      ),
+    ],
+  );
+
+  return ProviderScope(
+    overrides: [
+      authFeatureConfigProvider.overrideWithValue(
+        const AuthFeatureConfig(enabled: true),
+      ),
+      authRepositoryProvider.overrideWithValue(
+        authRepository ?? _FakeAuthRepository(),
+      ),
+      accountRepositoryProvider.overrideWithValue(accountRepository),
+    ],
+    child: MaterialApp.router(
+      theme: buildAppTheme(),
+      routerConfig: router,
+      builder: textScale == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+    ),
+  );
+}
+
+void main() {
+  testWidgets('yüklenirken AppLoadingView gösterir', (tester) async {
+    await tester.pumpWidget(
+      _wrap(accountRepository: _NeverResolvingAccountRepository()),
+    );
+    await tester.pump();
+
+    expect(find.byType(AppLoadingView), findsOneWidget);
+  });
+
+  testWidgets(
+    'sağlayıcı bilgisi getirilemezse AppErrorView + Tekrar dene gösterir',
+    (tester) async {
+      final repository = FakeAccountRepository()
+        ..fetchSignInProviderError = Exception('boom');
+
+      await tester.pumpWidget(_wrap(accountRepository: repository));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppErrorView), findsOneWidget);
+      expect(find.text('Beklenmeyen bir hata oluştu.'), findsOneWidget);
+      expect(find.text('Tekrar dene'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'database sağlayıcısıyla girişte ad/e-posta/doğrulanma/sağlayıcı '
+    'etiketi ve tüm gezinme satırları gösterilir',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(
+            provider: AccountProvider.database,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ece Yılmaz'), findsOneWidget);
+      expect(find.text('ece@example.invalid'), findsOneWidget);
+      expect(
+        find.text('E-posta ve şifre ile giriş yaptın.'),
+        findsOneWidget,
+      );
+      expect(find.text('Profil'), findsOneWidget);
+      expect(find.text('E-posta ve şifre'), findsOneWidget);
+      expect(find.text('Aktif oturumlar'), findsOneWidget);
+      expect(find.text('Engellenen hesaplar'), findsOneWidget);
+      expect(find.text('Hesabı sil'), findsOneWidget);
+      expect(find.text('Çıkış yap'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'google sağlayıcısıyla girişte "Google ile giriş yaptın." etiketi '
+    'gösterilir',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(
+            provider: AccountProvider.google,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Google ile giriş yaptın.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('"Profil" satırına dokunmak /account/profile\'a gider', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Profil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('PROFILE_SCREEN'), findsOneWidget);
+  });
+
+  testWidgets(
+    '"E-posta ve şifre" satırına dokunmak /account/security\'e gider',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(accountRepository: FakeAccountRepository()),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('E-posta ve şifre'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SECURITY_SCREEN'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '"Aktif oturumlar" satırına dokunmak /account/sessions\'a gider',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(accountRepository: FakeAccountRepository()),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Aktif oturumlar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SESSIONS_SCREEN'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '"Engellenen hesaplar" satırına dokunmak /account/blocked\'a gider',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(accountRepository: FakeAccountRepository()),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Engellenen hesaplar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('BLOCKED_SCREEN'), findsOneWidget);
+    },
+  );
+
+  testWidgets('"Hesabı sil" satırına dokunmak /account/delete\'e gider', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Hesabı sil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('DELETE_SCREEN'), findsOneWidget);
+  });
+
+  testWidgets('"Çıkış yap" gerçek logout\'u çağırır', (tester) async {
+    final authRepository = _FakeAuthRepository();
+    await tester.pumpWidget(
+      _wrap(
+        accountRepository: FakeAccountRepository(),
+        authRepository: authRepository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Çıkış yap'));
+    await tester.pumpAndSettle();
+
+    expect(authRepository.logoutCalls, hasLength(1));
+  });
+
+  testWidgets(
+    'uzun bir görünen adla scale=2.0\'da hiçbir taşma oluşmaz',
+    (tester) async {
+      final watcher = OverflowWatcher()..start();
+      addTearDown(watcher.stop);
+
+      const longNameUser = AuthUser(
+        id: 'user-2',
+        displayName:
+            'Çok Uzun Bir Görünen Ad Örneği Taşma Testi İçin Yazıldı',
+        email: 'cok-uzun-bir-eposta-adresi-ornegi@example.invalid',
+        emailVerified: false,
+        role: 'reader',
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(),
+          authRepository: _FakeAuthRepository(
+            initialState: const AuthSessionState.authenticated(
+              longNameUser,
+            ),
+          ),
+          textScale: 2.0,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(watcher.errors, isEmpty, reason: watcher.describe());
+    },
+  );
+}

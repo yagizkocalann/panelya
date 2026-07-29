@@ -1,6 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/account/presentation/profile_screen.dart';
+import '../../features/account/presentation/security_screen.dart';
+import '../../features/account/presentation/blocked_accounts_screen.dart';
+import '../../features/account/presentation/delete_account_screen.dart';
+import '../../features/account/presentation/sessions_screen.dart';
 import '../../features/auth/presentation/account_screen.dart';
 import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/discover/presentation/discover_screen.dart';
@@ -25,10 +30,29 @@ import 'route_args.dart';
 ///   docs/local-gap-backlog.md P2 madde 3, `features/offline/`). Web'de
 ///   karşılığı YOK — mobile-only, bu yüzden `mapWebPathToMobileRoute`de
 ///   bilerek bir eşlemesi bulunmuyor.
-/// - `/account` — Hesabım (bkz. `features/auth/`). Yalnız
-///   `AuthFeatureConfig.enabled` açıkken `discover_screen.dart`daki giriş
-///   noktasından erişilebilir; `/downloads` ile aynı gerekçeyle mobile-only,
-///   `mapWebPathToMobileRoute`de eşlemesi yok.
+/// - `/account` — Hesabım (bkz. `features/auth/`). Kimliği doğrulanmışken
+///   gerçek içeriği (ADR-047) `features/account/`deki `AccountHomeScreen`ye
+///   devreder. Yalnız `AuthFeatureConfig.enabled` açıkken
+///   `discover_screen.dart`daki giriş noktasından erişilebilir;
+///   `/downloads` ile aynı gerekçeyle mobile-only, `mapWebPathToMobileRoute`de
+///   eşlemesi yok.
+/// - `/account/profile` — Profil (bkz. `features/account/`, ADR-047):
+///   görünen ad düzenleme. Yalnız `AccountHomeScreen`in gezinme
+///   satırından erişilebilir; `/account` ile aynı gerekçeyle mobile-only,
+///   `resolveCustomSchemeRoute`de tanınmaz.
+/// - `/account/security` — E-posta ve şifre (bkz. `features/account/`,
+///   ADR-047): sağlayıcıya göre (Database/Google) e-posta değiştirme ve
+///   şifre sıfırlama e-postası VEYA yalnız açıklayıcı metin gösterir.
+///   `/account/profile` ile aynı gerekçeyle mobile-only.
+/// - `/account/sessions` — Aktif oturumlar (bkz. `features/account/`,
+///   ADR-047): oturum listesi, mevcut cihaz rozeti, tek/toplu kapatma.
+///   `/account/profile` ile aynı gerekçeyle mobile-only.
+/// - `/account/blocked` — Engellenen hesaplar (bkz. `features/account/`,
+///   ADR-047): liste, boş durum, engel kaldırma. `/account/profile` ile
+///   aynı gerekçeyle mobile-only.
+/// - `/account/delete` — Hesabı sil (bkz. `features/account/`, ADR-047):
+///   silme özeti, iki adımlı onay, taze Auth0 doğrulaması. `/account/profile`
+///   ile aynı gerekçeyle mobile-only.
 /// - `/notifications` — Bildirimler (bkz. `features/push/`). Hesap
 ///   gerektirmez, her zaman erişilebilir (`/account`in aksine
 ///   `AuthFeatureConfig`den bağımsız); `/downloads` ile aynı gerekçeyle
@@ -106,6 +130,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/account',
         builder: (context, state) => const AccountScreen(),
+      ),
+      GoRoute(
+        path: '/account/profile',
+        builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/account/security',
+        builder: (context, state) => const SecurityScreen(),
+      ),
+      GoRoute(
+        path: '/account/sessions',
+        builder: (context, state) => const SessionsScreen(),
+      ),
+      GoRoute(
+        path: '/account/blocked',
+        builder: (context, state) => const BlockedAccountsScreen(),
+      ),
+      GoRoute(
+        path: '/account/delete',
+        builder: (context, state) => const DeleteAccountScreen(),
       ),
       GoRoute(
         path: '/notifications',
