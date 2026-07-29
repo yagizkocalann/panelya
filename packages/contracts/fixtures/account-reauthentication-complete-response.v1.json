@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "1.0",
+  "purpose": "account_deletion",
+  "reauthenticationToken": "fixture_reauthentication_token_account_deletion_0001",
+  "expiresAt": "2030-01-01T12:10:00.000Z"
+}

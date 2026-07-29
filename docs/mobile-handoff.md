@@ -16,7 +16,13 @@ Mobil geliştirme `codex/mobile` branch'inde ve `apps/mobile` dizininde başlar.
 4. API hata/boş/yükleniyor durumları
 5. Deep-link taslağı
 
-Hesap ve kütüphane entegrasyonu, ADR-039 ortak auth sözleşmesi `main` dalına girdikten ve gerçek Auth0 tenant/gateway değerleri sağlandıktan sonra eklenir. Çevrimdışı okuma sonraki mobil fazda kalır. Yeni bölüm push bildiriminin sunucu sınırı ADR-046 ile hazırdır; gerçek Firebase native yapılandırması ve cihaz testi ayrı mobil teslimdir.
+Hesap kimlik dogrulamasi ADR-039 ile canli Auth0 testinden gecmistir. Standart
+`Hesabim` kapsami ADR-047'ye gore profil, e-posta/sifre yonetimi, aktif
+oturumlar, engellenen hesaplar ve hesap silmeyi iki platformda da icerir.
+Flutter bu mutasyonlari mevcut yerel web form endpoint'lerinden kopyalamaz;
+ADR-047 contract-first PR'i `main` dalina girene kadar yalniz UI/repository
+sinirini hazirlar. Cevrimdisi okuma sonraki mobil fazda kalir. Yeni bolum push
+bildiriminin sunucu siniri ADR-046 ile hazirdir.
 
 ## Mevcut API başlangıç noktaları
 
@@ -32,7 +38,100 @@ Mobil istemci D1 veya R2'ye doğrudan bağlanmaz. Bütün veri erişimi web depl
 
 ## Kimlik doğrulama uyarısı
 
-Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimlik sağlayıcısı değildir. Mobil branch bu cookie davranışını kalıcı sözleşme kabul etmemelidir. ADR-039 production sağlayıcısını Auth0, mobil akışı sistem tarayıcılı Authorization Code + PKCE olarak seçer; ortak contract hazır olsa da gerçek tenant/gateway/JWKS entegrasyonu ayrı runtime teslimidir.
+Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimlik
+sağlayıcısı değildir. Mobil branch bu cookie davranışını kalıcı sözleşme kabul
+etmemelidir. ADR-039 production sağlayıcısını Auth0, mobil akışı sistem
+tarayıcılı Authorization Code + PKCE olarak seçer; ortak contract ve mobil
+runtime gateway/JWKS entegrasyonu tamamlanmistir.
+
+2026-07-29 itibariyla Android canli Auth0 callback, token exchange, refresh ve
+revoke turu tamamlanmistir. Siradaki kimlik isi login transportu degil,
+ADR-047 ortak hesap yasam dongusudur.
+
+## Standart Hesabim kapsami (ADR-047)
+
+Web ve Flutter asagidaki urun yeteneklerinde parite saglar:
+
+1. hesap/profil ozeti,
+2. Auth0 database hesabinda e-posta ile sifre yenileme; sosyal hesapta
+   provider-yonetimli aciklama,
+3. provider destekliyorsa taze Auth0 dogrulamali e-posta degisikligi,
+4. web ve native aktif oturum listesi ile tekil/toplu iptal,
+5. engellenen hesaplar ve engeli kaldirma,
+6. uygulama icinden baslatilabilen, Auth0 kimligi ile Panelya verisini birlikte
+   ele alan hesap silme.
+
+Mobil icin ayri `/api/account/mobile/*` gateway'i yoktur. Ortak
+`/api/account/*` JSON uclari web cookie veya mobil Bearer kabul eder.
+`/api/auth/mobile/*` yalniz OAuth code/refresh/revoke tasimasidir.
+
+Mevcut local PBKDF2 `/api/account/password`, `/api/account/email` ve
+`/api/account/delete` form davranislarini Flutter kopyalamaz. Kesin endpoint
+istek/cevaplari, reauthentication kaniti ve fixture'lar
+`packages/contracts` altina girip `main` dalinda CI gecmeden mobil veri
+entegrasyonu baslamaz. Mobil bu arada platforma ozgu ekran iskeleti,
+loading/empty/error durumlari ve repository interface'i hazirlayabilir; sahte
+basarili mutation veya tiklanabilir placeholder gostermez.
+
+### Flutter Hesabim ekran haritasi
+
+Mobil sunum katmani ortak contract gelmeden su ekranlari tasarlayabilir:
+
+1. `Hesabim`: avatar/isim, e-posta ve dogrulama durumu, giris saglayicisi,
+   profil duzenleme, guvenlik, oturumlar, engellenen hesaplar ve hesap silme
+   girislerini tasir. Cikis aksiyonu bu ekranda kalir.
+2. `Profil`: gorunen ad ve destekleniyorsa avatar duzenleme. E-posta profil
+   formunun serbest metin alani degildir; guvenlik akisina gider.
+3. `E-posta ve sifre`: Auth0 database hesabinda e-posta degisikligi ile sifre
+   yenileme e-postasi; sosyal hesapta provider-yonetimli aciklama. Taze
+   dogrulama sistem tarayicisinda yapilir, uygulama ici parola formu yazilmaz.
+4. `Aktif oturumlar`: current cihaz belirgin, diger web/Android/iOS
+   oturumlari listeli; tekil iptal ve `Diger tum oturumlari kapat` aksiyonu.
+5. `Engellenen hesaplar`: bos durum, liste ve idempotent `Engeli kaldir`
+   aksiyonu.
+6. `Hesabi sil`: veri etkisini anlatan ozet, ikinci acik onay, taze Auth0
+   dogrulamasi, isleniyor/tamamlandi/tekrar denenebilir hata durumlari.
+
+Butun ekranlar loading, empty, error+retry ve success durumlarini; en az 44 px
+dokunma hedefini, dynamic text/semantics ve native geri hareketini kapsar.
+Contract PR'i gelene kadar UI testleri presentation-only fake repository ile
+yazilabilir; fake JSON bir API sozlesmesi veya generated DTO kaynagi sayilmaz.
+Production navigasyonunda capability cevabi olmayan calismayan bir aksiyon
+gosterilmez.
+
+Mobil yayin bayraklari birbirinden ayridir:
+
+- `AUTH_ENABLED`, yalniz gercek Auth0 giris/cikis ve oturum tasimasini acar.
+- `ACCOUNT_MANAGEMENT_ENABLED`, `/account/*` hesap yonetimi ekranlarini ve
+  mutation rotalarini acar; varsayilani `false` olur ve ancak ortak contract,
+  `HttpAccountRepository` ve fixture testleri tamamlaninca production'da
+  `true` yapilir.
+
+Bayrak kapaliyken hesap yonetimi girisleri gosterilmez ve deep-link/router
+guard bu rotalara erisimi fail-closed reddeder. `FakeAccountRepository`
+yalniz widget/router testlerinde veya acik gelistirme preview enjeksiyonunda
+kullanilir; debug/release runtime'in varsayilan repository baglantisi olamaz.
+Bu nedenle `AUTH_ENABLED=true`, sahte profil/e-posta/oturum/engel/silme
+mutation'larini dolayli olarak acmaz.
+
+`413a292` sunum teslimindeki
+`beginSignIn() -> callback code -> deleteAccount(reauthCredential: code)`
+zinciri yalniz FakeAccountRepository demosudur. Auth0 authorization code tek
+basina production kaniti sayilmaz ve bu imza HTTP adapter'a tasinmaz. Ortak
+contract geldiginde mobil, `/api/account/reauthentication/start` cevabiyla
+sistem tarayicisini acar; callback'i PKCE verifier/state baglamiyla
+`/api/account/reauthentication/complete` ucuna verir ve hesabi silme/e-posta
+degisikligi mutation'inda yalniz sunucunun verdigi amaca bagli, kisa omurlu,
+tek kullanimlik `reauthenticationToken`i kullanir. Bu akis mevcut
+AuthRepository oturumunu tamamlamaz, yenilemez veya TokenStore'u degistirmez.
+
+2026-07-30 itibariyla presentation-only ADR-047 ekranlari ve yayin korumasi
+`codex/mobile@e596c6b` uzerindedir. `AUTH_ENABLED=true` iken gercek
+giris/cikis kullanilabilir; varsayilan `ACCOUNT_MANAGEMENT_ENABLED=false`
+yonetim girislerini gizler, alt rotalari `/account`a yonlendirir ve
+`accountRepositoryProvider`a dokunmaz. `FakeAccountRepository` runtime
+varsayilani degildir. Dal `main`e merge edilmemistir; ortak contract ve
+`HttpAccountRepository` tamamlanana kadar bu durum korunur.
 
 ## Web → mobil entegrasyon kapıları
 
@@ -42,6 +141,7 @@ Mobil taraf aşağıdaki iki ortak teslimi `origin/main` uzerinden alip adapter/
 | --- | --- | --- | --- |
 | Responsive medya varyantları | MAIN'E MERGE EDILDI (PR #20, `ab1c92e`) | Public katalog, seri ve bölüm manifesti; istemcinin kullanabileceği varyant URL, piksel genişliği/yüksekliği ve MIME bilgisini `packages/contracts` şeması, OpenAPI eşlemesi ve sentetik fixture ile aynı biçimde döndürür. Storage key, Queue işi veya Studio metadata'sı public sözleşmeye sızmaz. Web contract/runtime testleri ve mobil kalite işi geçer. | `PublicMediaVariant` ile değişen `StoryPanelImage`/`SeriesMetadataFields` tanımları, response `schemaVersion: 1.0` (geriye uyumlu opsiyonel alanlar), OpenAPI `1.1.0` ve üç v1 fixture |
 | Production auth/session | MAIN'E MERGE EDILDI (PR #21, `7ca0f24`) | ADR-039 Auth0'yu, sistem tarayıcılı Authorization Code + PKCE'yi, 15 dakikalık access tokenini ve 30 günlük dönen refresh tokenini seçer. Giriş/code exchange, refresh, revoke, kullanıcı özeti ve hata cevapları dil bağımsız şema/OpenAPI/fixture olarak tanımlanır. Web host-only cookie'si mobil sözleşme değildir. Gercek tenant/gateway/JWKS degerleri gelmeden fixture degerleri runtime config sayilmaz. | OpenAPI `1.2.0`, ADR-039, `AuthProviderConfigResponse`/token/state/error tanımları ve sentetik `auth-*.v1.json` fixture listesi |
+| Production hesap yasam dongusu | CONTRACT PR HAZIR; MAIN/CI BEKLIYOR (ADR-047) | Profil, provider-yonetimli e-posta/sifre, web+native oturumlar, engellenen hesaplar ve Auth0 kimligini kapsayan silme iki platformun standart `Hesabim` kapsamidir. Web cookie ve mobil Bearer ayni `/api/account/*` yuzeyine girer; local PBKDF2 formlari kopyalanmaz. | OpenAPI `1.4.0`; `AccountOverviewResponse` capability'leri, profil/e-posta/sifre aksiyonlari, birlesik session ve block DTO'lari, yapilandirilmis silme etkileri, `reauthentication/start|complete` PKCE istekleri ve tek kullanimlik kanit fixture'lari. PR `main`e girip iki kalite isi gecmeden Flutter codegen/HttpAccountRepository baslamaz. |
 | Editorial keşif akışı | MAIN'E MERGE EDILDI (bu teslim) | `GET /api/discovery`; öne çıkan seri ve ilk bölümü, ortak tür listesi, sunucunun 30 günlük kuralıyla belirlediği yeni seriler ve gerçek yayın sırasındaki en fazla 100 bölüm güncellemesini tek cevapta taşır. Yerelleştirilmiş tarih metninden sıralama yapılmaz; panel gövdeleri keşif payload'ına girmez. | OpenAPI `1.3.0`, `DiscoveryResponse`/`DiscoverySeriesSummary`/`DiscoveryEpisodeUpdate`, `discovery.v1.json` ve ADR-044 |
 | Yeni bölüm push bildirimi | MAIN'E MERGE EDILDI (PR #35) | Herkese açık yeni bölüm duyurusu FCM topic fan-out kullanır. Web cihaz tokeni toplamaz, saklamaz veya mobil kayıt endpoint'i açmaz. Studio ilk yayın geçişinde tek topic mesajı dener; push hatası yayını ve e-posta outbox'ını geri almaz. | Flutter Firebase Messaging ile izin sonrası `panelya-new-episodes` konusuna `subscribeToTopic`, tercih kapanınca `unsubscribeFromTopic` uygular. Bildirim `data.deepLink` değerini mevcut custom-scheme router'a verir. |
 
@@ -123,7 +223,9 @@ Yeni veya bağımsız renk paleti oluşturulmaz. Mobil birebir web kopyası olma
 
 ## Şimdilik sonraya bırakılanlar
 
-Production auth sözleşmesi ADR-039 ile hazırdır; gerçek Auth0 tenant değerleri ve runtime gateway/JWKS entegrasyonu gelene kadar mobil yalnız contract/codegen ve adapter sınırını hazırlayabilir. Favori/kütüphane hesabı, push bildirimleri, çevrimdışı indirme, abonelik/ödeme ve Studio/admin ekranları ilk mobil kapsamın dışındadır.
+ADR-047 hesap yasam dongusunun runtime entegrasyonu contract-first ortak PR'i
+bekler. Cevrimdisi indirme, abonelik/odeme ve Studio/admin ekranlari ilk mobil
+kapsamin disindadir.
 
 ## Ortak değişiklik sınırı
 

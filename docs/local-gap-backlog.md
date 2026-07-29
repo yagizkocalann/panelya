@@ -21,9 +21,16 @@
 
 1. Tamamlandi: Studio kullanici envanteri, guvenli admin/okuyucu rol degisikligi, kendi rolunu ve son admini koruma, rol degisikliginde oturum kapatma.
 2. Tamamlandi: 24 saatlik tek kullanimlik admin daveti, yenileme/iptal/kabul akisi; production public kaydinda otomatik admin yetkisinin kaldirilmasi ve sifir admin kosullu tek seferlik Studio bootstrap.
-3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk yerel saklama-purge politikasi. Production kimlik saglayicisi Auth0 ve mobil PKCE oturumu ADR-039 ile secildi. Siradaki: Auth0 runtime tenant/gateway/JWKS entegrasyonu, canli e-posta saglayicisi ve genel KVKK/GDPR veri envanteri.
+3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk yerel saklama-purge politikasi. Production kimlik saglayicisi Auth0 ve mobil PKCE oturumu ADR-039 ile secildi; mobil runtime ve canli Android turu tamamlandi. Siradaki: web BFF, canli e-posta saglayicisi ve genel KVKK/GDPR veri envanteri.
 4. Tamamlandi: mevcut uzun pencere kotalarini atomik D1 sayaciyla kesinlestirme; production'da Cloudflare Rate Limiting binding'ini lokasyon bazli ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter.
 5. Tamamlandi: idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasi. Production Auth0 admin MFA/step-up ayari gercek tenant smoke testinde ayrica dogrulanacak.
+6. Contract-first teslim hazirlandi (ADR-047), runtime bekliyor: web ve Flutter icin ortak
+   `Hesabim` kapsami profil, provider-yonetimli e-posta/sifre, birlesik
+   web/native oturumlar, engellenen hesaplar ve Auth0 kimligini de kapsayan
+   hesap silmedir. Reauthentication kaniti dahil schema/OpenAPI/fixture
+   OpenAPI `1.4.0` teslimindedir. Siradaki teslim Auth0 Management API adapteri,
+   session envanteri ve idempotent silme saga'sidir. Mobil local PBKDF2 form
+   endpoint'lerini kopyalamaz.
 
 ## P1 - Operasyon ve gelir
 

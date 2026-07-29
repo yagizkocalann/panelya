@@ -14,10 +14,18 @@
 
 `app/lib/notifications.ts` icindeki `NotificationDelivery` sozlesmesine production adaptoru eklenir. Route'lar, token omru, hesap akisi ve UI degismez. Production adaptoru API anahtarini yalniz sunucu ortamindan okur; basarisiz gonderimler icin yeniden deneme/dead-letter ve provider message id alanlari eklenir.
 
+Bu "route ve UI degismez" kabulu yalniz bildirim teslimati icindir. Kimlik
+saglayicisi gecisinde local PBKDF2 parola/e-posta/silme formlari production
+sozlesmesi olarak korunmaz. Production hesap merkezi ADR-047'deki ortak
+`/api/account/*` JSON yuzeyine gecerek provider yeteneklerini acikca gosterir.
+
 ## Production oncesi zorunlu kararlar
 
-1. Tamamlandi: Yonetilen identity saglayicisi Auth0; web host-only BFF oturumu ve Flutter Authorization Code + PKCE stratejisi ADR-039 ile secildi. Ortak schema/OpenAPI/fixture'lar `packages/contracts` altindadir. Runtime tenant/gateway/JWKS entegrasyonu siradaki teslimdir.
-2. Yerel PBKDF2 yalniz localhost QA icin kalir. Production parola, e-posta dogrulama ve sifre kurtarma Auth0'ya devredilir; mevcut hesabin baglanmasi sessiz e-posta eslesmesiyle yapilmaz.
+1. Tamamlandi: Yonetilen identity saglayicisi Auth0; web host-only BFF oturumu ve Flutter Authorization Code + PKCE stratejisi ADR-039 ile secildi. Ortak schema/OpenAPI/fixture'lar `packages/contracts` altindadir. Mobil runtime tenant/gateway/JWKS ve canli Android turu tamamlandi; web BFF teslimi bekliyor.
+2. Tamamlandi (mimari karar): Yerel PBKDF2 yalniz localhost QA icin kalir.
+   Production parola, e-posta dogrulama, sifre kurtarma ve kimlik silme
+   Auth0/Panelya server adapterina devredilir; mevcut hesabin baglanmasi sessiz
+   e-posta eslesmesiyle yapilmaz. Ayrinti ADR-047'dedir.
 3. Tamamlandi: D1 kesin kotayi atomiklestirme ve production'da Cloudflare Rate Limiting binding'ini ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter. Binding/namespace deployment ortaminda ayrica provision edilir.
 4. Dogrulanmis gonderen domain, SPF/DKIM/DMARC, bounce/complaint isleme ve teslimat gozlemi.
 5. Outbox ham action URL saklamasini production'da kapatma; gercek saglayiciya gonderim sonrasi yalniz operasyonel metadata tutma.

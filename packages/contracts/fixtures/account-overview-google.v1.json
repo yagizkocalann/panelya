@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "user": {
+    "id": "user_fixture_02",
+    "displayName": "Ece Yilmaz",
+    "email": "ece@example.test",
+    "emailVerified": true,
+    "role": "reader",
+    "avatarUrl": "https://images.example/avatar-fixture.png"
+  },
+  "provider": "google",
+  "capabilities": {
+    "profileEditing": "enabled",
+    "avatarEditing": "provider_managed",
+    "emailChange": "provider_managed",
+    "passwordAction": "provider_managed",
+    "sessionManagement": "enabled",
+    "blockedAccounts": "enabled",
+    "accountDeletion": "reauthentication_required"
+  }
+}

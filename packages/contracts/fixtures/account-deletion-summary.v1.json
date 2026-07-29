@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "deleted": [
+    "auth_identity",
+    "profile",
+    "active_sessions",
+    "library",
+    "reading_progress",
+    "block_relationships"
+  ],
+  "anonymized": ["community_contributions"],
+  "retained": ["legal_and_audit_records"]
+}
