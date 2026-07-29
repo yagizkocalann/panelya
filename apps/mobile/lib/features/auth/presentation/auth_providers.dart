@@ -30,9 +30,9 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return repository;
 });
 
-/// Sistem tarayıcısını açan aktif [AuthBrowser]. Bugün yalnız [SystemAuthBrowser]
-/// stub'ını bağlar (bkz. o dosyadaki sınır notu); `HttpAuthRepository`
-/// devreye alındığında gerçek bir implementasyonla değiştirilecektir.
+/// Sistem tarayıcısını açan aktif [AuthBrowser]. Gerçek [SystemAuthBrowser]
+/// implementasyonunu (`flutter_web_auth_2`, bkz. o dosyadaki sınıf
+/// dokümantasyonu) bağlar.
 final authBrowserProvider = Provider<AuthBrowser>((ref) => const SystemAuthBrowser());
 
 /// Auth sınırının ekranların tüketeceği TEK giriş noktası.

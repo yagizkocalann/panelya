@@ -49,6 +49,27 @@
                 <data android:scheme="panelya"/>
             </intent-filter>
         </activity>
+        <!-- Auth0 sistem tarayıcı Authorization Code + PKCE geri dönüşü
+             (bkz. ADR-039, `flutter_web_auth_2` paket kurulumu). Bu ayrı
+             `CallbackActivity`, MainActivity'nin yukarıdaki genel `panelya://`
+             filtresiyle (host kısıtı yok, `panelya://series/...` push
+             deep-link'lerini yakalar) ÇAKIŞMASIN diye `android:host="auth"`
+             ile SADECE `panelya://auth/...`'ü eşler — Android'in intent
+             eşleştirmesi daha spesifik (scheme+host) eşleşmeyi tercih
+             ettiğinden `panelya://auth/callback` doğrudan buraya, diğer
+             `panelya://` linkleri MainActivity'ye gider; kullanıcıya "hangi
+             uygulamayla aç" seçici DİYALOĞU çıkmaz. -->
+        <activity
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter android:label="flutter_web_auth_2">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="panelya" android:host="auth"/>
+            </intent-filter>
+        </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -1,3 +1,8 @@
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+
+import '../domain/auth_exceptions.dart';
+
 /// Sistem tarayıcısında (Custom Tabs / `ASWebAuthenticationSession`)
 /// Authorization Code + PKCE oturum açma ekranını açma işinin soyut sınırı.
 ///
@@ -20,16 +25,17 @@ abstract class AuthBrowser {
   });
 }
 
-/// [AuthBrowser]'ın tek implementasyonu — bilerek bir STUB'tır.
+/// [AuthBrowser]'ın gerçek implementasyonu: `flutter_web_auth_2` üzerinden
+/// işletim sisteminin kendi güvenli oturumunu (iOS'ta
+/// `ASWebAuthenticationSession`, Android'de Custom Tabs) açar.
 ///
-/// Gerçek bir sistem tarayıcı oturumu açmak `url_launcher` (veya
-/// `flutter_web_auth_2`/Auth0'ın resmi Flutter SDK'si) gibi bir platform
-/// kanalı paketi gerektirir; bu paket, gerekçesiyle birlikte, gerçek Auth0
-/// tenant/gateway/JWKS değerleri sağlandığında eklenecektir (bkz. görev
-/// talimatı "url_launcher EKLEME"). Bu sınıf o ana kadar arayüzün
-/// varlığını ve `HttpAuthRepository`'nin ona bağımlılığını sabitler;
-/// çağrılırsa (bugün hiçbir yerden çağrılmaz) açık bir hata fırlatır —
-/// sessizce yanlış/boş bir URI döndürmez.
+/// `preferEphemeral` KASITLI OLARAK ayarlanmaz (varsayılan `false` kalır):
+/// ADR-039'un tarif ettiği "kullanıcının mevcut çerezlerini/SSO durumunu
+/// paylaşan" sistem tarayıcı oturumu tam olarak bu demektir — kullanıcı
+/// zaten web'de Auth0 ile oturum açmışsa mobilde de tekrar şifre girmesi
+/// gerekmez. Callback URI'yi bu paketin kendisi yakalar (bkz.
+/// `app/router/deep_link.dart` — `resolveCustomSchemeRoute` bilerek
+/// `panelya://auth/callback`'i bu yüzden işlemez).
 class SystemAuthBrowser implements AuthBrowser {
   const SystemAuthBrowser();
 
@@ -37,12 +43,25 @@ class SystemAuthBrowser implements AuthBrowser {
   Future<Uri?> authenticate({
     required Uri authorizationUrl,
     required String callbackUrlScheme,
-  }) {
-    throw UnimplementedError(
-      'SystemAuthBrowser: gerçek sistem tarayıcı entegrasyonu (url_launcher '
-      'veya Auth0 resmi Flutter SDK) henüz eklenmedi; gerçek Auth0 '
-      'tenant/gateway/JWKS değerleri sağlanınca eklenecek (bkz. '
-      'docs/production-auth-session.md, "Kalan deployment kapıları").',
-    );
+  }) async {
+    try {
+      final result = await FlutterWebAuth2.authenticate(
+        url: authorizationUrl.toString(),
+        callbackUrlScheme: callbackUrlScheme,
+      );
+      return Uri.parse(result);
+    } on PlatformException catch (error) {
+      if (error.code == 'CANCELED') return null;
+      // `flutter_web_auth_2` her iki platformda da kullanıcı iptalini
+      // `CANCELED` koduyla bildirir (bkz. paketin iOS/Android native
+      // kaynağı); bunun dışındaki her kod (`FAILED`, `NO_BROWSER`,
+      // `EUNKNOWN`, ...) gerçek bir tarayıcı/platform hatasıdır ve
+      // istemci tarafı bütünlük hatası olarak yüzeye çıkar (bkz.
+      // `AuthCallbackException` — `AccountScreen` bunu zaten [AppErrorView]
+      // ile gösterir).
+      throw AuthCallbackException(
+        'Sistem tarayıcısı oturumu tamamlanamadı: ${error.message ?? error.code}',
+      );
+    }
   }
 }

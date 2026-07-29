@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
+import 'package:panelya_mobile/core/storage/token_store.dart';
 import 'package:panelya_mobile/features/auth/data/fake_auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
@@ -137,6 +138,16 @@ void main() {
             authFeatureConfigProvider.overrideWithValue(
               const AuthFeatureConfig(enabled: true),
             ),
+            // `HttpAuthRepository`'nin kurucusu, uygulama yeniden açılışında
+            // oturumu geri yüklemek için best-effort bir arka plan görevi
+            // başlatır (bkz. `HttpAuthRepository._restoreSession`); bu görev
+            // önce `TokenStore.read()`'i çağırır. Bu test yalnız provider
+            // KİMLİĞİNİ (singleton olup olmadığını) doğruluyor, gerçek
+            // secure storage/platform kanalını DEĞİL — bu yüzden
+            // `InMemoryTokenStore` ile override edilir (aksi halde `test()`
+            // bir `TestWidgetsFlutterBinding` başlatmadığı için platform
+            // kanalı çağrısı çöker).
+            tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
           ],
         );
         addTearDown(container.dispose);

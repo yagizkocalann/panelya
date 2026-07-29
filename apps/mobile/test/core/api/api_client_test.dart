@@ -286,4 +286,98 @@ void main() {
       );
     });
   });
+
+  group('PanelyaApiClient.fetchAuthState (GET /api/auth/me)', () {
+    test(
+      'accessToken verilirse Authorization: Bearer başlığı gönderir',
+      () async {
+        Map<String, String>? requestHeaders;
+        final mock = MockClient((request) async {
+          requestHeaders = request.headers;
+          return http.Response(
+            jsonEncode({
+              'schemaVersion': '1.0',
+              'authenticated': true,
+              'user': {
+                'id': 'user-1',
+                'displayName': 'Ada',
+                'email': 'ada@example.com',
+                'emailVerified': true,
+                'role': 'reader',
+              },
+            }),
+            200,
+          );
+        });
+        final client = PanelyaApiClient(
+          apiOrigin: 'http://localhost:3000',
+          httpClient: mock,
+        );
+
+        final state = await client.fetchAuthState(accessToken: 'abc123');
+
+        expect(requestHeaders?['Authorization'], 'Bearer abc123');
+        expect(state.authenticated, isTrue);
+        expect(state.user?.id, 'user-1');
+      },
+    );
+
+    test('accessToken verilmezse Authorization başlığı hiç gönderilmez', () async {
+      Map<String, String>? requestHeaders;
+      final mock = MockClient((request) async {
+        requestHeaders = request.headers;
+        return http.Response(
+          jsonEncode({
+            'schemaVersion': '1.0',
+            'authenticated': false,
+            'user': null,
+          }),
+          200,
+        );
+      });
+      final client = PanelyaApiClient(
+        apiOrigin: 'http://localhost:3000',
+        httpClient: mock,
+      );
+
+      final state = await client.fetchAuthState();
+
+      expect(requestHeaders?.containsKey('Authorization'), isFalse);
+      expect(state.authenticated, isFalse);
+      expect(state.user, isNull);
+    });
+
+    test(
+      'geçersiz/süresi dolmuş bir token için sağlayıcının döndürdüğü '
+      'yapılandırılmış hata AuthApiException olarak yüzeye çıkar',
+      () async {
+        final mock = MockClient((request) async {
+          return http.Response(
+            jsonEncode({
+              'schemaVersion': '1.0',
+              'error': 'token_expired',
+              'errorDescription': 'Access token expired.',
+              'reauthenticate': true,
+            }),
+            401,
+          );
+        });
+        final client = PanelyaApiClient(
+          apiOrigin: 'http://localhost:3000',
+          httpClient: mock,
+        );
+
+        await expectLater(
+          client.fetchAuthState(accessToken: 'expired'),
+          throwsA(
+            isA<AuthApiException>().having(
+              (e) => e.error.error,
+              'error.error',
+              'token_expired',
+            ),
+          ),
+        );
+      },
+    );
+  });
 }

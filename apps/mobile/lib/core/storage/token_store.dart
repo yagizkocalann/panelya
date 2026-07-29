@@ -1,23 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../contracts/generated/generated.dart';
 
 /// Auth token'larinin saklandigi sinir arayuzu.
 ///
-/// Kapsam (bkz. PLAN "Secure storage siniri"): bugun yalniz [InMemoryTokenStore]
-/// yazilir; `flutter_secure_storage` (veya baska bir platform-kanali
-/// depolama paketi) BURADA EKLENMEZ. Gercek tenant/gateway entegrasyonu
-/// geldiginde (bkz. ADR-039 "Access token ... yalniz isletim sistemi secure
-/// storage katmaninda tutar") ayni arayuzun arkasina, gerekcesiyle birlikte,
-/// isletim sistemi anahtarligina yazan yeni bir implementasyon eklenecek —
-/// cagiran kod (repository/provider) DEGISMEYECEK.
+/// Gercek implementasyon [SecureStorageTokenStore]'dur (bkz. ADR-039:
+/// "Flutter bunu yalniz isletim sistemi secure storage katmaninda tutar" —
+/// iOS Keychain / Android Keystore-destekli EncryptedSharedPreferences).
+/// [InMemoryTokenStore] yalniz testlerde kullanilir.
 ///
-/// Butun metotlar kasitli olarak `Future` doner: [InMemoryTokenStore] bunu
-/// senkron da karsilayabilirdi, ama arayuz simdiden gelecekteki
-/// asenkron-zorunlu implementasyonu (secure storage platform kanali her
-/// zaman asenkrondur) bekleyecek sekilde tasarlandi; boylece gecis tek
-/// noktadan (bu dosyadaki fabrika/provider) yapilir, cagiran kod hicbir
-/// yerde degismez.
+/// Butun metotlar `Future` doner: secure storage platform kanali her zaman
+/// asenkrondur.
 ///
 /// Token DEGERLERI hicbir zaman log/print/analytics/audit olayina yazilmaz
 /// (bkz. ADR-039 "Guvenlik notlari").
@@ -35,10 +31,52 @@ abstract class TokenStore {
   Future<void> clear();
 }
 
-/// [TokenStore]'un tek implementasyonu: sureç belleginde tutar, hicbir
-/// diske/`SharedPreferences`'a yazmaz. Uygulama kapandiginda kaybolur; bu
-/// bilinen ve kabul edilen bir sinirdir (gercek tenant gelene kadar canli
-/// bir login akisi zaten yok, bkz. gorev talimati "ADAPTER SINIRI").
+/// [TokenStore]'un gercek implementasyonu: `flutter_secure_storage`
+/// uzerinden isletim sisteminin guvenli anahtarligina (iOS Keychain,
+/// Android EncryptedSharedPreferences) yazar. Tum token seti TEK bir anahtar
+/// altinda JSON olarak saklanir ki [write] gercekten ATOMIK tek bir platform
+/// kanali cagrisi olsun (bkz. ADR-039 rotasyon kurali — ayri anahtarlarda
+/// `accessToken`/`refreshToken` tutulsaydi iki ayri yazma arasinda tutarsiz
+/// bir ara durum mumkun olurdu).
+class SecureStorageTokenStore implements TokenStore {
+  SecureStorageTokenStore({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
+
+  static const _tokensKey = 'panelya_auth_tokens_v1';
+
+  final FlutterSecureStorage _storage;
+
+  @override
+  Future<AuthTokenResponse?> read() async {
+    final raw = await _storage.read(key: _tokensKey);
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return AuthTokenResponse.fromJson(decoded);
+    } on FormatException {
+      // Bozuk/eski surumden kalma bir deger: guvenli tarafta kal, oturumu
+      // kaybetmis gibi davran (kullanici yeniden giris yapar) ama
+      // ATLAMA/tekrar deneme dongusune girme.
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> write(AuthTokenResponse tokens) {
+    return _storage.write(key: _tokensKey, value: jsonEncode(tokens.toJson()));
+  }
+
+  @override
+  Future<void> clear() {
+    return _storage.delete(key: _tokensKey);
+  }
+}
+
+/// [TokenStore]'un in-memory implementasyonu: sureç belleginde tutar,
+/// hicbir diske yazmaz. Uygulama kapandiginda kaybolur — yalniz testlerde
+/// kullanilir (bkz. `SecureStorageTokenStore` gercek/production yolu).
 class InMemoryTokenStore implements TokenStore {
   AuthTokenResponse? _tokens;
 
@@ -59,4 +97,6 @@ class InMemoryTokenStore implements TokenStore {
 /// Aktif [TokenStore]. Uygulama genelinde tek bir ornek paylasilir (ayni
 /// [sharedPreferencesProvider] deseninde, bkz. `shared_preferences_provider.dart`)
 /// ki farkli repository'ler ayni oturumu gorsun.
-final tokenStoreProvider = Provider<TokenStore>((ref) => InMemoryTokenStore());
+final tokenStoreProvider = Provider<TokenStore>(
+  (ref) => SecureStorageTokenStore(),
+);

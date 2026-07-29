@@ -11,31 +11,34 @@ import '../domain/auth_repository.dart';
 import '../domain/auth_session_state.dart';
 import 'pkce.dart';
 
-/// [AuthRepository]'nin `/api/auth/*` uçlarına konuşan İSKELETİ (bkz. görev
-/// talimatı madde 2b).
+/// [AuthRepository]'nin `/api/auth/*` uçlarına konuşan gerçek
+/// implementasyonu (bkz. ADR-039, docs/production-auth-session.md).
 ///
-/// BU SINIF BUGÜN HİÇBİR RIVERPOD PROVIDER'INDAN BAĞLANMAZ VE ÇAĞRILMAZ.
 /// `authRepositoryProvider` (bkz. `features/auth/presentation/
-/// auth_providers.dart`) yalnız `FakeAuthRepository`'yi bağlar. Web
-/// tarafı bu uçları bugün kasıtlı olarak "fail closed" döndürür (bkz.
+/// auth_providers.dart`) bunu bağlar. Gerçek Auth0 dev tenant'ı (PR #36,
+/// `main@b8e39da`) canlıda doğrulandı; web tarafı `/api/auth/config`'i
+/// yalnız tenant/gateway değerleri eksikken "fail closed" döndürür (bkz.
 /// `app/lib/production-auth.ts` -> `productionAuthUnavailable()`, HTTP 503,
-/// `error: "service_unavailable"`) çünkü gerçek Auth0 tenant/gateway/JWKS
-/// entegrasyonu ayrı bir runtime teslimidir (bkz. ADR-039 "Kalan deployment
-/// kapıları", docs/mobile-handoff.md "Şimdilik sonraya bırakılanlar").
+/// `error: "service_unavailable"`) — bu sınıf o durumu da doğru şekilde
+/// [AuthProviderErrorException] olarak yüzeye çıkarır.
 ///
-/// Gerçek tenant/gateway hazır olduğunda geçiş TEK NOKTADAN yapılır:
-/// `authRepositoryProvider` içindeki `FakeAuthRepository(...)`
-/// örneklemesi bu sınıfla değiştirilir; bu dosyanın kendisi (mantığı zaten
-/// sözleşmeye göre yazılmıştır) değişmeden kalması beklenir — yalnız
-/// [AuthBrowser] gerçek bir implementasyonla (bkz. `auth_browser.dart`)
-/// değiştirilmesi gerekir.
+/// Kurucu, yapıldığı anda best-effort bir arka plan görevi başlatır
+/// ([_restoreSession]): [TokenStore]'da saklı bir oturum varsa
+/// `/api/auth/me` ile doğrular (gerekirse `refresh()` dener) ve
+/// [currentState]'i sessizce [AuthAuthenticated]'e taşır — bu, uygulama
+/// yeniden açıldığında oturumun devam etmesini sağlar. Bu görev asla
+/// exception fırlatmaz (çağıran/UI tarafından beklenmez); ağ/servis
+/// hataları oturumu KAYBETMEDEN sessizce yutulur, bir sonraki açılışta
+/// tekrar denenir.
 class HttpAuthRepository implements AuthRepository {
   HttpAuthRepository({
     required this._client,
     TokenStore? tokenStore,
     Random? random,
   }) : _tokenStore = tokenStore ?? InMemoryTokenStore(),
-       _random = random ?? Random.secure();
+       _random = random ?? Random.secure() {
+    unawaited(_restoreSession());
+  }
 
   final PanelyaApiClient _client;
   final TokenStore _tokenStore;
@@ -93,6 +96,10 @@ class HttpAuthRepository implements AuthRepository {
         'state': state,
         'code_challenge': pkce.challenge,
         'code_challenge_method': 'S256',
+        // Auth0 giriş ekranını Türkçe göster (bkz. görev talimatı). Auth0
+        // desteklenmeyen/eksik çeviri için kendi varsayılan diline düşer;
+        // bu istemci tarafında ayrıca bir yedek mantık gerektirmez.
+        'ui_locales': 'tr',
       },
     );
 
@@ -156,10 +163,71 @@ class HttpAuthRepository implements AuthRepository {
           redirectUri: authCallbackRedirectUri,
         ),
       );
+      // Sözleşme gereği ikinci bir doğrulama katmanı (bkz. görev talimatı
+      // "code/verifier değişimi ve /api/auth/me doğrulaması"): yeni access
+      // token'ın gerçekten API'nin kendi kullanıcı uç noktasında da
+      // `authenticated: true` döndürdüğünü teyit etmeden oturumu
+      // [AuthAuthenticated]'e taşımayız. Token değişimi zaten sunucu
+      // tarafında JWKS ile doğrulanmıştır (bkz. `app/lib/auth0-runtime.ts`
+      // -> `validateAuth0AccessToken`); bu adım o doğrulamanın istemci
+      // tarafından da gözlemlenebilir olmasını sağlar.
+      final state = await _client.fetchAuthState(accessToken: tokens.accessToken);
+      if (!state.authenticated || state.user == null) {
+        throw AuthProviderErrorException(
+          AuthErrorResponse(
+            schemaVersion: kSchemaVersion,
+            error: 'service_unavailable',
+            errorDescription: '/api/auth/me yeni tokeni doğrulamadı.',
+            reauthenticate: false,
+          ),
+        );
+      }
       await _tokenStore.write(tokens);
       _emit(AuthSessionState.authenticated(tokens.user));
     } on AuthApiException catch (cause) {
       throw AuthProviderErrorException(cause.error);
+    }
+  }
+
+  /// Uygulama açılışında saklı oturumu geri yükler (bkz. sınıf
+  /// dokümantasyonu). Yalnız kurucudan, tek seferlik çağrılır.
+  Future<void> _restoreSession() async {
+    final stored = await _tokenStore.read();
+    if (stored == null) return;
+
+    try {
+      final state = await _client.fetchAuthState(
+        accessToken: stored.accessToken,
+      );
+      if (state.authenticated && state.user != null) {
+        _emit(AuthSessionState.authenticated(state.user!));
+        return;
+      }
+      // `authenticated: false` ama exception yok: bearer yolunda pratikte
+      // beklenmez (geçersiz/süresi dolmuş token her zaman hata fırlatır,
+      // bkz. `app/api/auth/me/route.ts`), ama savunma amaçlı ele alınır —
+      // sahte bir oturum GÖSTERİLMEZ.
+      await _tokenStore.clear();
+    } on AuthApiException catch (cause) {
+      if (!cause.error.reauthenticate) {
+        // `rate_limited`/`service_unavailable` gibi GEÇİCİ hatalar: token'lar
+        // silinmez, oturum bir sonraki açılışta veya ilk API çağrısında
+        // tekrar denenir. Durum anonim kalır (ADR-010 fail-closed) — sahte
+        // bir "başarılı giriş" gösterilmez.
+        return;
+      }
+      // `token_expired`/`login_required`/`session_revoked`/`token_reused`:
+      // önce yenilemeyi dene; `refresh()` reauthenticate hatalarında
+      // kendi içinde temizlik yapar (bkz. o metot).
+      try {
+        await refresh();
+      } on AuthRepositoryException {
+        // Yenileme de başarısız oldu; `refresh()` zaten uygun durumu
+        // (temizlenmiş veya olduğu gibi bırakılmış) ayarladı.
+      }
+    } catch (_) {
+      // Ağ hatası vb.: token'lar dokunulmadan kalır, sonraki açılışta
+      // tekrar denenir.
     }
   }
 

@@ -71,14 +71,13 @@ class PanelyaApiClient {
 
   // --- Auth (bkz. ADR-039, docs/production-auth-session.md) ----------------
   //
-  // Bu dört metot yalnız `HttpAuthRepository` (bkz.
-  // `lib/features/auth/data/http_auth_repository.dart`) tarafından çağrılır;
-  // o repository de gerçek Auth0 tenant/gateway/JWKS değerleri sağlanana
-  // kadar `authRepositoryProvider` içinde BAĞLANMAZ (bkz. o dosyadaki
-  // sınır notu). Web tarafı bu uçları bugün "fail closed" döndürür (bkz.
-  // `app/lib/production-auth.ts` -> `productionAuthUnavailable()`, HTTP 503,
-  // `error: "service_unavailable"`); bu metotlar o cevabı da doğru şekilde
-  // [AuthApiException] olarak yüzeye çıkarır.
+  // Bu metotlar yalnız `HttpAuthRepository` (bkz.
+  // `lib/features/auth/data/http_auth_repository.dart`) tarafından çağrılır.
+  // Web tarafı bu uçları yalnız tenant/gateway değerleri eksikken "fail
+  // closed" döndürür (bkz. `app/lib/production-auth.ts` ->
+  // `productionAuthUnavailable()`, HTTP 503, `error: "service_unavailable"`);
+  // bu metotlar o cevabı da doğru şekilde [AuthApiException] olarak yüzeye
+  // çıkarır.
 
   /// `GET /api/auth/config` — Auth0 sağlayıcı yapılandırması (issuer, public
   /// client id, audience, scope, endpoint'ler). Secret dönmez.
@@ -119,14 +118,32 @@ class PanelyaApiClient {
     );
   }
 
+  /// `GET /api/auth/me` — bir access tokenin gerçekten Panelya kullanıcısına
+  /// eşlendiğini doğrular (bkz. ADR-039 "Kullanıcı özeti"). `HttpAuthRepository`
+  /// bunu hem `completeSignIn` sonrası ikinci bir doğrulama katmanı olarak hem
+  /// de uygulama yeniden açılışında saklı oturumu geri yüklerken kullanır.
+  /// [accessToken] verilmezse `Authorization` başlığı hiç gönderilmez (bu
+  /// yalnız web çerez tabanlı yol için anlamlıdır, mobil her zaman token
+  /// geçer).
+  Future<AuthStateResponse> fetchAuthState({String? accessToken}) {
+    return _authGetJson(
+      '/api/auth/me',
+      AuthStateResponse.fromJson,
+      headers: accessToken == null
+          ? null
+          : {'Authorization': 'Bearer $accessToken'},
+    );
+  }
+
   Future<T> _authGetJson<T>(
     String path,
-    T Function(Map<String, dynamic> json) fromJson,
-  ) async {
+    T Function(Map<String, dynamic> json) fromJson, {
+    Map<String, String>? headers,
+  }) async {
     http.Response response;
     try {
       response = await _httpClient
-          .get(Uri.parse('$apiOrigin$path'))
+          .get(Uri.parse('$apiOrigin$path'), headers: headers)
           .timeout(timeout);
     } on TimeoutException catch (cause) {
       throw NetworkException('İstek zaman aşımına uğradı: $path', cause: cause);

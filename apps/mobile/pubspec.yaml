@@ -90,6 +90,21 @@ dependencies:
   # yeniden icat etmek olurdu.
   firebase_core: ^4.12.1
   firebase_messaging: ^16.4.3
+  # Auth0 sistem tarayici Authorization Code + PKCE oturum acma (ADR-039).
+  # Gerekce (AGENTS.md'nin gerekcesiz dependency yasagina gerekceli istisna):
+  # ADR-039 embedded WebView'i acikca YASAKLIYOR; isletim sisteminin kendi
+  # guvenli, uygulamanin DOM'a erisemedigi tarayici oturumunu
+  # (ASWebAuthenticationSession/Custom Tabs) elle native platform kanali
+  # yazarak acmak, Auth0'in resmi Flutter SDK'sinin de temelinde kullandigi
+  # ayni first-party cozumu (bu paket) yeniden icat etmek olurdu.
+  flutter_web_auth_2: ^5.0.3
+  # Auth0 access/refresh tokenlarinin tek gercek saklanma yeri (ADR-039:
+  # "Flutter bunu yalniz isletim sistemi secure storage katmaninda tutar").
+  # Gerekce (AGENTS.md'nin gerekcesiz dependency yasagina gerekceli istisna):
+  # iOS Keychain / Android Keystore-destekli EncryptedSharedPreferences
+  # dogrudan native platform kanali gerektirir; zaten bagimlilik olan
+  # SharedPreferences duz metin depolar ve ADR-039'u ihlal ederdi.
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:
@@ -101,6 +116,13 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # `SecureStorageTokenStore`/`SystemAuthBrowser` testlerinde gercek platform
+  # kanalini (Keychain/Custom Tabs) cagirmadan sahte bir implementasyon
+  # (`FlutterSecureStoragePlatform.instance`/`FlutterWebAuth2Platform.instance`)
+  # takmak icin; zaten transitive bagimlilik olarak cozuluyordu, burada
+  # yalniz dogrudan test bagimliligi olarak tasrih ediliyor.
+  flutter_secure_storage_platform_interface: ^2.0.2
+  flutter_web_auth_2_platform_interface: ^5.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

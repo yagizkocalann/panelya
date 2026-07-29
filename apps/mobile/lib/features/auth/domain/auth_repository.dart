@@ -28,17 +28,15 @@ class AuthorizationRequest {
 /// Panelya kimlik doğrulama sınırının tek soyut sözleşmesi.
 ///
 /// İki implementasyon vardır (bkz. `features/auth/data/`):
-/// - `FakeAuthRepository` — in-memory sahte, testler ve geliştirme için.
-///   Bugün Riverpod provider'ları BUNU bağlar (bkz.
-///   `features/auth/presentation/auth_providers.dart`).
-/// - `HttpAuthRepository` — gerçek `/api/auth/*` uçlarına konuşan iskelet;
-///   gerçek Auth0 tenant/gateway/JWKS değerleri sağlanana kadar hiçbir
-///   provider'dan bağlanmaz (bkz. o dosyadaki sınır notu).
+/// - `HttpAuthRepository` — gerçek `/api/auth/*` uçlarına konuşan
+///   implementasyon; Riverpod provider'ları (bkz.
+///   `features/auth/presentation/auth_providers.dart`) BUNU bağlar.
+/// - `FakeAuthRepository` — in-memory sahte, yalnız testlerde kullanılır
+///   (`authRepositoryProvider` override edilerek).
 ///
-/// Geçiş tek noktadan yapılır: `authRepositoryProvider` içindeki tek satır.
-/// Ekranlar (ileride eklenecek) bu arayüzü yalnız `authSessionProvider`
-/// üzerinden, Riverpod provider'ları aracılığıyla kullanır — hiçbir ekran
-/// bir implementasyonu doğrudan örneklemez.
+/// Ekranlar bu arayüzü yalnız `authSessionProvider` üzerinden, Riverpod
+/// provider'ları aracılığıyla kullanır — hiçbir ekran bir implementasyonu
+/// doğrudan örneklemez.
 abstract class AuthRepository {
   /// Şu anki oturum durumu; senkron erişim (bkz. [stateChanges] için
   /// akış).

@@ -10,17 +10,17 @@ import '../domain/auth_session_state.dart';
 import 'auth_providers.dart';
 
 /// Hesap ekranı (bkz. docs/mobile-handoff.md "Hesap ve kütüphane
-/// entegrasyonu" — ADR-039 ortak auth sözleşmesi hazır, ama gerçek Auth0
-/// tenant/gateway/JWKS değerleri henüz sağlanmadı; web tarafı bu yüzden
-/// `/api/auth/config`'i bilerek "fail closed" 503 döndürüyor, bkz.
-/// `HttpAuthRepository` doc yorumu).
+/// entegrasyonu", ADR-039). Gerçek Auth0 dev tenant'ı canlıda doğrulandı
+/// (PR #36, `main@b8e39da`); bu ekran sistem tarayıcısında gerçek bir
+/// Authorization Code + PKCE oturumu açar (bkz. `HttpAuthRepository`,
+/// `SystemAuthBrowser`).
 ///
 /// Bu ekran bilerek O GERÇEK isteği yapar — sahte/mock bir "başarılı
-/// giriş" GÖSTERMEZ; tenant kurulana kadar dürüstçe "servis şu an
-/// kullanılamıyor" hatasını [AppErrorView] ile gösterir. Bu, ADR-010
-/// ihlali DEĞİLDİR: çalışmayan/hiçbir şey yapmayan bir buton değil,
-/// gerçek bir isteğin doğru raporlanan başarısızlık durumudur (aynı
-/// desen: `discover_screen.dart`daki API hataları).
+/// giriş" GÖSTERMEZ; sağlayıcı/gateway hatası olursa dürüstçe hatayı
+/// [AppErrorView] ile gösterir. Bu, ADR-010 ihlali DEĞİLDİR:
+/// çalışmayan/hiçbir şey yapmayan bir buton değil, gerçek bir isteğin
+/// doğru raporlanan başarısızlık durumudur (aynı desen:
+/// `discover_screen.dart`daki API hataları).
 ///
 /// Yalnız `AuthFeatureConfig.enabled` (`AUTH_ENABLED` dart-define) açıkken
 /// erişilebilir — bkz. `discover_screen.dart`daki giriş noktası, o
@@ -47,10 +47,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     try {
       final repository = ref.read(authRepositoryProvider);
       final request = await repository.beginSignIn();
-      // Gerçek Auth0 tenant'ı sağlandığında burada sistem tarayıcısı
-      // açılıp dönen URI `completeSignIn`e verilecek (bkz. `AuthBrowser`);
-      // bugün `beginSignIn` yukarıdaki 503'te durduğu için bu satıra hiç
-      // ulaşılmaz.
       final browser = ref.read(authBrowserProvider);
       final callbackUri = await browser.authenticate(
         authorizationUrl: request.authorizationUrl,
