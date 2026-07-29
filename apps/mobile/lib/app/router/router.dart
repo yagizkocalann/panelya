@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/account/presentation/profile_screen.dart';
 import '../../features/account/presentation/security_screen.dart';
+import '../../core/config/account_management_feature_config.dart';
 import '../../features/account/presentation/blocked_accounts_screen.dart';
 import '../../features/account/presentation/delete_account_screen.dart';
 import '../../features/account/presentation/sessions_screen.dart';
@@ -60,6 +61,18 @@ import 'route_args.dart';
 ///
 /// Kütüphane, Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
 ///
+/// `/account/*` ALT ROTALARI İÇİN EK KAPI: yukarıdaki beş yönetim rotası
+/// (`profile`/`security`/`sessions`/`blocked`/`delete`) yalnız
+/// `AccountManagementFeatureConfig.enabled` (`ACCOUNT_MANAGEMENT_ENABLED`
+/// dart-define, VARSAYILAN `false`) açıkken erişilebilir. Kapalıyken
+/// [redirect] bunları FAIL-CLOSED biçimde `/account`a yönlendirir — bu,
+/// `AccountHomeScreen`in girişleri hiç render etmemesine EK bir savunma
+/// katmanıdır (doğrudan navigasyon/deep-link ile de ulaşılamaz). Gerekçe:
+/// hesap yönetimi bugün yalnız presentation-only `FakeAccountRepository`
+/// üzerinde çalışır ve mutation'ları sahte başarı gösterir; `AUTH_ENABLED`
+/// (gerçek Auth0 girişi, hazır) ile birlikte açılmaması gerekir (bkz.
+/// `core/config/account_management_feature_config.dart`).
+///
 /// Güvenli düşüş (PLAN Görev 3): `panelya://` custom scheme linkleri
 /// [redirect] içinde [resolveCustomSchemeRoute] ile bilinen rotalardan birine
 /// çevrilir (o fonksiyon hiçbir zaman null dönmez; bugün yalnız `/`,
@@ -78,6 +91,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       final uri = state.uri;
       if (uri.scheme == 'panelya') {
         return resolveCustomSchemeRoute(uri);
+      }
+      // Hesap YÖNETİMİ kapılı (bkz. `AccountManagementFeatureConfig`,
+      // varsayılan `false`): `/account/*` alt rotaları FAIL-CLOSED biçimde
+      // güvenli `/account` (Hesabım) ekranına yönlendirilir. Bu, ekranın
+      // kendisindeki gizlemeye (bkz. `AccountHomeScreen` — bayrak
+      // kapalıyken yönetim girişleri hiç render edilmez) EK bir
+      // savunmadır: doğrudan navigasyon veya olası bir deep-link ile bu
+      // rotalara ULAŞILAMAZ.
+      if (uri.path.startsWith('/account/') &&
+          !ref.read(accountManagementFeatureConfigProvider).enabled) {
+        return '/account';
       }
       // Web-benzeri path'ler (Universal Links/App Links, henüz yok):
       // production domain kararı verilince burada

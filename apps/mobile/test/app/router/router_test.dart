@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/router/route_args.dart';
 import 'package:panelya_mobile/app/router/router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
+import 'package:panelya_mobile/core/config/account_management_feature_config.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
@@ -218,6 +219,26 @@ class _FakeNotificationPreferenceNotifier
   @override
   bool build() => true;
 }
+
+/// `/account*` rotalarını test etmek için gereken override kümesi: kimliği
+/// doğrulanmış bir oturum + hesap yönetimi bayrağı + hiç çözülmeyen hesap
+/// repository'si (bkz. `_NeverResolvingAccountRepository`).
+///
+/// [managementEnabled] `false` verildiğinde production varsayılanı taklit
+/// edilir; router'ın `/account/*` alt rotalarını fail-closed biçimde
+/// `/account`a yönlendirdiği bu şekilde doğrulanır.
+List<Override> _accountOverrides({required bool managementEnabled}) => [
+  authFeatureConfigProvider.overrideWithValue(
+    const AuthFeatureConfig(enabled: true),
+  ),
+  accountManagementFeatureConfigProvider.overrideWithValue(
+    AccountManagementFeatureConfig(enabled: managementEnabled),
+  ),
+  authRepositoryProvider.overrideWithValue(_AuthenticatedFakeAuthRepository()),
+  accountRepositoryProvider.overrideWithValue(
+    _NeverResolvingAccountRepository(),
+  ),
+];
 
 void main() {
   /// Gerçek `routerProvider` GoRouter'ını, üç ekranın da gerçek ağa
@@ -482,17 +503,7 @@ void main() {
         'erişilir)',
         (tester) async {
           final built = buildRouter(
-            extraOverrides: [
-              authFeatureConfigProvider.overrideWithValue(
-                const AuthFeatureConfig(enabled: true),
-              ),
-              authRepositoryProvider.overrideWithValue(
-                _AuthenticatedFakeAuthRepository(),
-              ),
-              accountRepositoryProvider.overrideWithValue(
-                _NeverResolvingAccountRepository(),
-              ),
-            ],
+            extraOverrides: _accountOverrides(managementEnabled: true),
           );
           await pumpRouter(tester, built.router, built.container);
 
@@ -511,17 +522,7 @@ void main() {
         'erişilir)',
         (tester) async {
           final built = buildRouter(
-            extraOverrides: [
-              authFeatureConfigProvider.overrideWithValue(
-                const AuthFeatureConfig(enabled: true),
-              ),
-              authRepositoryProvider.overrideWithValue(
-                _AuthenticatedFakeAuthRepository(),
-              ),
-              accountRepositoryProvider.overrideWithValue(
-                _NeverResolvingAccountRepository(),
-              ),
-            ],
+            extraOverrides: _accountOverrides(managementEnabled: true),
           );
           await pumpRouter(tester, built.router, built.container);
 
@@ -540,17 +541,7 @@ void main() {
         'erişilir)',
         (tester) async {
           final built = buildRouter(
-            extraOverrides: [
-              authFeatureConfigProvider.overrideWithValue(
-                const AuthFeatureConfig(enabled: true),
-              ),
-              authRepositoryProvider.overrideWithValue(
-                _AuthenticatedFakeAuthRepository(),
-              ),
-              accountRepositoryProvider.overrideWithValue(
-                _NeverResolvingAccountRepository(),
-              ),
-            ],
+            extraOverrides: _accountOverrides(managementEnabled: true),
           );
           await pumpRouter(tester, built.router, built.container);
 
@@ -569,17 +560,7 @@ void main() {
         'erişilir)',
         (tester) async {
           final built = buildRouter(
-            extraOverrides: [
-              authFeatureConfigProvider.overrideWithValue(
-                const AuthFeatureConfig(enabled: true),
-              ),
-              authRepositoryProvider.overrideWithValue(
-                _AuthenticatedFakeAuthRepository(),
-              ),
-              accountRepositoryProvider.overrideWithValue(
-                _NeverResolvingAccountRepository(),
-              ),
-            ],
+            extraOverrides: _accountOverrides(managementEnabled: true),
           );
           await pumpRouter(tester, built.router, built.container);
 
@@ -598,17 +579,7 @@ void main() {
         'erişilir)',
         (tester) async {
           final built = buildRouter(
-            extraOverrides: [
-              authFeatureConfigProvider.overrideWithValue(
-                const AuthFeatureConfig(enabled: true),
-              ),
-              authRepositoryProvider.overrideWithValue(
-                _AuthenticatedFakeAuthRepository(),
-              ),
-              accountRepositoryProvider.overrideWithValue(
-                _NeverResolvingAccountRepository(),
-              ),
-            ],
+            extraOverrides: _accountOverrides(managementEnabled: true),
           );
           await pumpRouter(tester, built.router, built.container);
 
@@ -633,6 +604,89 @@ void main() {
           await tester.pump();
 
           expect(find.byType(NotificationSettingsScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    },
+  );
+
+  /// Web tarafının açık yayın-koruma talimatı (bkz.
+  /// `core/config/account_management_feature_config.dart`): `AUTH_ENABLED=true`
+  /// (gerçek Auth0 girişi hazır) + `ACCOUNT_MANAGEMENT_ENABLED=false`
+  /// (production varsayılanı) kombinasyonunda `/account` (gerçek oturum +
+  /// çıkış) ÇALIŞMALI, `/account/*` yönetim rotalari ise FAIL-CLOSED
+  /// biçimde `/account`a yönlendirilmeli — sahte hesap yönetimi ekranlarına
+  /// doğrudan navigasyon/deep-link ile de ULAŞILAMAMALI.
+  group(
+    'yayın koruması — ACCOUNT_MANAGEMENT_ENABLED=false ile /account/* '
+    'fail-closed yönlendirilir',
+    () {
+      testWidgets(
+        '"/account" (gerçek oturum + çıkış) hâlâ erişilebilir',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: _accountOverrides(managementEnabled: false),
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.byType(AccountScreen), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      for (final path in const [
+        '/account/profile',
+        '/account/security',
+        '/account/sessions',
+        '/account/blocked',
+        '/account/delete',
+      ]) {
+        testWidgets('"$path" fail-closed olarak /account\'a düşer', (
+          tester,
+        ) async {
+          final built = buildRouter(
+            extraOverrides: _accountOverrides(managementEnabled: false),
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go(path);
+          await tester.pump();
+          await tester.pump();
+
+          // Güvenli Hesabım ekranına yönlendirildi; hedef yönetim ekranı
+          // HİÇ oluşturulmadı.
+          expect(find.byType(AccountScreen), findsOneWidget);
+          expect(find.byType(ProfileScreen), findsNothing);
+          expect(find.byType(SecurityScreen), findsNothing);
+          expect(find.byType(SessionsScreen), findsNothing);
+          expect(find.byType(BlockedAccountsScreen), findsNothing);
+          expect(find.byType(DeleteAccountScreen), findsNothing);
+          expect(tester.takeException(), isNull);
+        });
+      }
+
+      testWidgets(
+        'yönlendirme sonrası Hesabım ekranında yönetim girişleri HİÇ '
+        'görünmez (ekran içi gizleme + router guard birlikte çalışır)',
+        (tester) async {
+          final built = buildRouter(
+            extraOverrides: _accountOverrides(managementEnabled: false),
+          );
+          await pumpRouter(tester, built.router, built.container);
+
+          built.router.go('/account/delete');
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.text('Profil'), findsNothing);
+          expect(find.text('E-posta ve şifre'), findsNothing);
+          expect(find.text('Aktif oturumlar'), findsNothing);
+          expect(find.text('Engellenen hesaplar'), findsNothing);
+          expect(find.text('Hesabı sil'), findsNothing);
           expect(tester.takeException(), isNull);
         },
       );

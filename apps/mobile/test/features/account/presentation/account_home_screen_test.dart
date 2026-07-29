@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
+import 'package:panelya_mobile/core/config/account_management_feature_config.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
@@ -128,6 +129,11 @@ Widget _wrap({
   required AccountRepository accountRepository,
   _FakeAuthRepository? authRepository,
   double? textScale,
+  // Testlerin çoğu hesap YÖNETİMİ ekranlarını doğruladığı için varsayılan
+  // `true`dur; kapalı-bayrak (production varsayılanı) davranışı ayrı bir
+  // grupta açıkça `false` verilerek doğrulanır (bkz. "hesap yönetimi
+  // kapalıyken" grubu).
+  bool managementEnabled = true,
 }) {
   final router = GoRouter(
     initialLocation: '/account',
@@ -173,6 +179,9 @@ Widget _wrap({
     overrides: [
       authFeatureConfigProvider.overrideWithValue(
         const AuthFeatureConfig(enabled: true),
+      ),
+      accountManagementFeatureConfigProvider.overrideWithValue(
+        AccountManagementFeatureConfig(enabled: managementEnabled),
       ),
       authRepositoryProvider.overrideWithValue(
         authRepository ?? _FakeAuthRepository(),
@@ -380,4 +389,132 @@ void main() {
       expect(watcher.errors, isEmpty, reason: watcher.describe());
     },
   );
+
+  /// Web tarafının açık yayın-koruma talimatı: `AUTH_ENABLED=true` (gerçek
+  /// Auth0 girişi hazır) + `ACCOUNT_MANAGEMENT_ENABLED=false` (production
+  /// varsayılanı) kombinasyonunda gerçek oturum bilgisi ve çıkış çalışmalı,
+  /// sahte hesap yönetimi ekranları ise ERİŞİLEMEZ olmalı.
+  group('hesap yönetimi kapalıyken (ACCOUNT_MANAGEMENT_ENABLED=false)', () {
+    testWidgets(
+      'gerçek kullanıcı bilgisi ve "Çıkış yap" gösterilir',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: FakeAccountRepository(),
+            managementEnabled: false,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Ece Yılmaz'), findsOneWidget);
+        expect(find.text('ece@example.invalid'), findsOneWidget);
+        expect(find.text('Çıkış yap'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'beş yönetim girişi HİÇ render edilmez — devre dışı buton veya '
+      '"yakında" placeholder olarak DA gösterilmez (ADR-010)',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: FakeAccountRepository(),
+            managementEnabled: false,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Profil'), findsNothing);
+        expect(find.text('E-posta ve şifre'), findsNothing);
+        expect(find.text('Aktif oturumlar'), findsNothing);
+        expect(find.text('Engellenen hesaplar'), findsNothing);
+        expect(find.text('Hesabı sil'), findsNothing);
+        // "yakında"/devre dışı placeholder da yok:
+        expect(find.textContaining('yakında'), findsNothing);
+        expect(find.textContaining('Yakında'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'sahte sağlayıcı etiketi gösterilmez (o bilgi yalnız hesap '
+      'repository\'sinden gelirdi)',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: FakeAccountRepository(),
+            managementEnabled: false,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('E-posta ve şifre ile giriş yaptın.'), findsNothing);
+        expect(find.text('Google ile giriş yaptın.'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'accountRepositoryProvider HİÇ OKUNMAZ — bu yüzden gerçek runtime\'da '
+      'bağlanmamış olması (fırlatan provider) ekranı bozmaz',
+      (tester) async {
+        // `accountRepositoryProvider` KASITLI OLARAK override EDİLMEZ:
+        // gerçek runtime'daki gibi okunduğunda fırlatan hâliyle bırakılır.
+        // Ekran yine de sorunsuz render olmalı.
+        final authRepository = _FakeAuthRepository();
+        final router = GoRouter(
+          initialLocation: '/account',
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (context, state) => const Scaffold(body: Text('HOME')),
+            ),
+            GoRoute(
+              path: '/account',
+              builder: (context, state) =>
+                  const Scaffold(body: AccountHomeScreen()),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authFeatureConfigProvider.overrideWithValue(
+                const AuthFeatureConfig(enabled: true),
+              ),
+              accountManagementFeatureConfigProvider.overrideWithValue(
+                const AccountManagementFeatureConfig(enabled: false),
+              ),
+              authRepositoryProvider.overrideWithValue(authRepository),
+            ],
+            child: MaterialApp.router(
+              theme: buildAppTheme(),
+              routerConfig: router,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Ece Yılmaz'), findsOneWidget);
+        expect(find.text('Çıkış yap'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('gerçek çıkış hâlâ çalışır', (tester) async {
+      final authRepository = _FakeAuthRepository();
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(),
+          authRepository: authRepository,
+          managementEnabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Çıkış yap'));
+      await tester.pumpAndSettle();
+
+      expect(authRepository.logoutCalls, hasLength(1));
+    });
+  });
 }

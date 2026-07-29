@@ -7,9 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
-import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
 import 'package:panelya_mobile/features/account/presentation/account_home_screen.dart';
-import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/auth/data/auth_browser.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_exceptions.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
@@ -131,12 +129,14 @@ Widget _wrap({
       authBrowserProvider.overrideWithValue(
         browser ?? const _FakeAuthBrowser(callbackUri: null),
       ),
-      // `AccountHomeScreen` (bkz. ADR-047), kimliği doğrulanmış durumda bu
-      // ekranın gösterdiği içerik — kendi testleri
-      // `test/features/account/presentation/account_home_screen_test.dart`ta;
-      // burada yalnız `AccountScreen`in doğru ekrana DEVRETTİĞİNİ
-      // doğrulamak için her zaman başarılı bir sahte kullanılır.
-      accountRepositoryProvider.overrideWithValue(FakeAccountRepository()),
+      // `accountRepositoryProvider` KASITLI OLARAK override EDİLMEZ:
+      // hesap yönetimi bayrağı (bkz. `AccountManagementFeatureConfig`)
+      // burada varsayılan `false` bırakıldığı için `AccountHomeScreen`
+      // yalnız gerçek oturum bilgisini gösterir ve o provider'ı HİÇ
+      // okumaz — gerçek runtime'daki durumun aynısı. Bu testler yalnız
+      // `AccountScreen`in doğru ekrana DEVRETTİĞİNİ doğrular; ekranın
+      // kendi içeriği `test/features/account/presentation/
+      // account_home_screen_test.dart`ta kapsanır.
     ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
   );

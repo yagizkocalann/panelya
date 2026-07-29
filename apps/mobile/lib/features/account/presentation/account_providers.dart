@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/account_management_feature_config.dart';
 import '../../auth/domain/auth_session_state.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../data/fake_account_repository.dart';
@@ -10,34 +11,41 @@ import '../domain/account_repository.dart';
 import '../domain/account_session.dart';
 import '../domain/blocked_account.dart';
 
-/// Aktif [AccountRepository]. Bugün yalnız [FakeAccountRepository]'yi
-/// bağlar (bkz. o dosyadaki sınıf dokümantasyonu — TODO(ADR-047): gerçek
-/// `/api/account/*` sözleşmesi gelince `HttpAccountRepository` ile
-/// değiştirilecek).
+/// Aktif [AccountRepository].
 ///
-/// !!! YAYIN ENGELİ (web tarafının açık talimatı) !!!
-/// Bu sürüm main/release hattına ALINMAMALIDIR: [FakeAccountRepository]'nin
-/// mutation'ları (profil kaydetme, e-posta değiştirme, şifre sıfırlama,
-/// oturum kapatma, engel kaldırma, HESAP SİLME) hiçbir şey yapmadan
-/// BAŞARILI görünür.
+/// BİLEREK HİÇBİR VARSAYILAN BAĞLANTISI YOKTUR — okunduğunda
+/// [UnimplementedError] fırlatır. Gerekçe (web tarafının açık talimatı):
+/// [FakeAccountRepository] gerçek debug/release runtime'ının varsayılan
+/// repository bağlantısı OLMAMALIDIR, çünkü mutation'ları (profil
+/// kaydetme, e-posta değiştirme, şifre sıfırlama, oturum kapatma, engel
+/// kaldırma, HESAP SİLME) hiçbir şey yapmadan BAŞARILI görünür. Sessizce
+/// sahte başarı göstermek yerine, yanlışlıkla gerçek bir derlemede
+/// okunursa GÜRÜLTÜLÜ biçimde patlar (fail-closed).
 ///
-/// Bugünkü koruma DOLAYLIDIR ve TEK BİR BAYRAĞA bağlıdır: bu ekranlara
-/// yalnız `AccountHomeScreen`in gezinme satırlarından ulaşılır, o da
-/// `/account` üzerinden gelir, o da `discover_screen.dart`da
-/// `AuthFeatureConfig.enabled` (`AUTH_ENABLED` dart-define, varsayılan
-/// `false`) açıkken render edilir. Yani varsayılan/release derlemesinde
-/// bu sahte mutation'lara ULAŞILAMAZ.
+/// Bu provider yalnız şu iki durumda override edilir:
+/// - Testlerde ([FakeAccountRepository] veya test-yerel sahtelerle),
+/// - Açıkça seçilmiş bir geliştirme önizlemesinde
+///   (`ACCOUNT_MANAGEMENT_ENABLED=true` + bir `ProviderScope` override'ı).
 ///
-/// DİKKAT — bu korumanın kırılgan noktası: `AUTH_ENABLED` aynı anda hem
-/// GERÇEK Auth0 girişini (artık hazır ve canlı doğrulanmış, bkz. ADR-039)
-/// hem de bu SAHTE hesap mutation'larını açar. Gerçek girişi yayına almak
-/// için bayrak `true` yapıldığı anda sahte mutation'lar da erişilebilir
-/// hale gelir. Bu yüzden `AUTH_ENABLED=true` ile yayına çıkmadan ÖNCE ya
-/// `HttpAccountRepository` tamamlanmalı ya da bu ekranlara giden yol ayrı
-/// bir bayrakla kapatılmalıdır.
-final accountRepositoryProvider = Provider<AccountRepository>(
-  (ref) => FakeAccountRepository(),
-);
+/// Normal çalışmada buraya HİÇ ULAŞILMAZ: hesap yönetimi ekranları
+/// [AccountManagementFeatureConfig] (varsayılan `false`) kapalıyken hem
+/// `AccountHomeScreen`de render edilmez hem router'da fail-closed
+/// yönlendirilir; `AccountHomeScreen`in kapalı-bayrak yolu bu provider'ı
+/// (ve dolayısıyla [accountOverviewProvider]'ı) hiç okumaz.
+///
+/// TODO(ADR-047): ortak `/api/account/*` sözleşmesi ve reauthentication
+/// akışı `main`e girdiğinde burada gerçek `HttpAccountRepository`
+/// bağlanacak.
+final accountRepositoryProvider = Provider<AccountRepository>((ref) {
+  throw UnimplementedError(
+    'accountRepositoryProvider bağlanmadı: hesap yönetimi henüz yalnız '
+    'presentation-only FakeAccountRepository üzerinde çalışıyor ve gerçek '
+    'runtime\'a BİLEREK bağlanmamıştır (bkz. bu provider\'ın '
+    'dokümantasyonu, ADR-047). Ortak /api/account/* sözleşmesi gelince '
+    'HttpAccountRepository bağlanacak; o zamana kadar bu provider yalnız '
+    'testlerde veya açık bir geliştirme önizlemesinde override edilir.',
+  );
+});
 
 /// "Hesabım" ana ekranının gösterdiği birleşik kimlik özeti.
 ///
