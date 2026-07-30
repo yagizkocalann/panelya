@@ -540,6 +540,7 @@
     "AccountPasswordResetRequest": {
       "type": "object",
       "additionalProperties": false,
+      "properties": {},
       "maxProperties": 0
     },
     "AccountEmailChangeRequest": {
@@ -615,7 +616,8 @@
     },
     "AccountSessionPlatform": {
       "type": "string",
-      "enum": ["web", "android", "ios", "unknown"]
+      "description": "unspecified means the server could not infer a known device platform; clients reserve unknown for forward-compatible enum fallback.",
+      "enum": ["web", "android", "ios", "unspecified"]
     },
     "AccountSession": {
       "type": "object",

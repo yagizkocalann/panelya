@@ -7,6 +7,8 @@ export const users = sqliteTable("users", {
   displayName: text("display_name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role: text("role", { enum: ["reader", "admin"] }).notNull().default("reader"),
+  status: text("status", { enum: ["active", "deletion_pending", "deleted"] }).notNull().default("active"),
+  sessionsValidAfter: integer("sessions_valid_after").notNull().default(0),
   emailVerifiedAt: integer("email_verified_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -16,6 +18,7 @@ export const providerIdentities = sqliteTable("provider_identities", {
   provider: text("provider", { enum: ["auth0"] }).notNull(),
   issuer: text("issuer").notNull(),
   subjectHash: text("subject_hash").notNull(),
+  providerKind: text("provider_kind", { enum: ["database", "google", "other_social"] }).notNull().default("other_social"),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -53,6 +56,48 @@ export const accountTokens = sqliteTable("account_tokens", {
   usedAt: integer("used_at"),
   createdAt: integer("created_at").notNull(),
 }, (table) => [uniqueIndex("account_tokens_hash_unique").on(table.tokenHash)]);
+
+export const accountReauthenticationRequests = sqliteTable("account_reauthentication_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose", { enum: ["email_change", "account_deletion"] }).notNull(),
+  transport: text("transport", { enum: ["web", "mobile"] }).notNull(),
+  clientId: text("client_id").notNull(),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  stateHash: text("state_hash").notNull(),
+  nonceHash: text("nonce_hash").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  uniqueIndex("account_reauthentication_requests_state_unique").on(table.stateHash),
+  index("account_reauthentication_requests_expiry_idx").on(table.expiresAt),
+]);
+
+export const accountReauthenticationTokens = sqliteTable("account_reauthentication_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose", { enum: ["email_change", "account_deletion"] }).notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [index("account_reauthentication_tokens_expiry_idx").on(table.expiresAt)]);
+
+export const accountDeletionRequests = sqliteTable("account_deletion_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  idempotencyKeyHash: text("idempotency_key_hash").notNull().unique(),
+  status: text("status", { enum: ["pending", "completed", "failed"] }).notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  completedAt: integer("completed_at"),
+}, (table) => [
+  index("account_deletion_requests_user_idx").on(table.userId, table.createdAt),
+  index("account_deletion_requests_status_idx").on(table.status, table.updatedAt),
+]);
 
 export const notificationOutbox = sqliteTable("notification_outbox", {
   id: text("id").primaryKey(),

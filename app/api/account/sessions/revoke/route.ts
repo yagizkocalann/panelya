@@ -1,8 +1,31 @@
 import { assertSameOrigin, getCurrentSessionHash, getCurrentUser } from "../../../../lib/auth";
 import { errorRedirect, redirectTo } from "../../../../lib/auth-http";
 import { getDatabase, writeAudit } from "../../../../lib/database";
+import {
+  ACCOUNT_JSON_HEADERS,
+  AccountRuntimeError,
+  accountErrorResponse,
+  assertAccountMutationOrigin,
+  objectInput,
+  readLimitedAccountJson,
+  requireAccountActor,
+} from "../../../../lib/account-runtime";
+import { revokeAccountSessions } from "../../../../lib/account-sessions";
 
 export async function POST(request: Request) {
+  if ((request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) {
+    try {
+      const actor = await requireAccountActor(request);
+      assertAccountMutationOrigin(request, actor);
+      const input = objectInput(await readLimitedAccountJson(request), ["scope"]);
+      if (input.scope !== "others" && input.scope !== "all") {
+        throw new AccountRuntimeError("invalid_request", "Oturum iptal kapsamı geçersiz.", 400);
+      }
+      return Response.json(await revokeAccountSessions(actor, input.scope), { headers: ACCOUNT_JSON_HEADERS });
+    } catch (error) {
+      return accountErrorResponse(error);
+    }
+  }
   try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }
   const user = await getCurrentUser();
   if (!user) return redirectTo(request, "/login?return_to=/account/sessions");

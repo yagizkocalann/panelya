@@ -120,6 +120,20 @@
       "when": 1785272151777,
       "tag": "0016_loving_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1785370095201,
+      "tag": "0017_dear_morg",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1785371692876,
+      "tag": "0018_cold_chronomancer",
+      "breakpoints": true
     }
   ]
 }

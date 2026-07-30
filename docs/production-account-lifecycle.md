@@ -167,7 +167,7 @@ birakma, tam silme yerine gecmez.
 Asagidaki ortak yuzeyin kesin istek/cevap sekilleri ve sentetik fixture'lari
 contract-first teslimde `packages/contracts/schema.json`,
 `packages/contracts/openapi.json` ve `packages/contracts/fixtures/account-*`
-altinda tanimlanmistir. OpenAPI surumu `1.4.0`, geriye uyumlu response
+altinda tanimlanmistir. OpenAPI surumu `1.4.1`, geriye uyumlu response
 `schemaVersion` degeri `1.0`dir. Bu teslim `main` dalina girip iki kalite isi
 gecmeden mobil runtime entegrasyonu baslamaz.
 
@@ -201,6 +201,39 @@ gostermez.
 4. Flutter ayni fixture'larla codegen/repository/UI uygulamasini yapar.
 5. Database ve Google kimligiyle web + Android + iOS manuel QA tamamlanir.
 
+## 2026-07-30 web runtime uygulama notu
+
+Ortak runtime `codex/account-runtime` dalinda uygulanmistir. Cookie ve Bearer
+tasimalari tek `AccountActor`a iner; mobil icin ikinci hesap API'si acilmaz.
+PKCE reauthentication kaniti JWE ile opak tutulur, D1 yalniz token hash'i ve
+tek kullanim durumunu saklar. Auth0 Management API istemcisi server-only
+client credentials kullanir; M2M secret, provider subject ve credential id
+public cevaba/audit'e girmez.
+
+Canli aktivasyon icin `AUTH0_MANAGEMENT_CLIENT_ID`,
+`AUTH0_MANAGEMENT_CLIENT_SECRET`, `AUTH0_DATABASE_CONNECTION` ve en az 32
+karakterlik `ACCOUNT_RUNTIME_SECRET` zorunludur. Web reauthentication icin
+ayrica confidential BFF istemcisinin `AUTH0_WEB_CLIENT_ID`,
+`AUTH0_WEB_CLIENT_SECRET` ve exact `AUTH0_WEB_REDIRECT_URIS` degerleri
+provision edilmelidir. Bu degerler yokken ilgili hassas davranis 503 ile
+fail-closed kalir.
+
+Auth0 Management API'ye baglanan M2M uygulamasina yalniz su izinler verilir:
+`read:users`, `update:users`, `delete:users`, `read:device_credentials` ve
+`delete:device_credentials`. `users-by-email` aramasi `read:users`, e-posta
+degisikligi `update:users`, kimlik silme `delete:users`, native refresh-token
+envanteri `read:device_credentials` ve tekil/toplu native oturum iptali
+`delete:device_credentials` kullanir. Daha genis tenant yonetim izinleri
+verilmez.
+
+Auth0 device credential API'si mevcut access tokeni belirli refresh
+credential id'sine baglamadigi icin native envanter kayitlari bu teslimde
+guvenli bicimde listelenip iptal edilir fakat `current` isareti tahmin
+edilmez. Gateway'in access-token/refresh-family oturum kaydi eklenmeden
+production QA'da bu alan tamamlanmis sayilmaz. Envanter hem klasik
+`refresh_token` hem de ADR-039 ile zorunlu tutulan donen
+`rotating_refresh_token` credential tiplerini kapsar.
+
 ## Resmi dayanaklar
 
 - Auth0 change-password endpoint:
@@ -209,6 +242,12 @@ gostermez.
   https://auth0.com/docs/api/management/v2/users/patch-users-by-id
 - Auth0 Management API user delete:
   https://auth0.com/docs/api/management/v2/users/delete-users-by-id
+- Auth0 Management API user izinleri:
+  https://auth0.com/docs/manage-users/user-accounts/manage-users-using-the-management-api
+- Auth0 device credential listeleme ve `read:device_credentials`:
+  https://auth0.com/docs/api/management/v2/device-credentials/get-device-credentials
+- Auth0 device credential silme ve `delete:device_credentials`:
+  https://auth0.com/docs/api/management/v2/device-credentials/delete-device-credentials-by-id
 - Auth0 refresh-token/device credential iptali:
   https://auth0.com/docs/secure/tokens/refresh-tokens/revoke-refresh-tokens
 - Auth0 taze kimlik dogrulama:
