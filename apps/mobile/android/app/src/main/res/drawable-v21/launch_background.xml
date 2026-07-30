@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Panelya splash/launch ekrani (API 21+): duz marka zemini + ortada
+     kucuk mint isaret. Onceki `?android:colorBackground` (tema/beyaz)
+     yerine dogrudan `@color/brand_background` kullanilir ki acilista
+     beyaz flash gorunmesin. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/brand_background" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/ic_launcher_foreground" />
+    </item>
+</layer-list>

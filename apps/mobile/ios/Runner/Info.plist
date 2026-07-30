@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Panelya</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>panelya_mobile</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Deep-link taslağı (bkz. docs/mobile-handoff.md İlk mobil kapsam #5,
+	     apps/mobile/README.md "Deep-link"): `panelya://` custom scheme.
+	     Universal Links için ayrıca bir `applinks:` associated domain
+	     girişi ve AASA dosyası gerekir (bkz. README "Gelecek adım"). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.panelya.mobile.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>panelya</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Flutter 3.44'te platform deep link'leri varsayılan olarak açık
+	     (bkz. Flutter deep-linking dokümanı); bu anahtar burada niyeti
+	     açıkça belgelemek ve gelecekte varsayılan değişse bile davranışı
+	     sabitlemek için `true` olarak eklendi — devre dışı bırakmak
+	     isteseydik `false` yapardık. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
+	<!-- Fiziksel cihazda test etme (bkz. apps/mobile/README.md "Fiziksel
+	     cihazda test etme"): burada KASITLI OLARAK `NSAppTransportSecurity`
+	     yok — ne `NSAllowsArbitraryLoads` (çok geniş, tüm HTTP'yi her yerde
+	     açar) ne de bir `NSExceptionDomains` girişi (geliştiricinin Mac'inin
+	     LAN IP'si ağdan ağa değişir; sabit bir IP'yi commit'lemek başka bir
+	     ağdaki geliştirici için yanlış/işe yaramaz olur ve her IP
+	     değişiminde Xcode'da yeniden derleme gerektirir).
+	     Gerekçe: Flutter'ın kendi ağ politikası (bkz. Flutter "Network
+	     policy" breaking change, docs.flutter.dev/release/breaking-changes/
+	     network-policy-ios-android) cleartext (http://) trafiği yalnız
+	     platformun host'u bir DOMAIN adı olarak sınıflandırdığı isteklerde
+	     engeller; loopback (`localhost`/`127.0.0.1`, Simulator'ın kullandığı)
+	     her zaman istisnadır. Fiziksel cihazda LAN IP'si üzerinden test
+	     etmek isteyen geliştirici, `env/local.json`'daki `API_ORIGIN`'i
+	     düz `http://192.168.x.x:3000` yerine web geliştirme sunucusuna
+	     giden bir HTTPS geliştirme tüneli (örn. `ngrok http 3000`,
+	     Cloudflare Tunnel) adresine ayarlamalıdır; bu, HİÇBİR Info.plist
+	     değişikliği gerektirmeden ATS/Flutter ağ politikasını doğal olarak
+	     karşılar (zaten HTTPS). Yalnız düz HTTP + LAN IP ısrar edilirse:
+	     geçici, KOMİTE EDİLMEYEN bir `NSExceptionDomains` girişi eklenip
+	     test sonrası geri alınabilir — bu depoya asla sabit bir IP veya
+	     `NSAllowsArbitraryLoads` commit edilmez. -->
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>

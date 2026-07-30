@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY cleartext (http://) izni.
+
+  Neden: Flutter 1.23+ (bkz. Flutter "Network policy" breaking change,
+  docs.flutter.dev/release/breaking-changes/network-policy-ios-android),
+  Android 9 (API 28)+ platform varsayımını Dart/`dart:io` katmanına da
+  taşıdı: platform soketleri (ve Flutter'ın kendi ağ politikası) için
+  cleartext HTTP varsayılan olarak engellidir. Fiziksel bir Android
+  cihazda `API_ORIGIN` Mac'in yerel ağ adresine (örn.
+  http://192.168.1.23:3000, bkz. apps/mobile/README.md "Fiziksel cihazda
+  test etme") ayarlandığında bu engelleme geliştirme web API'sine
+  erişimi keser.
+
+  Kapsam: yalnız `android/app/src/debug/` (bu dosya). `AndroidManifest.xml`
+  (aynı dizinde) `<application android:networkSecurityConfig="@xml/
+  network_security_config">` ile bu dosyaya işaret eder; Gradle/Flutter
+  yapı sistemi bu kaynak setini SADECE debug build variant'ı derlenirken
+  main ile birleştirir. Bir "release" derlemesi (örn. `flutter build apk`
+  komutunun release modu) bu dizini hiç görmez; release APK/AAB'de herhangi bir
+  cleartext izni YOKTUR ve Android 9+ varsayılan engelleme davranışı
+  aynen geçerli kalır.
+
+  Kapsamın genişliği: `cleartextTrafficPermitted="true"` belirli bir
+  host/IP'ye değil tüm domainlere (`<base-config>`) uygulanır, çünkü
+  geliştiricinin Mac'inin yerel ağ IP'si (bkz. `ipconfig getifaddr en0`)
+  ağdan ağa, geliştiriciden geliştiriciye değişir ve önceden
+  sabitlenemez. Yalnız cleartext HTTP izni verir; TLS sertifika
+  doğrulaması, pinleme veya başka bir güvenlik kontrolünü gevşetmez ve
+  yalnız yerel geliştirme/test amaçlı, mağazaya asla gönderilmeyen debug
+  derlemesini kapsar.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

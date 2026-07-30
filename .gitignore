@@ -76,3 +76,9 @@ next-env.d.ts
 *.sqlite3
 *.db-shm
 *.db-wal
+
+# Firebase istemci yapılandırması. Gerçek dosyalar yerel diskte durur ve
+# Firebase Console'dan indirilir; CI/release aşamasında encrypted secret
+# üzerinden üretilir. Kurulum: docs/mobile-firebase-config.md
+/apps/mobile/android/app/google-services.json
+/apps/mobile/ios/Runner/GoogleService-Info.plist
