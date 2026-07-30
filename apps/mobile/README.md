@@ -219,6 +219,10 @@ flutter test
 flutter run --dart-define-from-file=env/local.json
 ```
 
+Yeni bir clone'da build almadan önce Firebase istemci yapılandırma
+dosyalarını yerine koy — bu dosyaların gerçekleri Git'e commit edilmez,
+bkz. [`docs/mobile-firebase-config.md`](../../docs/mobile-firebase-config.md).
+
 ## Mimari notlar
 
 - **Tema**: `lib/app/theme/` — tüm renk/spacing/tipografi token'ları
