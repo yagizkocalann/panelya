@@ -1,9 +1,14 @@
 # Mobil teslim raporu — 30 Temmuz 2026
 
 **Dal:** `codex/mobile`
-**HEAD:** `1c2037b4013ff2e5cd2b35c6415d96d8e27c6eae`
-**Başlangıç:** `origin/main@207b690` merge edildi (rebase/force-push yok)
+**Teslim SHA:** `0880898b5894f3d16bacb01660ac196c9afa5b50`
+**Başlangıç:** `origin/main@207b690` ve ardından `origin/main@873a584`
+merge edildi (rebase/force-push yok)
 **`main`e merge edilmedi.**
+
+> Bu satırdaki SHA, raporun kapsadığı son içerik commit'idir. Dalın
+> tepesinde bundan sonra yalnız bu satırı düzelten commit bulunur —
+> güncel tepe için `git ls-remote origin refs/heads/codex/mobile`.
 
 Bu tur, ADR-047 hesap entegrasyonunun canlı doğrulamasıyla başladı ve
 canlı QA'nın ortaya çıkardığı sorunların düzeltilmesiyle sürdü. Aşağıdaki
