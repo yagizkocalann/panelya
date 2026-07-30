@@ -4,6 +4,7 @@ import '../../../core/api/api_client.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../../../core/storage/token_store.dart';
+import '../../auth/domain/auth_repository.dart';
 import '../domain/account_exceptions.dart';
 import '../domain/account_repository.dart';
 
@@ -28,11 +29,18 @@ class HttpAccountRepository implements AccountRepository {
   HttpAccountRepository({
     required this._client,
     required this._tokenStore,
+    required this._authRepository,
     Random? random,
   }) : _random = random ?? Random.secure();
 
   final PanelyaApiClient _client;
   final TokenStore _tokenStore;
+
+  /// Access token'ın süresi dolduğunda YENİLEMEK için (bkz. [_guard]).
+  /// Hesap uçları kısa ömürlü (15 dk) access token kullanır; yenileme
+  /// olmadan girişten bir süre sonra TÜM hesap işlemleri
+  /// `not_authenticated` ile kırılırdı.
+  final AuthRepository _authRepository;
   final Random _random;
 
   Future<String> _accessToken() async {
@@ -50,10 +58,36 @@ class HttpAccountRepository implements AccountRepository {
   }
 
   /// Tek çeviri noktası: ham HTTP/parse hatalarını domain tipine map eder.
+  ///
+  /// Ayrıca access token süresi dolduğunda BİR KEZ yenileyip isteği
+  /// tekrarlar: sunucu bu durumu `not_authenticated` + `reauthenticate:
+  /// true` olarak bildirir (bkz. `app/lib/account-runtime.ts` ->
+  /// `accountErrorResponse`, süresi dolmuş token `Auth0RuntimeError`den
+  /// bu koda eşlenir). Yenileme başarısız olursa ORİJİNAL sunucu hatası
+  /// yüzeye çıkar — sahte bir başarı üretilmez.
+  ///
+  /// NOT: bu, ADR-047'nin "taze kimlik doğrulaması" (reauthentication)
+  /// akışından FARKLI bir şeydir. Burada yalnız normal oturum tokeni
+  /// yenilenir; hassas mutation'ların istediği amaca-bağlı
+  /// `reauthenticationToken` yine `AccountReauthenticator` üzerinden
+  /// alınır.
   Future<T> _guard<T>(Future<T> Function() body) async {
     try {
       return await body();
     } on AccountApiException catch (cause) {
+      if (_isExpiredAccessToken(cause.error)) {
+        try {
+          await _authRepository.refresh();
+        } catch (_) {
+          // Yenileme de başarısız: orijinal hatayı bildir.
+          throw AccountServerException(cause.error);
+        }
+        try {
+          return await body();
+        } on AccountApiException catch (retryCause) {
+          throw AccountServerException(retryCause.error);
+        }
+      }
       throw AccountServerException(cause.error);
     } on AccountRepositoryException {
       // Zaten domain tipinde (ör. `_accessToken`'ın fırlattığı
@@ -63,6 +97,9 @@ class HttpAccountRepository implements AccountRepository {
       throw AccountUnexpectedException(cause.message);
     }
   }
+
+  static bool _isExpiredAccessToken(AccountErrorResponse error) =>
+      error.error == 'not_authenticated' && error.reauthenticate;
 
   @override
   Future<AccountOverviewResponse> fetchOverview() => _guard(() async {

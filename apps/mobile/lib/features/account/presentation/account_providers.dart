@@ -24,6 +24,7 @@ final accountRepositoryProvider = Provider<AccountRepository>((ref) {
   return HttpAccountRepository(
     client: ref.watch(apiClientProvider),
     tokenStore: ref.watch(tokenStoreProvider),
+    authRepository: ref.watch(authRepositoryProvider),
   );
 });
 
