@@ -117,7 +117,12 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       "/api/series/{slug}/episodes/{episodeSlug}",
     ],
   );
-  assert.equal(openapi.info.version, "1.4.0");
+  assert.equal(openapi.info.version, "1.4.1");
+  assert.deepEqual(contract.$defs.AccountPasswordResetRequest.properties, {});
+  assert.deepEqual(
+    contract.$defs.AccountSessionPlatform.enum,
+    ["web", "android", "ios", "unspecified"],
+  );
 
   const refs = JSON.stringify(openapi).match(/\.\/schema\.json#\/\$defs\/[A-Za-z]+/g) ?? [];
   assert.ok(refs.length >= 5, "OpenAPI response'ları ortak schema tanımlarına bağlanmalı");

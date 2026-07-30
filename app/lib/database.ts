@@ -16,6 +16,8 @@ async function ensureSchema(db: D1Database) {
       display_name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'reader' CHECK(role IN ('reader','admin')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','deletion_pending','deleted')),
+      sessions_valid_after INTEGER NOT NULL DEFAULT 0,
       email_verified_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
@@ -24,6 +26,7 @@ async function ensureSchema(db: D1Database) {
       provider TEXT NOT NULL CHECK(provider = 'auth0'),
       issuer TEXT NOT NULL,
       subject_hash TEXT NOT NULL,
+      provider_kind TEXT NOT NULL DEFAULT 'other_social' CHECK(provider_kind IN ('database','google','other_social')),
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
@@ -40,6 +43,39 @@ async function ensureSchema(db: D1Database) {
       expires_at INTEGER NOT NULL,
       used_at INTEGER,
       created_at INTEGER NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS account_reauthentication_requests (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      purpose TEXT NOT NULL CHECK(purpose IN ('email_change','account_deletion')),
+      transport TEXT NOT NULL CHECK(transport IN ('web','mobile')),
+      client_id TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      state_hash TEXT NOT NULL UNIQUE,
+      nonce_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      created_at INTEGER NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS account_reauthentication_tokens (
+      token_hash TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      purpose TEXT NOT NULL CHECK(purpose IN ('email_change','account_deletion')),
+      expires_at INTEGER NOT NULL,
+      used_at INTEGER,
+      created_at INTEGER NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS account_deletion_requests (
+      id TEXT PRIMARY KEY NOT NULL,
+      user_id TEXT NOT NULL,
+      idempotency_key_hash TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','failed')),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS notification_outbox (
       id TEXT PRIMARY KEY NOT NULL,
@@ -286,6 +322,10 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS provider_identities_user_idx ON provider_identities(user_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS account_reauthentication_requests_expiry_idx ON account_reauthentication_requests(expires_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS account_reauthentication_tokens_expiry_idx ON account_reauthentication_tokens(expires_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS account_deletion_requests_user_idx ON account_deletion_requests(user_id, created_at DESC)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS account_deletion_requests_status_idx ON account_deletion_requests(status, updated_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS library_user_idx ON library_items(user_id, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS progress_user_idx ON reading_progress(user_id, updated_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS contact_status_idx ON contact_messages(status, created_at DESC)"),
@@ -321,6 +361,26 @@ async function ensureSchema(db: D1Database) {
     await db.prepare("ALTER TABLE users ADD COLUMN email_verified_at INTEGER").run();
     // Existing local accounts predate verification; preserve their QA access.
     await db.prepare("UPDATE users SET email_verified_at = created_at WHERE email_verified_at IS NULL").run();
+  }
+  const userColumnNames = new Set(userColumns.results.map((column) => column.name));
+  if (!userColumnNames.has("status")) {
+    await db.prepare("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','deletion_pending','deleted'))").run();
+  }
+  if (!userColumnNames.has("sessions_valid_after")) {
+    await db.prepare("ALTER TABLE users ADD COLUMN sessions_valid_after INTEGER NOT NULL DEFAULT 0").run();
+  }
+
+  const deletionRequestColumns = await db.prepare("PRAGMA table_info(account_deletion_requests)")
+    .all<{ name: string }>();
+  if (!deletionRequestColumns.results.some((column) => column.name === "idempotency_key_hash")) {
+    await db.prepare("ALTER TABLE account_deletion_requests ADD COLUMN idempotency_key_hash TEXT").run();
+  }
+  await db.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS account_deletion_requests_idempotency_unique
+    ON account_deletion_requests(idempotency_key_hash) WHERE idempotency_key_hash IS NOT NULL`).run();
+
+  const providerIdentityColumns = await db.prepare("PRAGMA table_info(provider_identities)").all<{ name: string }>();
+  if (!providerIdentityColumns.results.some((column) => column.name === "provider_kind")) {
+    await db.prepare("ALTER TABLE provider_identities ADD COLUMN provider_kind TEXT NOT NULL DEFAULT 'other_social' CHECK(provider_kind IN ('database','google','other_social'))").run();
   }
 
   const sessionColumns = await db.prepare("PRAGMA table_info(sessions)").all<{ name: string }>();

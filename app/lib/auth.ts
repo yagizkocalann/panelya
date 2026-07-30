@@ -165,6 +165,9 @@ type SessionUserRow = UserRow & {
   expires_at: number;
   idle_expires_at: number;
   last_seen_at: number;
+  authenticated_at: number;
+  status: "active" | "deletion_pending" | "deleted";
+  sessions_valid_after: number;
 };
 
 export async function getUserFromToken(rawToken: string | undefined, scope: SessionScope = "public") {
@@ -172,12 +175,15 @@ export async function getUserFromToken(rawToken: string | undefined, scope: Sess
   const db = await getDatabase();
   const tokenHash = await hashOpaqueToken(rawToken);
   const row = await db.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.email_verified_at, u.created_at,
-      s.token_hash, s.expires_at, s.idle_expires_at, s.last_seen_at
+      u.status, u.sessions_valid_after, s.token_hash, s.expires_at, s.idle_expires_at, s.last_seen_at, s.authenticated_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.scope = ?`).bind(tokenHash, scope).first<SessionUserRow>();
   if (!row) return null;
   const now = Date.now();
-  if (row.expires_at <= now || row.idle_expires_at <= now) {
+  const expired = row.expires_at <= now || row.idle_expires_at <= now;
+  if (row.status !== "active"
+    || row.authenticated_at < row.sessions_valid_after
+    || expired) {
     await db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
     return null;
   }

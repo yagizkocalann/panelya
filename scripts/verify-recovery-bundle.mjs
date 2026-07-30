@@ -10,6 +10,9 @@ const schemaPath = path.resolve(scriptDirectory, "../docs/recovery-bundle.schema
 const MAX_JSON_BYTES = 100 * 1024 * 1024;
 
 export const REQUIRED_D1_TABLES = Object.freeze([
+  "account_deletion_requests",
+  "account_reauthentication_requests",
+  "account_reauthentication_tokens",
   "account_tokens",
   "admin_invitations",
   "audit_events",

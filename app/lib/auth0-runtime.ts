@@ -14,7 +14,7 @@ type Auth0ErrorCode =
   | "rate_limited"
   | "service_unavailable";
 
-type Auth0GatewayConfig = NonNullable<Awaited<ReturnType<typeof productionAuthConfig>>> & {
+export type Auth0GatewayConfig = NonNullable<Awaited<ReturnType<typeof productionAuthConfig>>> & {
   allowedMobileRedirectUris: ReadonlySet<string>;
   jwksUri: string;
   userInfoEndpoint: string;
@@ -58,7 +58,12 @@ type ProviderUserRow = {
   role: "reader" | "admin";
   email_verified_at: number | null;
   created_at: number;
+  provider_kind: AccountProviderKind;
+  status: "active" | "deletion_pending" | "deleted";
+  sessions_valid_after: number;
 };
+
+export type AccountProviderKind = "database" | "google" | "other_social";
 
 const CODE_VERIFIER_PATTERN = /^[A-Za-z0-9\-._~]{43,128}$/;
 const EXTERNAL_PASSWORD_MARKER = "external-auth0$disabled";
@@ -342,14 +347,31 @@ function providerRowToUser(row: ProviderUserRow): LocalUser {
   };
 }
 
-async function findProviderUser(issuer: string, subjectHash: string) {
+export function providerKindForSubject(subject: string): AccountProviderKind {
+  const connection = subject.split("|", 1)[0]?.toLowerCase();
+  if (connection === "auth0") return "database";
+  if (connection === "google-oauth2") return "google";
+  return "other_social";
+}
+
+async function findProviderIdentity(issuer: string, subjectHash: string) {
   const db = await getDatabase();
-  const row = await db.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.email_verified_at, u.created_at
+  const row = await db.prepare(`SELECT u.id, u.email, u.display_name, u.role, u.email_verified_at, u.created_at,
+      u.status, u.sessions_valid_after, p.provider_kind
     FROM provider_identities p JOIN users u ON u.id = p.user_id
     WHERE p.provider = 'auth0' AND p.issuer = ? AND p.subject_hash = ?`)
     .bind(issuer, subjectHash)
     .first<ProviderUserRow>();
-  return row ? providerRowToUser(row) : null;
+  return row ? {
+    user: providerRowToUser(row),
+    providerKind: row.provider_kind,
+    status: row.status,
+    sessionsValidAfter: row.sessions_valid_after,
+  } : null;
+}
+
+async function findProviderUser(issuer: string, subjectHash: string) {
+  return (await findProviderIdentity(issuer, subjectHash))?.user ?? null;
 }
 
 async function resolveProviderUser(
@@ -358,18 +380,39 @@ async function resolveProviderUser(
 ) {
   const db = await getDatabase();
   const subjectHash = await hashOpaqueToken(`${issuer}\n${profile.subject}`);
-  const existing = await findProviderUser(issuer, subjectHash);
+  const existingIdentity = await findProviderIdentity(issuer, subjectHash);
+  const existing = existingIdentity?.user ?? null;
+  const providerKind = providerKindForSubject(profile.subject);
   const now = Date.now();
   if (existing) {
+    if (existingIdentity?.status !== "active") {
+      throw new Auth0RuntimeError("session_revoked", "Panelya hesabı artık etkin değil.", 401, true);
+    }
     await db.prepare(`UPDATE provider_identities
-      SET last_login_at = ?, updated_at = ?
+      SET provider_kind = ?, last_login_at = ?, updated_at = ?
       WHERE provider = 'auth0' AND issuer = ? AND subject_hash = ?`)
-      .bind(now, now, issuer, subjectHash)
+      .bind(providerKind, now, now, issuer, subjectHash)
       .run();
     if (profile.emailVerified && !existing.emailVerifiedAt && existing.email === profile.email) {
       await db.prepare("UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?")
         .bind(now, now, existing.id)
         .run();
+      existing.emailVerifiedAt = now;
+    }
+    if (profile.emailVerified && existing.email !== profile.email) {
+      const emailOwner = await db.prepare("SELECT id FROM users WHERE email = ?")
+        .bind(profile.email).first<{ id: string }>();
+      if (emailOwner && emailOwner.id !== existing.id) {
+        throw new Auth0RuntimeError(
+          "login_required",
+          "Doğrulanmış sağlayıcı e-postası başka bir Panelya hesabıyla çakışıyor.",
+          409,
+          true,
+        );
+      }
+      await db.prepare("UPDATE users SET email = ?, email_verified_at = ?, updated_at = ? WHERE id = ?")
+        .bind(profile.email, now, now, existing.id).run();
+      existing.email = profile.email;
       existing.emailVerifiedAt = now;
     }
     await writeAudit(existing.id, "account.provider_login", { provider: "auth0", created: false });
@@ -402,9 +445,9 @@ async function resolveProviderUser(
           now,
         ),
       db.prepare(`INSERT INTO provider_identities
-        (provider, issuer, subject_hash, user_id, created_at, updated_at, last_login_at)
-        VALUES ('auth0', ?, ?, ?, ?, ?, ?)`)
-        .bind(issuer, subjectHash, userId, now, now, now),
+        (provider, issuer, subject_hash, provider_kind, user_id, created_at, updated_at, last_login_at)
+        VALUES ('auth0', ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(issuer, subjectHash, providerKind, userId, now, now, now),
     ]);
   } catch {
     const raced = await findProviderUser(issuer, subjectHash);
@@ -510,16 +553,32 @@ export async function revokeMobileToken(refreshToken: string, config: Auth0Gatew
   return { schemaVersion: "1.0" as const, revoked: true as const };
 }
 
-export async function userFromBearerToken(request: Request, config: Auth0GatewayConfig) {
+export async function identityFromBearerToken(request: Request, config: Auth0GatewayConfig) {
   const authorization = request.headers.get("authorization");
   if (!authorization) return null;
   const match = /^Bearer ([A-Za-z0-9._~+\/=-]+)$/.exec(authorization);
   if (!match) throw new Auth0RuntimeError("invalid_grant", "Bearer token biçimi geçersiz.", 401, true);
   const verified = await validateAuth0AccessToken(match[1], config);
-  const subjectHash = await hashOpaqueToken(`${config.issuer}\n${verified.payload.sub}`);
-  const user = await findProviderUser(config.issuer, subjectHash);
-  if (!user) throw new Auth0RuntimeError("login_required", "Kimlik Panelya hesabıyla eşlenmemiş.", 401, true);
-  return user;
+  const subject = verified.payload.sub as string;
+  const subjectHash = await hashOpaqueToken(`${config.issuer}\n${subject}`);
+  const identity = await findProviderIdentity(config.issuer, subjectHash);
+  if (!identity) throw new Auth0RuntimeError("login_required", "Kimlik Panelya hesabıyla eşlenmemiş.", 401, true);
+  const issuedAt = typeof verified.payload.iat === "number" ? verified.payload.iat * 1000 : 0;
+  if (identity.status !== "active" || issuedAt < identity.sessionsValidAfter) {
+    throw new Auth0RuntimeError("session_revoked", "Oturum artık geçerli değil.", 401, true);
+  }
+  return {
+    ...identity,
+    subject,
+    subjectHash,
+    issuer: config.issuer,
+    accessToken: match[1],
+    claims: verified.payload,
+  };
+}
+
+export async function userFromBearerToken(request: Request, config: Auth0GatewayConfig) {
+  return (await identityFromBearerToken(request, config))?.user ?? null;
 }
 
 export function auth0ErrorResponse(error: unknown) {
