@@ -86,3 +86,29 @@ Ayrıntı ve ölçümler: `apps/mobile/README.md` → "Release build".
 Ayrıca `android/app/build.gradle.kts` release'i hâlâ **debug
 anahtarıyla** imzalıyor (dosyada `TODO` olarak duruyor); mağaza yayını
 öncesi gerçek imza yapılandırması gerekiyor.
+
+## 8. Kütüphane/favori — mobilde karşılığı yok, ortak sözleşmesi de yok
+
+Web'de çalışan bir özellik mobilde hiç yok:
+
+| Yüzey | Web | Mobil |
+| --- | --- | --- |
+| Sayfa/ekran | `/library` ("Kütüphanem", `SiteFooter`'da) | **yok** |
+| API | `GET /api/library`, `POST /api/library/{slug}` | kullanılmıyor |
+| Ortak sözleşme | — | **tanımlı değil** |
+
+`packages/contracts/schema.json` içinde `library` yalnız bir **hesap
+silme etkisi** enum değeri olarak geçiyor (`deleted` listesinde
+`auth_identity`, `profile`, `active_sessions` ile birlikte). Yani
+kütüphane için JSON Schema / OpenAPI / fixture **yok**.
+
+Bunun somut bir yan etkisi vardı: mobil giriş ekranı *"kütüphaneni ve
+favorilerini senkronize et"* diyerek kullanıcıyı uygulamanın hiç
+sunmadığı bir özellik için giriş yapmaya davet ediyordu. Metin, girişin
+bu sürümde gerçekten sağladığıyla değiştirildi (ADR-010, bkz.
+`account_screen.dart`). Kütüphane geldiğinde geri güncellenecek.
+
+**Web'den beklenen:** ADR-047 kalıbıyla bir contract teslimi —
+`GET /api/library`, `POST/DELETE /api/library/{slug}` için JSON Schema +
+OpenAPI + fixture. Mobil tarafta geçici DTO **uydurulmadı**; contract
+`main`e girdiğinde deterministik codegen ile bağlanacak.
