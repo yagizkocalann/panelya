@@ -22,6 +22,9 @@ class _FakeOfflineEpisodeRepository implements OfflineEpisodeRepository {
   final List<DownloadedEpisode> _episodes;
   final List<String> deletedEpisodeSlugs = [];
 
+  /// Bu slug icin `deleteDownload` firlatir (ör. dosya sistemi hatasi).
+  String? failDeleteForSlug;
+
   @override
   Future<bool> isDownloaded(String seriesSlug, String episodeSlug) async =>
       _episodes.any(
@@ -44,6 +47,9 @@ class _FakeOfflineEpisodeRepository implements OfflineEpisodeRepository {
 
   @override
   Future<void> deleteDownload(String seriesSlug, String episodeSlug) async {
+    if (episodeSlug == failDeleteForSlug) {
+      throw Exception('dosya silinemedi: $episodeSlug');
+    }
     _episodes.removeWhere(
       (e) => e.seriesSlug == seriesSlug && e.episodeSlug == episodeSlug,
     );
@@ -297,6 +303,36 @@ void main() {
 
       expect(repository.deletedEpisodeSlugs.toSet(), {'bolum-1', 'bolum-3'});
       expect(find.text('Henüz indirilmiş bir bölüm yok.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'toplu silmede biri basarisiz olursa DIGERLERI silinir ve kac tanesinin '
+    'silinemedigi bildirilir',
+    (tester) async {
+      final repository = _FakeOfflineEpisodeRepository([
+        _episode(),
+        _episode(
+          seriesSlug: 'yarinki-ses',
+          seriesTitle: 'Yarınki Ses',
+          episodeSlug: 'bolum-3',
+          episodeNumber: 3,
+          episodeTitle: 'Uzak Sinyal',
+        ),
+      ])..failDeleteForSlug = 'bolum-1';
+
+      await tester.pumpWidget(_wrap(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Tüm indirmeleri sil'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tümünü sil'));
+      await tester.pumpAndSettle();
+
+      // Ilk hata dongoyu KESMEDI: ikinci bolum yine de silindi.
+      expect(repository.deletedEpisodeSlugs, ['bolum-3']);
+      // Kismi silme sessizce gecistirilmez.
+      expect(find.text('1 bölüm silinemedi. Tekrar dene.'), findsOneWidget);
     },
   );
 

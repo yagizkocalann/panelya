@@ -275,6 +275,13 @@ class HttpAuthRepository implements AuthRepository {
         // olsa bile yerel oturum temizlenir; kullanıcı en kötü ihtimalle
         // sunucu tarafında en geç 15 dakika içinde access token'ın doğal
         // sona ermesiyle güvenlik altındadır.
+      } on NetworkException {
+        // Aynı gerekçe AĞ hatası için de geçerlidir. Bu daha önce
+        // yakalanmıyordu: `AuthApiException` yalnız sunucunun DÖNDÜĞÜ
+        // hataları kapsar, zaman aşımı/soket/transport hataları
+        // `NetworkException` olur (bkz. `api_client.dart`). Sonuç,
+        // bağlantı kopukken çıkış yapmanın yerel temizliği hiç
+        // yapmadan fırlatmasıydı — kullanıcı uygulamada kilitli kalırdı.
       }
     }
     await _tokenStore.clear();

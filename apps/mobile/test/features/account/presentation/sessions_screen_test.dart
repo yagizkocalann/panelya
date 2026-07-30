@@ -28,6 +28,10 @@ const _fakeUser = AuthUser(
 );
 
 class _FakeAuthRepository implements AuthRepository {
+  _FakeAuthRepository({this.logoutError});
+
+  /// Kuruldugunda `logout()` bunu firlatir (ör. guvenli depolama hatasi).
+  final Object? logoutError;
   AuthSessionState _state = const AuthSessionState.authenticated(_fakeUser);
   final _controller = StreamController<AuthSessionState>.broadcast();
   final List<String> logoutCalls = [];
@@ -53,6 +57,7 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> logout() async {
     logoutCalls.add('logout');
+    if (logoutError != null) throw logoutError!;
     _state = const AuthSessionState.anonymous();
     _controller.add(_state);
   }
@@ -252,6 +257,32 @@ void main() {
       expect(repository.calls, contains('revokeSession:s-current'));
       expect(authRepository.logoutCalls, hasLength(1));
       expect(find.text('HOME'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'yerel cikis basarisiz olursa ana sayfaya GIDILMEZ — kullanici hala '
+    'giris yapmis durumdadir, sebep gosterilir',
+    (tester) async {
+      final authRepository = _FakeAuthRepository(
+        logoutError: Exception('yerel temizlik basarisiz'),
+      );
+      final repository = FakeAccountRepository(sessions: [_currentSession])
+        ..revokeSessionRevokesCurrent = true;
+      await tester.pumpWidget(
+        _wrap(accountRepository: repository, authRepository: authRepository),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Oturumu kapat'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Oturumu kapat').last);
+      await tester.pumpAndSettle();
+
+      expect(authRepository.logoutCalls, hasLength(1));
+      // Cikmis gibi GOSTERILMEZ.
+      expect(find.text('HOME'), findsNothing);
+      expect(find.text('Oturum kapatılamadı. Tekrar dene.'), findsOneWidget);
     },
   );
 

@@ -43,10 +43,27 @@ class AccountHomeScreen extends ConsumerStatefulWidget {
 class _AccountHomeScreenState extends ConsumerState<AccountHomeScreen> {
   bool _signOutBusy = false;
 
+  /// Çıkış yapar. Hata fırlasa bile [_signOutBusy] `finally` ile MUTLAKA
+  /// sıfırlanır: aksi hâlde buton kalıcı olarak spinner'da kilitlenir ve
+  /// kullanıcı ne çıkış yapabilir ne tekrar deneyebilirdi.
+  ///
+  /// Sunucu revoke'unun başarısızlığı buraya ULAŞMAZ (bkz.
+  /// `HttpAuthRepository.logout` — ADR-039 gereği yutulur). Buraya ancak
+  /// YEREL temizlik gerçekten başarısız olduğunda bir hata gelir; o
+  /// durumda kullanıcı hâlâ giriş yapmış sayılır, bu yüzden sahte başarı
+  /// göstermeyip dürüst bir mesaj veririz (ADR-010).
   Future<void> _signOut() async {
     setState(() => _signOutBusy = true);
-    await ref.read(authRepositoryProvider).logout();
-    if (mounted) setState(() => _signOutBusy = false);
+    try {
+      await ref.read(authRepositoryProvider).logout();
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Çıkış yapılamadı. Tekrar dene.')),
+      );
+    } finally {
+      if (mounted) setState(() => _signOutBusy = false);
+    }
   }
 
   @override

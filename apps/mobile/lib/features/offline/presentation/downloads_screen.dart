@@ -87,8 +87,22 @@ class DownloadsScreen extends ConsumerWidget {
     if (confirmed != true) return;
 
     final repository = ref.read(offlineEpisodeRepositoryProvider);
+    // Tek bir bölümün silinmesi başarısız olursa (ör. dosya sistemi hatası)
+    // DÖNGÜ DURMAZ: geri kalanları silmeye devam ederiz, sonra kaç tanesinin
+    // silinemediğini dürüstçe bildiririz. Eskiden ilk hata döngüyü kesiyor,
+    // kısmi silme hiçbir mesaj olmadan "hiçbir şey olmamış" gibi
+    // görünüyordu (ADR-010).
+    var failed = 0;
     for (final episode in episodes) {
-      await repository.deleteDownload(episode.seriesSlug, episode.episodeSlug);
+      try {
+        await repository.deleteDownload(
+          episode.seriesSlug,
+          episode.episodeSlug,
+        );
+      } on Object {
+        failed++;
+        continue;
+      }
       // Seri/okuyucu ekranındaki indirme düğmesi (bkz. `EpisodeDownloadButton`)
       // AYRI bir provider'dan (`isEpisodeDownloadedProvider`) okur; bu toplu
       // silme yolu `EpisodeDownloadButton._confirmDelete`'i (tek tek silmede
@@ -103,6 +117,12 @@ class DownloadsScreen extends ConsumerWidget {
       );
     }
     ref.invalidate(downloadedEpisodesProvider);
+
+    if (failed > 0 && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$failed bölüm silinemedi. Tekrar dene.')),
+      );
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -371,6 +372,30 @@ void main() {
         await _flushMicrotasks();
         await tokenStore.write(AuthTokenResponse.fromJson(_tokenJson()));
 
+        await repo.logout();
+
+        expect(repo.currentState, const AuthSessionState.anonymous());
+        expect(await tokenStore.read(), isNull);
+      },
+    );
+
+    test(
+      'revoke AG hatasi verse bile yerel oturum temizlenir — cikis '
+      'baglanti kopukken FIRLATMAZ',
+      () async {
+        final tokenStore = InMemoryTokenStore();
+        final client = _clientWith((request) async {
+          expect(request.url.path, '/api/auth/mobile/revoke');
+          // Zaman asimi/soket/transport hatasi `NetworkException` olur;
+          // `AuthApiException` DEGILDIR (bkz. `api_client.dart`).
+          throw const SocketException('baglanti yok');
+        });
+        final repo = HttpAuthRepository(client: client, tokenStore: tokenStore);
+        addTearDown(repo.dispose);
+        await _flushMicrotasks();
+        await tokenStore.write(AuthTokenResponse.fromJson(_tokenJson()));
+
+        // Eskiden burasi firlatiyordu ve YEREL temizlik hic yapilmiyordu.
         await repo.logout();
 
         expect(repo.currentState, const AuthSessionState.anonymous());

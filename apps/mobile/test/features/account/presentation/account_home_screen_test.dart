@@ -34,8 +34,11 @@ const _fakeUser = AuthUser(
 /// bir kimlik ASLA üretilmez); bu yüzden bu testler de gerçek
 /// `AuthRepository` sözleşmesini uygulayan minimal bir sahte kullanır.
 class _FakeAuthRepository implements AuthRepository {
-  _FakeAuthRepository({AuthSessionState? initialState})
+  _FakeAuthRepository({AuthSessionState? initialState, this.logoutError})
     : _state = initialState ?? const AuthSessionState.authenticated(_fakeUser);
+
+  /// Kuruldugunda `logout()` bunu firlatir (ör. guvenli depolama hatasi).
+  final Object? logoutError;
 
   AuthSessionState _state;
   final _controller = StreamController<AuthSessionState>.broadcast();
@@ -67,6 +70,7 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> logout() async {
     logoutCalls.add('logout');
+    if (logoutError != null) throw logoutError!;
     _emit(const AuthSessionState.anonymous());
   }
 
@@ -310,6 +314,33 @@ void main() {
 
     expect(authRepository.logoutCalls, hasLength(1));
   });
+
+  testWidgets(
+    'cikis basarisiz olursa buton spinner\'da KILITLENMEZ ve sebep '
+    'gosterilir',
+    (tester) async {
+      final authRepository = _FakeAuthRepository(
+        logoutError: Exception('yerel temizlik basarisiz'),
+      );
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(user: _fakeUser),
+          authRepository: authRepository,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Çıkış yap'));
+      await tester.pumpAndSettle();
+
+      expect(authRepository.logoutCalls, hasLength(1));
+      // `finally` mesgul bayragini sifirladi: buton yine tiklanabilir.
+      expect(find.text('Çıkış yap'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      // Sahte basari YOK, durust mesaj VAR.
+      expect(find.text('Çıkış yapılamadı. Tekrar dene.'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'uzun bir görünen adla scale=2.0\'da hiçbir taşma oluşmaz',

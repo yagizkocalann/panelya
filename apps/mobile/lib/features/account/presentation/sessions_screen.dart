@@ -74,8 +74,17 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   /// Yerel oturumu kapatıp ana sayfaya döner. Sunucu
   /// `currentSessionRevoked: true` dediğinde çağrılır — istemci bunu
   /// kendisi tahmin etmez.
+  ///
+  /// Yerel temizlik başarısız olursa ana sayfaya GİTMEYİZ: kullanıcı hâlâ
+  /// giriş yapmış durumdadır ve onu çıkmış gibi göstermek yanlış olurdu
+  /// (ADR-010). Sebep dürüstçe bildirilir, kullanıcı tekrar deneyebilir.
   Future<void> _signOutLocally() async {
-    await ref.read(authRepositoryProvider).logout();
+    try {
+      await ref.read(authRepositoryProvider).logout();
+    } on Object {
+      _showError('Oturum kapatılamadı. Tekrar dene.');
+      return;
+    }
     if (mounted) context.go('/');
   }
 
