@@ -1,6 +1,26 @@
 import { assertSameOrigin, getCurrentUser } from "../../../lib/auth";
 import { errorRedirect, redirectTo } from "../../../lib/auth-http";
 import { getDatabase, writeAudit } from "../../../lib/database";
+import {
+  ACCOUNT_JSON_HEADERS,
+  accountErrorResponse,
+  assertAccountMutationOrigin,
+  objectInput,
+  readLimitedAccountJson,
+  requireAccountActor,
+  updateAccountProfile,
+} from "../../../lib/account-runtime";
+
+export async function PATCH(request: Request) {
+  try {
+    const actor = await requireAccountActor(request);
+    assertAccountMutationOrigin(request, actor);
+    const input = objectInput(await readLimitedAccountJson(request), ["displayName"]);
+    return Response.json(await updateAccountProfile(actor, input.displayName), { headers: ACCOUNT_JSON_HEADERS });
+  } catch (error) {
+    return accountErrorResponse(error);
+  }
+}
 
 export async function POST(request: Request) {
   try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }

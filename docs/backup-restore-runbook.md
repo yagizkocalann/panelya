@@ -87,7 +87,7 @@ Bu islem veritabanini yerinde ezer ve ucan sorgu/transaction'lari iptal eder. Ku
    ```
 
 5. Komutun dondurdugu onceki bookmark'i kaydet; bu, restore'u geri alma noktasidir.
-6. Restore eski oturum, sifirlama/dogrulama tokeni, preview linki veya yonetici daveti diriltebilir. Trafik acilmadan once `sessions`, `account_tokens`, `preview_tokens` ve `rate_limit_buckets` temizlenir; bekleyen `admin_invitations` iptal edilir ve action URL tasiyan eski outbox kayitlari temizlenir. Bu guvenlik adimi audit olayiyla kaydedilir.
+6. Restore eski oturum, sifirlama/dogrulama tokeni, hesap yeniden dogrulama kaniti, preview linki veya yonetici daveti diriltebilir. Trafik acilmadan once `sessions`, `account_tokens`, `account_reauthentication_requests`, `account_reauthentication_tokens`, `preview_tokens` ve `rate_limit_buckets` temizlenir; yarim kalmis `account_deletion_requests` kayitlari saglayici durumu kontrol edilerek idempotent bicimde uzlastirilir, bekleyen `admin_invitations` iptal edilir ve action URL tasiyan eski outbox kayitlari temizlenir. Bu guvenlik adimi audit olayiyla kaydedilir.
 7. Kanonik tablo envanteri, admin sayisi, yayin katalog sayisi ve D1-R2 medya baglantilari aggregate olarak kontrol edilir. Kisi verisi loglanmaz.
 8. `/api/catalog`, seri detayi, bir bolum manifesti, Studio platform readiness ve bir admin login smoke testi yapilir. Sonra Queue consumer, en son yazma trafigi acilir.
 

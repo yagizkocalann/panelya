@@ -1,6 +1,7 @@
 import { MEDIA_DERIVATIVE_QUEUE_BINDING } from "./media/derivative-dispatch";
 import { EDGE_RATE_LIMITER_BINDING } from "./rate-limit";
-import { mediaDerivativeDispatchMode, rateLimitMode } from "./runtime-config";
+import { auth0GatewayConfig } from "./auth0-runtime";
+import { mediaDerivativeDispatchMode, rateLimitMode, runtimeValue } from "./runtime-config";
 
 export const PLATFORM_READINESS_SCHEMA_VERSION = "1.0" as const;
 
@@ -32,6 +33,7 @@ export function assessPlatformReadiness(input: {
   mediaMode: string;
   rateLimitMode: string;
   bindings: RuntimeBindingMap;
+  accountRuntimeConfigured?: boolean;
 }) {
   const mediaMode: SafeMediaMode = input.mediaMode === "local_browser" || input.mediaMode === "cloudflare_queue" ? input.mediaMode : "invalid";
   const configuredRateLimitMode: SafeRateLimitMode = input.rateLimitMode === "d1_strict" || input.rateLimitMode === "cloudflare_hybrid" ? input.rateLimitMode : "invalid";
@@ -65,6 +67,13 @@ export function assessPlatformReadiness(input: {
       status: profile === "production" ? "manual" : "not_required",
       detail: "Runtime binding nesnesi consumer retry/DLQ politikasını açıklamaz; deployment kaynağında ayrıca doğrulanır.",
     },
+    bindingCheck(
+      "account-auth0-management",
+      "Auth0 hesap yönetimi",
+      input.accountRuntimeConfigured === true,
+      profile === "production",
+      "Auth gateway, web BFF, Management M2M, database connection ve hesap kanıt anahtarı yalnız var/yok olarak denetlenir.",
+    ),
   ];
 
   const automatedReady = profile !== "mixed"
@@ -81,11 +90,53 @@ export function assessPlatformReadiness(input: {
 }
 
 export async function getPlatformReadiness() {
-  const [mediaMode, configuredRateLimitMode] = await Promise.all([mediaDerivativeDispatchMode(), rateLimitMode()]);
+  const [
+    mediaMode,
+    configuredRateLimitMode,
+    authGateway,
+    webClientId,
+    webClientSecret,
+    webRedirectUris,
+    managementClientId,
+    managementClientSecret,
+    databaseConnection,
+    accountRuntimeSecret,
+  ] = await Promise.all([
+    mediaDerivativeDispatchMode(),
+    rateLimitMode(),
+    auth0GatewayConfig(),
+    runtimeValue("AUTH0_WEB_CLIENT_ID"),
+    runtimeValue("AUTH0_WEB_CLIENT_SECRET"),
+    runtimeValue("AUTH0_WEB_REDIRECT_URIS"),
+    runtimeValue("AUTH0_MANAGEMENT_CLIENT_ID"),
+    runtimeValue("AUTH0_MANAGEMENT_CLIENT_SECRET"),
+    runtimeValue("AUTH0_DATABASE_CONNECTION"),
+    runtimeValue("ACCOUNT_RUNTIME_SECRET"),
+  ]);
+  const accountRuntimeConfigured = Boolean(
+    authGateway
+    && webClientId.trim()
+    && webClientSecret.trim()
+    && webRedirectUris.split(",").some((value) => value.trim())
+    && managementClientId.trim()
+    && managementClientSecret.trim()
+    && databaseConnection.trim()
+    && accountRuntimeSecret.trim().length >= 32,
+  );
   try {
     const { env } = await import("cloudflare:workers");
-    return assessPlatformReadiness({ mediaMode, rateLimitMode: configuredRateLimitMode, bindings: env as unknown as RuntimeBindingMap });
+    return assessPlatformReadiness({
+      mediaMode,
+      rateLimitMode: configuredRateLimitMode,
+      bindings: env as unknown as RuntimeBindingMap,
+      accountRuntimeConfigured,
+    });
   } catch {
-    return assessPlatformReadiness({ mediaMode, rateLimitMode: configuredRateLimitMode, bindings: {} });
+    return assessPlatformReadiness({
+      mediaMode,
+      rateLimitMode: configuredRateLimitMode,
+      bindings: {},
+      accountRuntimeConfigured,
+    });
   }
 }

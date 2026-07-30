@@ -28,7 +28,7 @@
    `Hesabim` kapsami profil, provider-yonetimli e-posta/sifre, birlesik
    web/native oturumlar, engellenen hesaplar ve Auth0 kimligini de kapsayan
    hesap silmedir. Reauthentication kaniti dahil schema/OpenAPI/fixture
-   OpenAPI `1.4.0` teslimindedir. Siradaki teslim Auth0 Management API adapteri,
+   OpenAPI `1.4.1` teslimindedir. Siradaki teslim Auth0 Management API adapteri,
    session envanteri ve idempotent silme saga'sidir. Mobil local PBKDF2 form
    endpoint'lerini kopyalamaz.
 

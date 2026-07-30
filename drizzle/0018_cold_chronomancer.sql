@@ -1,0 +1,2 @@
+ALTER TABLE `account_deletion_requests` ADD `idempotency_key_hash` text NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX `account_deletion_requests_idempotency_key_hash_unique` ON `account_deletion_requests` (`idempotency_key_hash`);
