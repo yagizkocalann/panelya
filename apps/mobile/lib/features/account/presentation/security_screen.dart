@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../domain/account_exceptions.dart';
-import '../domain/account_provider.dart';
+import 'account_capability_view.dart';
 import 'account_providers.dart';
 
 /// "E-posta ve şifre" ekranı (`/account/security`, bkz. ADR-047).
 ///
-/// [AccountProvider.database] hesaplarında e-posta değiştirme ve şifre
-/// sıfırlama e-postası gönderme aksiyonlarını gösterir. Diğer sağlayıcılarda
-/// (ör. Google) şifre/e-posta sağlayıcı tarafından yönetildiği için bu
-/// ekran YALNIZ açıklayıcı, etkileşimsiz bir metin gösterir — ÇALIŞMAYAN
-/// bir form/buton GÖSTERMEZ (ADR-010). Uygulama içinde eski/yeni şifre
-/// alanı HİÇBİR ZAMAN oluşturulmaz — bkz. görev talimatı; taze kimlik
-/// doğrulaması gerektiğinde mevcut sistem tarayıcılı Auth0 akışı (bkz.
-/// `features/auth/`) kullanılır.
+/// Hangi aksiyonun gösterileceğine SAĞLAYICI TÜRÜNE göre değil, sunucudan
+/// gelen YETENEKLERE ([AccountCapabilities]) göre karar verir:
+/// - `enabled` / `reauthentication_required` -> aksiyon gerçekten
+///   gösterilir. E-posta değiştirme `reauthentication_required` ise,
+///   gönderimden ÖNCE sistem tarayıcısında taze kimlik doğrulaması yapılır
+///   (bkz. `AccountReauthenticator`) ve dönen tek kullanımlık
+///   `reauthenticationToken` mutation'a geçirilir.
+/// - `provider_managed` -> aksiyon YERİNE etkileşimsiz açıklama gösterilir
+///   (devre dışı buton/form YOK, ADR-010).
+/// - `unavailable`/`unknown` -> hiç gösterilmez.
+///
+/// Uygulama içinde eski/yeni şifre alanı HİÇBİR ZAMAN oluşturulmaz; şifre
+/// aksiyonu yalnız bir e-posta tetikler.
 class SecurityScreen extends ConsumerStatefulWidget {
   const SecurityScreen({super.key});
 
@@ -38,28 +44,37 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     super.dispose();
   }
 
-  void _showError(Object error) {
+  void _showError(String message) {
     if (!mounted) return;
-    final message = error is AccountRepositoryException
-        ? error.message
-        : 'Beklenmeyen bir hata oluştu.';
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _requestEmailChange() async {
+  Future<void> _requestEmailChange({required bool needsReauth}) async {
     setState(() {
       _emailChangeBusy = true;
       _emailChangeSucceeded = false;
     });
     try {
-      await ref
-          .read(accountRepositoryProvider)
-          .requestEmailChange(newEmail: _newEmailController.text.trim());
+      // Taze kimlik doğrulaması: authorization code mutation'a ASLA
+      // doğrudan verilmez — sunucudan amaca bağlı, tek kullanımlık bir
+      // token alınır (bkz. `AccountReauthenticator`).
+      var token = '';
+      if (needsReauth) {
+        token = await ref
+            .read(accountReauthenticatorProvider)
+            .obtainToken(AccountReauthenticationPurpose.email_change);
+      }
+      await ref.read(accountRepositoryProvider).requestEmailChange(
+        newEmail: _newEmailController.text.trim(),
+        reauthenticationToken: token,
+      );
       if (mounted) setState(() => _emailChangeSucceeded = true);
+    } on AccountReauthenticationCancelledException {
+      // Kullanıcı taze kimlik doğrulamasını iptal etti — hata gösterilmez.
     } on AccountRepositoryException catch (error) {
-      _showError(error);
+      _showError(error.message);
     } finally {
       if (mounted) setState(() => _emailChangeBusy = false);
     }
@@ -74,7 +89,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       await ref.read(accountRepositoryProvider).requestPasswordReset();
       if (mounted) setState(() => _passwordResetSucceeded = true);
     } on AccountRepositoryException catch (error) {
-      _showError(error);
+      _showError(error.message);
     } finally {
       if (mounted) setState(() => _passwordResetBusy = false);
     }
@@ -96,26 +111,30 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             message: 'Beklenmeyen bir hata oluştu.',
             onRetry: () => ref.invalidate(accountOverviewProvider),
           ),
-          data: (overview) => switch (overview.provider) {
-            AccountProvider.database => _DatabaseSecurityBody(
-              newEmailController: _newEmailController,
-              emailChangeBusy: _emailChangeBusy,
-              emailChangeSucceeded: _emailChangeSucceeded,
-              passwordResetBusy: _passwordResetBusy,
-              passwordResetSucceeded: _passwordResetSucceeded,
-              onRequestEmailChange: _requestEmailChange,
-              onRequestPasswordReset: _requestPasswordReset,
+          data: (overview) => _SecurityBody(
+            capabilities: overview.capabilities,
+            currentEmail: overview.user.email,
+            newEmailController: _newEmailController,
+            emailChangeBusy: _emailChangeBusy,
+            emailChangeSucceeded: _emailChangeSucceeded,
+            passwordResetBusy: _passwordResetBusy,
+            passwordResetSucceeded: _passwordResetSucceeded,
+            onRequestEmailChange: () => _requestEmailChange(
+              needsReauth: overview.capabilities.emailChange
+                  .needsReauthentication,
             ),
-            AccountProvider.google => const _SocialProviderBody(),
-          },
+            onRequestPasswordReset: _requestPasswordReset,
+          ),
         ),
       ),
     );
   }
 }
 
-class _DatabaseSecurityBody extends StatelessWidget {
-  const _DatabaseSecurityBody({
+class _SecurityBody extends StatelessWidget {
+  const _SecurityBody({
+    required this.capabilities,
+    required this.currentEmail,
     required this.newEmailController,
     required this.emailChangeBusy,
     required this.emailChangeSucceeded,
@@ -125,6 +144,8 @@ class _DatabaseSecurityBody extends StatelessWidget {
     required this.onRequestPasswordReset,
   });
 
+  final AccountCapabilities capabilities;
+  final String currentEmail;
   final TextEditingController newEmailController;
   final bool emailChangeBusy;
   final bool emailChangeSucceeded;
@@ -136,114 +157,98 @@ class _DatabaseSecurityBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    final emailChange = capabilities.emailChange;
+    final passwordAction = capabilities.passwordAction;
 
     return ListView(
       padding: EdgeInsets.all(tokens.spacing.md),
       children: [
-        Text('E-posta değiştir', style: tokens.typography.titleMedium),
-        SizedBox(height: tokens.spacing.sm),
-        TextField(
-          controller: newEmailController,
-          enabled: !emailChangeBusy,
-          keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Yeni e-posta adresi'),
-        ),
-        SizedBox(height: tokens.spacing.sm),
-        Align(
-          alignment: Alignment.centerRight,
-          child: emailChangeBusy
-              ? const CircularProgressIndicator()
-              : FilledButton(
-                  onPressed: onRequestEmailChange,
-                  child: const Text('E-postayı değiştir'),
-                ),
-        ),
-        if (emailChangeSucceeded) ...[
-          SizedBox(height: tokens.spacing.sm),
-          _ConfirmationPanel(
-            message: 'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
-          ),
-        ],
-        SizedBox(height: tokens.spacing.lg),
-        Divider(color: tokens.colors.line),
-        SizedBox(height: tokens.spacing.lg),
-        Text(
-          'Şifre sıfırlama e-postası gönder',
-          style: tokens.typography.titleMedium,
-        ),
+        Text('E-posta', style: tokens.typography.titleMedium),
         SizedBox(height: tokens.spacing.xs),
         Text(
-          'Yeni bir şifre belirlemen için sana bir e-posta göndeririz.',
+          currentEmail,
           style: tokens.typography.bodySmall.copyWith(
             color: tokens.colors.muted,
           ),
         ),
         SizedBox(height: tokens.spacing.sm),
-        Align(
-          alignment: Alignment.centerRight,
-          child: passwordResetBusy
-              ? const CircularProgressIndicator()
-              : FilledButton(
-                  onPressed: onRequestPasswordReset,
-                  child: const Text('Sıfırlama e-postası gönder'),
-                ),
-        ),
-        if (passwordResetSucceeded) ...[
+        if (emailChange.isActionable) ...[
+          TextField(
+            controller: newEmailController,
+            enabled: !emailChangeBusy,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Yeni e-posta adresi',
+            ),
+          ),
+          if (emailChange.needsReauthentication) ...[
+            SizedBox(height: tokens.spacing.xs),
+            Text(
+              'Devam ettiğinde kimliğini doğrulaman için güvenli tarayıcı '
+              'açılacak.',
+              style: tokens.typography.bodySmall.copyWith(
+                color: tokens.colors.muted,
+              ),
+            ),
+          ],
           SizedBox(height: tokens.spacing.sm),
-          _ConfirmationPanel(
-            message: 'Şifre sıfırlama e-postası gönderildi.',
+          Align(
+            alignment: Alignment.centerRight,
+            child: emailChangeBusy
+                ? const CircularProgressIndicator()
+                : FilledButton(
+                    onPressed: onRequestEmailChange,
+                    child: const Text('E-postayı değiştir'),
+                  ),
           ),
-        ],
+          if (emailChangeSucceeded) ...[
+            SizedBox(height: tokens.spacing.sm),
+            const AccountCapabilityNotice(
+              message:
+                  'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
+            ),
+          ],
+        ] else if (emailChange.isProviderManaged)
+          const AccountCapabilityNotice(
+            message:
+                'E-posta adresin giriş sağlayıcın tarafından yönetiliyor. '
+                'Değiştirmek için sağlayıcının hesap ayarlarını kullan.',
+          ),
+        SizedBox(height: tokens.spacing.lg),
+        Divider(color: tokens.colors.line),
+        SizedBox(height: tokens.spacing.lg),
+        Text('Şifre', style: tokens.typography.titleMedium),
+        SizedBox(height: tokens.spacing.xs),
+        if (passwordAction.isActionable) ...[
+          Text(
+            'Yeni bir şifre belirlemen için sana bir e-posta göndeririz.',
+            style: tokens.typography.bodySmall.copyWith(
+              color: tokens.colors.muted,
+            ),
+          ),
+          SizedBox(height: tokens.spacing.sm),
+          Align(
+            alignment: Alignment.centerRight,
+            child: passwordResetBusy
+                ? const CircularProgressIndicator()
+                : FilledButton(
+                    onPressed: onRequestPasswordReset,
+                    child: const Text('Sıfırlama e-postası gönder'),
+                  ),
+          ),
+          if (passwordResetSucceeded) ...[
+            SizedBox(height: tokens.spacing.sm),
+            const AccountCapabilityNotice(
+              message: 'Şifre sıfırlama e-postası gönderildi.',
+            ),
+          ],
+        ] else if (passwordAction.isProviderManaged)
+          const AccountCapabilityNotice(
+            message:
+                'Şifren giriş sağlayıcın tarafından yönetiliyor. '
+                'Değiştirmek için sağlayıcının hesap ayarlarını kullan.',
+          ),
       ],
-    );
-  }
-}
-
-class _ConfirmationPanel extends StatelessWidget {
-  const _ConfirmationPanel({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    return Container(
-      padding: EdgeInsets.all(tokens.spacing.sm),
-      decoration: BoxDecoration(
-        color: tokens.colors.surface2,
-        borderRadius: BorderRadius.circular(tokens.radii.sm),
-        border: Border.all(color: tokens.colors.line),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.check_circle_outline, color: tokens.colors.mint),
-          SizedBox(width: tokens.spacing.sm),
-          Expanded(
-            child: Text(message, style: tokens.typography.bodySmall),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SocialProviderBody extends StatelessWidget {
-  const _SocialProviderBody();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = context.tokens;
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(tokens.spacing.lg),
-        child: Text(
-          'Google hesabınla giriş yaptığın için şifren ve e-postan Google '
-          'tarafından yönetiliyor. Bunları değiştirmek için Google '
-          'hesap ayarlarını kullan.',
-          textAlign: TextAlign.center,
-          style: tokens.typography.bodyMedium,
-        ),
-      ),
     );
   }
 }

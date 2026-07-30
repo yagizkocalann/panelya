@@ -135,6 +135,258 @@ class PanelyaApiClient {
     );
   }
 
+  // --- Hesap yasam dongusu (bkz. ADR-047, docs/production-account-lifecycle.md)
+  //
+  // Mobil, web ile AYNI `/api/account/*` JSON sözleşmesini kullanır (ayrı bir
+  // `/api/account/mobile/*` AÇILMADI); tek fark kimlik taşıma biçimidir —
+  // web host-only cookie, mobil `Authorization: Bearer`. Bu metotlar yalnız
+  // `HttpAccountRepository` (bkz. `features/account/data/`) tarafından
+  // çağrılır ve hata gövdesini [AccountApiException] olarak yüzeye çıkarır.
+
+  /// `GET /api/account`
+  Future<AccountOverviewResponse> fetchAccountOverview({
+    required String accessToken,
+  }) {
+    return _accountJson(
+      'GET',
+      '/api/account',
+      accessToken,
+      AccountOverviewResponse.fromJson,
+    );
+  }
+
+  /// `PATCH /api/account/profile` — tazelenmiş özeti döner.
+  Future<AccountOverviewResponse> updateAccountProfile({
+    required String accessToken,
+    required AccountProfileUpdateRequest request,
+  }) {
+    return _accountJson(
+      'PATCH',
+      '/api/account/profile',
+      accessToken,
+      AccountOverviewResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  /// `POST /api/account/password-reset` — gövdesi alansızdır.
+  Future<AccountActionAcceptedResponse> requestAccountPasswordReset({
+    required String accessToken,
+  }) {
+    return _accountJson(
+      'POST',
+      '/api/account/password-reset',
+      accessToken,
+      AccountActionAcceptedResponse.fromJson,
+      body: const AccountPasswordResetRequest().toJson(),
+    );
+  }
+
+  /// `POST /api/account/email-change`
+  Future<AccountActionAcceptedResponse> requestAccountEmailChange({
+    required String accessToken,
+    required AccountEmailChangeRequest request,
+  }) {
+    return _accountJson(
+      'POST',
+      '/api/account/email-change',
+      accessToken,
+      AccountActionAcceptedResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  /// `GET /api/account/sessions`
+  Future<AccountSessionsResponse> fetchAccountSessions({
+    required String accessToken,
+  }) {
+    return _accountJson(
+      'GET',
+      '/api/account/sessions',
+      accessToken,
+      AccountSessionsResponse.fromJson,
+    );
+  }
+
+  /// `DELETE /api/account/sessions/{sessionId}`
+  Future<AccountSessionRevocationResponse> revokeAccountSession({
+    required String accessToken,
+    required String sessionId,
+  }) {
+    return _accountJson(
+      'DELETE',
+      '/api/account/sessions/${Uri.encodeComponent(sessionId)}',
+      accessToken,
+      AccountSessionRevocationResponse.fromJson,
+    );
+  }
+
+  /// `POST /api/account/sessions/revoke`
+  Future<AccountSessionRevocationResponse> revokeAccountSessions({
+    required String accessToken,
+    required AccountSessionRevocationRequest request,
+  }) {
+    return _accountJson(
+      'POST',
+      '/api/account/sessions/revoke',
+      accessToken,
+      AccountSessionRevocationResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  /// `GET /api/account/blocks`
+  Future<BlockedAccountsResponse> fetchAccountBlocks({
+    required String accessToken,
+  }) {
+    return _accountJson(
+      'GET',
+      '/api/account/blocks',
+      accessToken,
+      BlockedAccountsResponse.fromJson,
+    );
+  }
+
+  /// `DELETE /api/account/blocks/{userId}`
+  Future<AccountActionAcceptedResponse> unblockAccount({
+    required String accessToken,
+    required String userId,
+  }) {
+    return _accountJson(
+      'DELETE',
+      '/api/account/blocks/${Uri.encodeComponent(userId)}',
+      accessToken,
+      AccountActionAcceptedResponse.fromJson,
+    );
+  }
+
+  /// `GET /api/account/deletion`
+  Future<AccountDeletionSummaryResponse> fetchAccountDeletionSummary({
+    required String accessToken,
+  }) {
+    return _accountJson(
+      'GET',
+      '/api/account/deletion',
+      accessToken,
+      AccountDeletionSummaryResponse.fromJson,
+    );
+  }
+
+  /// `POST /api/account/deletion` — sözleşme gereği ZORUNLU
+  /// `Idempotency-Key` header'ı gönderilir; aynı anahtarla tekrar çağrı
+  /// sunucuda yeni bir iş OLUŞTURMAZ.
+  Future<AccountDeletionOperationResponse> deleteAccount({
+    required String accessToken,
+    required AccountDeletionRequest request,
+    required String idempotencyKey,
+  }) {
+    return _accountJson(
+      'POST',
+      '/api/account/deletion',
+      accessToken,
+      AccountDeletionOperationResponse.fromJson,
+      body: request.toJson(),
+      extraHeaders: {'Idempotency-Key': idempotencyKey},
+    );
+  }
+
+  /// `POST /api/account/reauthentication/start`
+  Future<AccountReauthenticationStartResponse> startAccountReauthentication({
+    required String accessToken,
+    required AccountReauthenticationStartRequest request,
+  }) {
+    return _accountJson(
+      'POST',
+      '/api/account/reauthentication/start',
+      accessToken,
+      AccountReauthenticationStartResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  /// `POST /api/account/reauthentication/complete`
+  Future<AccountReauthenticationCompleteResponse>
+  completeAccountReauthentication({
+    required String accessToken,
+    required AccountReauthenticationCompleteRequest request,
+  }) {
+    return _accountJson(
+      'POST',
+      '/api/account/reauthentication/complete',
+      accessToken,
+      AccountReauthenticationCompleteResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  Future<T> _accountJson<T>(
+    String method,
+    String path,
+    String accessToken,
+    T Function(Map<String, dynamic> json) fromJson, {
+    Map<String, dynamic>? body,
+    Map<String, String>? extraHeaders,
+  }) async {
+    final uri = Uri.parse('$apiOrigin$path');
+    final headers = <String, String>{
+      'Authorization': 'Bearer $accessToken',
+      'Accept': 'application/json',
+      if (body != null) 'Content-Type': 'application/json',
+      ...?extraHeaders,
+    };
+
+    http.Response response;
+    try {
+      final request = http.Request(method, uri)..headers.addAll(headers);
+      if (body != null) request.body = jsonEncode(body);
+      final streamed = await _httpClient.send(request).timeout(timeout);
+      response = await http.Response.fromStream(streamed);
+    } on TimeoutException catch (cause) {
+      throw NetworkException('İstek zaman aşımına uğradı: $path', cause: cause);
+    } on SocketException catch (cause) {
+      throw NetworkException('Sunucuya bağlanılamadı: $path', cause: cause);
+    } on http.ClientException catch (cause) {
+      throw NetworkException('Ağ hatası: $path', cause: cause);
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException catch (cause) {
+      throw ParseException('Geçersiz JSON gövdesi: $path', cause: cause);
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw ParseException('Beklenmeyen JSON şekli: $path');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      // Hesap uçları hata gövdesini her zaman `AccountErrorResponse`
+      // şeklinde döner (bkz. `packages/contracts/fixtures/account-error.v1.json`).
+      try {
+        throw AccountApiException(AccountErrorResponse.fromJson(decoded));
+      } on TypeError {
+        throw HttpStatusException(statusCode: response.statusCode, path: path);
+      } on FormatException {
+        throw HttpStatusException(statusCode: response.statusCode, path: path);
+      }
+    }
+
+    final schemaVersion = decoded['schemaVersion'];
+    if (schemaVersion != null && schemaVersion != kSchemaVersion) {
+      throw SchemaMismatchException(
+        '$path şu sürümü döndürdü: $schemaVersion, beklenen: $kSchemaVersion',
+      );
+    }
+
+    try {
+      return fromJson(decoded);
+    } on TypeError catch (cause) {
+      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+    } on FormatException catch (cause) {
+      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+    }
+  }
+
   Future<T> _authGetJson<T>(
     String path,
     T Function(Map<String, dynamic> json) fromJson, {

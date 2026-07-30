@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../domain/account_exceptions.dart';
-import '../domain/blocked_account.dart';
 import 'account_providers.dart';
 
 /// "Engellenen hesaplar" ekranı (`/account/blocked`, bkz. ADR-047): listeler
@@ -59,15 +59,15 @@ class _BlockedAccountsScreenState extends ConsumerState<BlockedAccountsScreen> {
             message: 'Beklenmeyen bir hata oluştu.',
             onRetry: () => ref.invalidate(blockedAccountsProvider),
           ),
-          data: (accounts) => accounts.isEmpty
+          data: (response) => response.accounts.isEmpty
               ? const AppEmptyView(message: 'Engellediğin hesap yok.')
               : ListView.separated(
                   padding: EdgeInsets.all(tokens.spacing.md),
-                  itemCount: accounts.length,
+                  itemCount: response.accounts.length,
                   separatorBuilder: (context, index) =>
                       SizedBox(height: tokens.spacing.sm),
                   itemBuilder: (context, index) {
-                    final account = accounts[index];
+                    final account = response.accounts[index];
                     return _BlockedAccountTile(
                       account: account,
                       busy: _pendingAccountId == account.id,

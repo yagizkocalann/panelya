@@ -11,11 +11,6 @@ import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/account_management_feature_config.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
-import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
-import 'package:panelya_mobile/features/account/domain/account_provider.dart';
-import 'package:panelya_mobile/features/account/domain/account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_session.dart';
-import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
 import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/account/presentation/profile_screen.dart';
 import 'package:panelya_mobile/features/account/presentation/security_screen.dart';
@@ -48,6 +43,8 @@ import 'package:panelya_mobile/features/reader/presentation/reader_screen.dart';
 import 'package:panelya_mobile/features/series/domain/series_repository.dart';
 import 'package:panelya_mobile/features/series/presentation/series_providers.dart';
 import 'package:panelya_mobile/features/series/presentation/series_screen.dart';
+
+import '../../support/account_test_doubles.dart';
 
 /// Gerçek ağ çağrısı yapmayan sahte repository'ler: bu testler router'ın
 /// yönlendirme/güvenli-düşüş davranışını doğrular, ekranların veri
@@ -124,52 +121,6 @@ class _NeverResolvingPushNotificationRepository
   Stream<Uri> get notificationTaps => const Stream.empty();
 }
 
-/// `accountOverviewProvider`ı sonsuza kadar "yükleniyor" durumunda dondurmak
-/// için (bkz. bu dosyanın "hiç tamamlanmayan Future" gerekçesi) — yalnız
-/// `AccountHomeScreen`in gerçekten çağırdığı [fetchSignInProvider] anlamlı
-/// bir şekilde uygulanır.
-class _NeverResolvingAccountRepository implements AccountRepository {
-  @override
-  Future<AccountProvider> fetchSignInProvider() =>
-      Completer<AccountProvider>().future;
-
-  @override
-  Future<void> updateProfile({required String displayName}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestEmailChange({required String newEmail}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestPasswordReset() => throw UnimplementedError();
-
-  @override
-  Future<List<AccountSession>> listSessions() => throw UnimplementedError();
-
-  @override
-  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
-
-  @override
-  Future<void> revokeOtherSessions() => throw UnimplementedError();
-
-  @override
-  Future<List<BlockedAccount>> listBlockedAccounts() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> unblockAccount(String blockedAccountId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<AccountDeletionSummary> fetchDeletionSummary() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> deleteAccount({required String reauthCredential}) =>
-      throw UnimplementedError();
-}
-
 /// `features/account/` rotaları (bkz. ADR-047) yalnız kimliği doğrulanmış
 /// durumda anlamlıdır (`accountOverviewProvider` -> `authSessionProvider`).
 /// Sabit, senkron bir kimliği doğrulanmış durum döner — bu rotaların
@@ -236,7 +187,7 @@ List<Override> _accountOverrides({required bool managementEnabled}) => [
   ),
   authRepositoryProvider.overrideWithValue(_AuthenticatedFakeAuthRepository()),
   accountRepositoryProvider.overrideWithValue(
-    _NeverResolvingAccountRepository(),
+    NeverResolvingAccountRepository(),
   ),
 ];
 

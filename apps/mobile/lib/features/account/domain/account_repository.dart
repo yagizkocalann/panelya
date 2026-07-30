@@ -1,90 +1,108 @@
-import 'account_deletion_summary.dart';
-import 'account_provider.dart';
-import 'account_session.dart';
-import 'blocked_account.dart';
+import '../../../core/contracts/generated/generated.dart';
 
-/// "Hesabım" sınırının tek soyut sözleşmesi (bkz. ADR-047).
+/// "Hesabım" sınırının tek soyut sözleşmesi (bkz. ADR-047,
+/// docs/production-account-lifecycle.md).
 ///
-/// PROVISIONAL: web tarafının ortak `/api/account/*` JSON Schema/OpenAPI/
-/// fixture sözleşmesi `main`e girene kadar bu arayüz elle tasarlanmıştır;
-/// gerçek sözleşme geldiğinde metot imzaları/dönüş tipleri değişebilir.
-/// Bugün yalnız `FakeAccountRepository` (bkz. `data/
-/// fake_account_repository.dart`) bağlanır — GERÇEK bir `/api/account/*`
-/// HTTP isteği YOKTUR (bkz. görev talimatı: mobil bunu şimdi yazmayacak,
-/// `/api/auth/mobile/*` yalnız OAuth code/refresh/revoke taşır, hesap
-/// uçları web ile AYNI `/api/account/*` sözleşmesini paylaşacak — ayrı bir
-/// `/api/account/mobile/*` AÇILMAYACAK).
+/// Tüm model tipleri artık `packages/contracts/schema.json`'dan ÜRETİLEN
+/// DTO'lardır (bkz. `core/contracts/generated/account_*.dart`) — bu
+/// modülde elle yazılmış provisional model KALMADI.
 ///
-/// TAZE KİMLİK DOĞRULAMASI — MEVCUT İMZA GEÇİCİDİR, DEĞİŞECEK:
-///
-/// Bugünkü [deleteAccount] imzası (`reauthCredential` olarak callback'ten
-/// alınan Auth0 authorization `code`'unu geçirmek) YALNIZ presentation-only
-/// `FakeAccountRepository` demosu içindir. Web tarafı bu zinciri açıkça
-/// REDDETTİ: Auth0 authorization code'u gerçek bir hesap mutation'ına
-/// DOĞRUDAN VERİLMEYECEK.
-///
-/// Ortak sözleşmenin tanımlayacağı gerçek akış (web tarafından iletildi):
-/// 1. `POST /api/account/reauthentication/start`
-/// 2. Sistem tarayıcısında `max_age=0` + PKCE ile doğrulama
-/// 3. `POST /api/account/reauthentication/complete`
-/// 4. Sunucudan AMACA BAĞLI, kısa ömürlü, TEK KULLANIMLIK
-///    `reauthenticationToken`
-/// 5. E-posta değiştirme/hesap silme mutation'ında bu token kullanılır
-///
+/// TAZE KİMLİK DOĞRULAMASI (reauthentication): e-posta değiştirme ve hesap
+/// silme, sunucudan alınan AMACA BAĞLI, kısa ömürlü, TEK KULLANIMLIK bir
+/// `reauthenticationToken` ister. Authorization code bu mutation'lara
+/// ASLA doğrudan verilmez. Akış:
+///   1. [startReauthentication] — PKCE `codeChallenge` ile başlar,
+///      `authorizationUrl` + `requestId` döner.
+///   2. Çağıran (bkz. `account_reauthentication.dart`) sistem tarayıcısında
+///      bu URL'i açar ve callback'i yakalar.
+///   3. [completeReauthentication] — `requestId` + `authorizationCode` +
+///      `state` + `codeVerifier` ile tamamlar, `reauthenticationToken`
+///      döner.
+///   4. Token yalnız [requestEmailChange] / [deleteAccount] çağrısında
+///      kullanılır.
 /// Bu akış mevcut `AuthRepository` oturumunu ve `TokenStore`'u
-/// DEĞİŞTİRMEYECEK. Sözleşme/schema/OpenAPI/fixture `main`e girdiğinde bu
-/// arayüzün imzası (ve `DeleteAccountScreen`'in orkestrasyonu) buna göre
-/// güncellenecek — o zamana kadar aşağıdaki `reauthCredential` parametresi
-/// bir YER TUTUCUdur, gerçek güvenlik sınırını temsil etmez.
+/// DEĞİŞTİRMEZ (bkz. `AccountReauthenticator`).
 abstract class AccountRepository {
-  /// Kullanıcının Auth0'a hangi sağlayıcıyla giriş yaptığı (bkz.
-  /// `AccountOverview`, `account_providers.dart` -> `accountOverviewProvider`).
-  Future<AccountProvider> fetchSignInProvider();
+  /// `GET /api/account` — kullanıcı, sağlayıcı ve YETENEK (capability)
+  /// bilgisini birlikte döner. Ekranlar hangi aksiyonun gösterileceğine
+  /// yalnız [AccountCapabilities] üzerinden karar verir (sağlayıcı türüne
+  /// göre elle dallanma YAPILMAZ).
+  Future<AccountOverviewResponse> fetchOverview();
 
-  /// Görünen adı günceller (bkz. "Profil" ekranı).
-  Future<void> updateProfile({required String displayName});
+  /// `PATCH /api/account/profile` — görünen adı günceller. Sözleşme gereği
+  /// TAZELENMİŞ ÖZETİ döner (`AccountActionAcceptedResponse` değil), bu
+  /// yüzden çağıran ayrıca yeniden okuma yapmaz.
+  Future<AccountOverviewResponse> updateProfile({required String displayName});
 
-  /// E-posta değiştirme isteği başlatır (bkz. ADR-047: yalnız
-  /// [AccountProvider.database] sağlayıcısında anlamlıdır — çağıran bunu
-  /// [AccountProviderX.supportsEmailChange] ile önceden kontrol eder).
-  Future<void> requestEmailChange({required String newEmail});
+  /// `POST /api/account/password-reset` — şifre sıfırlama e-postası
+  /// gönderir. Gövdesi alansızdır ([AccountPasswordResetRequest]).
+  /// Uygulama içinde eski/yeni şifre alanı HİÇBİR ZAMAN oluşturulmaz.
+  Future<AccountActionAcceptedResponse> requestPasswordReset();
 
-  /// Şifre sıfırlama e-postası gönderir (bkz. ADR-047: yalnız
-  /// [AccountProvider.database] sağlayıcısında anlamlıdır). Uygulama
-  /// içinde eski/yeni şifre alanı HİÇBİR ZAMAN OLUŞTURULMAZ — bu metot
-  /// yalnız bir e-posta tetikler.
-  Future<void> requestPasswordReset();
+  /// `POST /api/account/email-change` — yeni e-posta + taze kimlik
+  /// doğrulama tokeni ister (bkz. sınıf dokümantasyonu).
+  Future<AccountActionAcceptedResponse> requestEmailChange({
+    required String newEmail,
+    required String reauthenticationToken,
+  });
 
-  /// Aktif oturumları listeler (bkz. "Aktif oturumlar" ekranı).
-  Future<List<AccountSession>> listSessions();
+  /// `GET /api/account/sessions` — aktif oturumlar. Her oturum `current`
+  /// (bu cihaz mı) ve `revocable` (kapatılabilir mi) bayraklarını taşır.
+  Future<AccountSessionsResponse> fetchSessions();
 
-  /// Tek bir oturumu kapatır. [sessionId] mevcut cihazın oturumuysa,
-  /// çağıran (`SessionsScreen`) bunun ardından yerel oturumu da
-  /// (`authRepositoryProvider.logout()`) temizlemekten SORUMLUDUR — bu
-  /// metodun kendisi yerel `TokenStore`'a dokunmaz.
-  Future<void> revokeSession(String sessionId);
+  /// `DELETE /api/account/sessions/{sessionId}` — tek bir oturumu kapatır.
+  /// Dönen [AccountSessionRevocationResponse.currentSessionRevoked],
+  /// çağıranın yerel oturumu da temizlemesi gerekip gerekmediğini
+  /// SUNUCUDAN bildirir — istemci bunu tahmin etmez.
+  Future<AccountSessionRevocationResponse> revokeSession(String sessionId);
 
-  /// Mevcut cihaz HARİÇ tüm oturumları kapatır.
-  Future<void> revokeOtherSessions();
-
-  /// Engellenen hesapları listeler.
-  Future<List<BlockedAccount>> listBlockedAccounts();
-
-  /// Bir hesabın engelini kaldırır.
-  Future<void> unblockAccount(String blockedAccountId);
-
-  /// "Hesabı sil" ekranının gösterdiği, neyin silinip neyin
-  /// anonimleştirileceğine dair özeti getirir.
-  Future<AccountDeletionSummary> fetchDeletionSummary();
-
-  /// Hesabı kalıcı olarak siler: Panelya kullanıcısını, Auth0 kimliğini VE
-  /// aktif oturumları kapsar (bkz. ADR-047 — yalnız yerel `users` satırı
-  /// değil).
+  /// `POST /api/account/sessions/revoke` — toplu kapatma.
   ///
-  /// [reauthCredential]: GEÇİCİ yer tutucu — bkz. bu sınıfın "TAZE KİMLİK
-  /// DOĞRULAMASI" notu. Gerçek sözleşmede bunun yerine sunucudan alınan,
-  /// amaca bağlı ve tek kullanımlık bir `reauthenticationToken` gelecek.
-  /// Sağlayıcı bunu geçersiz/süresi dolmuş bulursa
-  /// [AccountReauthRequiredException] fırlatır.
-  Future<void> deleteAccount({required String reauthCredential});
+  /// SINIR (web tarafının bildirdiği, mobil için geçerli): native refresh
+  /// credential kimliği access token'dan kesin eşlenemediği için
+  /// `scope: others` şu an sunucuda **503 fail-closed** döner. Bu durum
+  /// TAKLİT EDİLİP başarılı gösterilmez; çağıran hatayı dürüstçe yüzeye
+  /// çıkarır (bkz. `sessions_screen.dart`). current-device gateway
+  /// eşlemesi ayrı bir teslim.
+  Future<AccountSessionRevocationResponse> revokeSessions({
+    required String scope,
+  });
+
+  /// `GET /api/account/blocks` — engellenen hesaplar.
+  Future<BlockedAccountsResponse> fetchBlockedAccounts();
+
+  /// `DELETE /api/account/blocks/{userId}` — engeli kaldırır.
+  Future<AccountActionAcceptedResponse> unblockAccount(String userId);
+
+  /// `GET /api/account/deletion` — silme özeti: neyin silineceği,
+  /// neyin anonimleştirileceği ve neyin (yasal olarak) SAKLANACAĞI.
+  Future<AccountDeletionSummaryResponse> fetchDeletionSummary();
+
+  /// `POST /api/account/deletion` — hesabı siler.
+  ///
+  /// Sözleşme gereği zorunlu bir `Idempotency-Key` HEADER'ı gönderilir
+  /// (adapter üretir); aynı anahtarla tekrar çağrı yeni bir iş
+  /// OLUŞTURMAZ. Dönen [AccountDeletionOperationResponse.status]
+  /// `pending` olabilir — silme asenkron tamamlanabilir.
+  Future<AccountDeletionOperationResponse> deleteAccount({
+    required String reauthenticationToken,
+  });
+
+  /// `POST /api/account/reauthentication/start` (bkz. sınıf
+  /// dokümantasyonu, adım 1).
+  Future<AccountReauthenticationStartResponse> startReauthentication({
+    required AccountReauthenticationPurpose purpose,
+    required String redirectUri,
+    required String codeChallenge,
+  });
+
+  /// `POST /api/account/reauthentication/complete` (bkz. sınıf
+  /// dokümantasyonu, adım 3).
+  Future<AccountReauthenticationCompleteResponse> completeReauthentication({
+    required String requestId,
+    required String authorizationCode,
+    required String state,
+    required String codeVerifier,
+    required String redirectUri,
+  });
 }

@@ -1,88 +1,62 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/api_client.dart';
 import '../../../core/config/account_management_feature_config.dart';
-import '../../auth/domain/auth_session_state.dart';
+import '../../../core/contracts/generated/generated.dart';
+import '../../../core/storage/token_store.dart';
 import '../../auth/presentation/auth_providers.dart';
-import '../data/fake_account_repository.dart';
-import '../domain/account_deletion_summary.dart';
-import '../domain/account_exceptions.dart';
-import '../domain/account_overview.dart';
+import '../data/account_reauthentication.dart';
+import '../data/http_account_repository.dart';
 import '../domain/account_repository.dart';
-import '../domain/account_session.dart';
-import '../domain/blocked_account.dart';
 
-/// Aktif [AccountRepository].
+/// Aktif [AccountRepository]: ortak `/api/account/*` sözleşmesine konuşan
+/// GERÇEK [HttpAccountRepository]'yi bağlar (bkz. ADR-047, OpenAPI 1.4.1).
 ///
-/// BİLEREK HİÇBİR VARSAYILAN BAĞLANTISI YOKTUR — okunduğunda
-/// [UnimplementedError] fırlatır. Gerekçe (web tarafının açık talimatı):
-/// [FakeAccountRepository] gerçek debug/release runtime'ının varsayılan
-/// repository bağlantısı OLMAMALIDIR, çünkü mutation'ları (profil
-/// kaydetme, e-posta değiştirme, şifre sıfırlama, oturum kapatma, engel
-/// kaldırma, HESAP SİLME) hiçbir şey yapmadan BAŞARILI görünür. Sessizce
-/// sahte başarı göstermek yerine, yanlışlıkla gerçek bir derlemede
-/// okunursa GÜRÜLTÜLÜ biçimde patlar (fail-closed).
+/// Erişim kapısı [AccountManagementFeatureConfig]'tir (varsayılan `false`,
+/// bkz. o dosya): bayrak kapalıyken hesap yönetimi ekranlarına ne
+/// `AccountHomeScreen`den ne router'dan ULAŞILAMAZ, bu yüzden bu provider
+/// da okunmaz. Bayrak `true` yapılmadan production'da hiçbir hesap
+/// mutation'ı tetiklenemez.
 ///
-/// Bu provider yalnız şu iki durumda override edilir:
-/// - Testlerde ([FakeAccountRepository] veya test-yerel sahtelerle),
-/// - Açıkça seçilmiş bir geliştirme önizlemesinde
-///   (`ACCOUNT_MANAGEMENT_ENABLED=true` + bir `ProviderScope` override'ı).
-///
-/// Normal çalışmada buraya HİÇ ULAŞILMAZ: hesap yönetimi ekranları
-/// [AccountManagementFeatureConfig] (varsayılan `false`) kapalıyken hem
-/// `AccountHomeScreen`de render edilmez hem router'da fail-closed
-/// yönlendirilir; `AccountHomeScreen`in kapalı-bayrak yolu bu provider'ı
-/// (ve dolayısıyla [accountOverviewProvider]'ı) hiç okumaz.
-///
-/// TODO(ADR-047): ortak `/api/account/*` sözleşmesi ve reauthentication
-/// akışı `main`e girdiğinde burada gerçek `HttpAccountRepository`
-/// bağlanacak.
+/// `FakeAccountRepository` ARTIK burada bağlanmaz — yalnız testlerde
+/// override edilerek kullanılır.
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
-  throw UnimplementedError(
-    'accountRepositoryProvider bağlanmadı: hesap yönetimi henüz yalnız '
-    'presentation-only FakeAccountRepository üzerinde çalışıyor ve gerçek '
-    'runtime\'a BİLEREK bağlanmamıştır (bkz. bu provider\'ın '
-    'dokümantasyonu, ADR-047). Ortak /api/account/* sözleşmesi gelince '
-    'HttpAccountRepository bağlanacak; o zamana kadar bu provider yalnız '
-    'testlerde veya açık bir geliştirme önizlemesinde override edilir.',
+  return HttpAccountRepository(
+    client: ref.watch(apiClientProvider),
+    tokenStore: ref.watch(tokenStoreProvider),
   );
 });
 
-/// "Hesabım" ana ekranının gösterdiği birleşik kimlik özeti.
-///
-/// Gerçek oturum kullanıcısını (`authSessionProvider`'dan) sağlayıcı
-/// bilgisiyle (`accountRepositoryProvider`'dan) birleştirir (bkz.
-/// `AccountOverview`'in sınıf dokümantasyonu) — bağlantısız/sahte bir
-/// kimlik asla üretilmez, yalnız gerçek [AuthAuthenticated] durumu
-/// sarmalanır. Oturum anonimse [AccountNotAuthenticatedException]
-/// fırlatır (bu ekranlar zaten yalnız kimliği doğrulanmışken erişilebilir
-/// olduğu için pratikte tetiklenmez, bkz. `AccountScreen`).
-final accountOverviewProvider = FutureProvider<AccountOverview>((ref) async {
-  final session = ref.watch(authSessionProvider);
-  final user = switch (session) {
-    AuthAuthenticated(:final user) => user,
-    AuthAnonymous() => throw const AccountNotAuthenticatedException(),
-  };
-  final provider = await ref
-      .watch(accountRepositoryProvider)
-      .fetchSignInProvider();
-  return AccountOverview(user: user, provider: provider);
+/// Taze kimlik doğrulama orkestratörü (bkz. [AccountReauthenticator]).
+/// E-posta değiştirme ve hesap silme ekranları bunu kullanır; mevcut
+/// oturumu/`TokenStore`'u değiştirmez.
+final accountReauthenticatorProvider = Provider<AccountReauthenticator>((ref) {
+  return AccountReauthenticator(
+    repository: ref.watch(accountRepositoryProvider),
+    browser: ref.watch(authBrowserProvider),
+  );
 });
 
-/// Aktif oturumlar listesi (bkz. "Aktif oturumlar" ekranı). Mutasyonlar
-/// (`revokeSession`/`revokeOtherSessions`) sonrası çağıran bu provider'ı
+/// `GET /api/account` — kullanıcı + sağlayıcı + YETENEKLER. Ekranlar hangi
+/// aksiyonu göstereceğine yalnız `capabilities` üzerinden karar verir.
+final accountOverviewProvider = FutureProvider<AccountOverviewResponse>(
+  (ref) => ref.watch(accountRepositoryProvider).fetchOverview(),
+);
+
+/// `GET /api/account/sessions`. Mutasyonlar sonrası çağıran bu provider'ı
 /// `ref.invalidate(...)` ile geçersiz kılar (bkz.
-/// `offline_providers.dart` -> `downloadedEpisodesProvider` ile aynı desen
-/// — ayrı bir `AsyncNotifier` kullanılmaz).
-final accountSessionsProvider = FutureProvider<List<AccountSession>>(
-  (ref) => ref.watch(accountRepositoryProvider).listSessions(),
+/// `offline_providers.dart` -> `downloadedEpisodesProvider` deseni).
+final accountSessionsProvider = FutureProvider<AccountSessionsResponse>(
+  (ref) => ref.watch(accountRepositoryProvider).fetchSessions(),
 );
 
-/// Engellenen hesaplar listesi (bkz. "Engellenen hesaplar" ekranı).
-final blockedAccountsProvider = FutureProvider<List<BlockedAccount>>(
-  (ref) => ref.watch(accountRepositoryProvider).listBlockedAccounts(),
+/// `GET /api/account/blocks`.
+final blockedAccountsProvider = FutureProvider<BlockedAccountsResponse>(
+  (ref) => ref.watch(accountRepositoryProvider).fetchBlockedAccounts(),
 );
 
-/// "Hesabı sil" ekranının gösterdiği silme/anonimleştirme özeti.
-final accountDeletionSummaryProvider = FutureProvider<AccountDeletionSummary>(
-  (ref) => ref.watch(accountRepositoryProvider).fetchDeletionSummary(),
-);
+/// `GET /api/account/deletion` — silme/anonimleştirme/SAKLAMA özeti.
+final accountDeletionSummaryProvider =
+    FutureProvider<AccountDeletionSummaryResponse>(
+      (ref) => ref.watch(accountRepositoryProvider).fetchDeletionSummary(),
+    );

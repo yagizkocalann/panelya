@@ -8,18 +8,16 @@ import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
 import 'package:panelya_mobile/features/account/domain/account_exceptions.dart';
-import 'package:panelya_mobile/features/account/domain/account_provider.dart';
 import 'package:panelya_mobile/features/account/domain/account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_session.dart';
-import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
 import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/account/presentation/profile_screen.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
 import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
 import 'package:panelya_mobile/shared/widgets/state_views.dart';
+
+import '../../../support/account_test_doubles.dart';
 
 const _fakeUser = AuthUser(
   id: 'user-1',
@@ -51,48 +49,6 @@ class _FakeAuthRepository implements AuthRepository {
 
   @override
   void dispose() {}
-}
-
-class _NeverResolvingAccountRepository implements AccountRepository {
-  @override
-  Future<AccountProvider> fetchSignInProvider() =>
-      Completer<AccountProvider>().future;
-
-  @override
-  Future<void> updateProfile({required String displayName}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestEmailChange({required String newEmail}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestPasswordReset() => throw UnimplementedError();
-
-  @override
-  Future<List<AccountSession>> listSessions() => throw UnimplementedError();
-
-  @override
-  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
-
-  @override
-  Future<void> revokeOtherSessions() => throw UnimplementedError();
-
-  @override
-  Future<List<BlockedAccount>> listBlockedAccounts() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> unblockAccount(String blockedAccountId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<AccountDeletionSummary> fetchDeletionSummary() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> deleteAccount({required String reauthCredential}) =>
-      throw UnimplementedError();
 }
 
 Widget _wrap({required AccountRepository accountRepository}) {
@@ -130,7 +86,7 @@ Widget _wrap({required AccountRepository accountRepository}) {
 void main() {
   testWidgets('yüklenirken AppLoadingView gösterir', (tester) async {
     await tester.pumpWidget(
-      _wrap(accountRepository: _NeverResolvingAccountRepository()),
+      _wrap(accountRepository: NeverResolvingAccountRepository()),
     );
     await tester.pump();
 
@@ -140,8 +96,8 @@ void main() {
   testWidgets(
     'hesap özeti getirilemezse AppErrorView + Tekrar dene gösterir',
     (tester) async {
-      final repository = FakeAccountRepository()
-        ..fetchSignInProviderError = Exception('boom');
+      final repository = FakeAccountRepository(user: _fakeUser)
+        ..fetchOverviewError = Exception('boom');
 
       await tester.pumpWidget(_wrap(accountRepository: repository));
       await tester.pumpAndSettle();
@@ -156,7 +112,7 @@ void main() {
     'düzenleme İÇİN HİÇBİR düzenleme ikonu/butonu gösterilmez (ADR-010)',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(accountRepository: FakeAccountRepository()),
+        _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
       );
       await tester.pumpAndSettle();
 
@@ -175,7 +131,7 @@ void main() {
   testWidgets(
     '"Kaydet"e dokunmak updateProfile\'ı düzenlenmiş metinle çağırır',
     (tester) async {
-      final repository = FakeAccountRepository();
+      final repository = FakeAccountRepository(user: _fakeUser);
       await tester.pumpWidget(_wrap(accountRepository: repository));
       await tester.pumpAndSettle();
 
@@ -192,7 +148,7 @@ void main() {
   testWidgets(
     'updateProfile başarısız olursa SnackBar ile hata mesajı gösterilir',
     (tester) async {
-      final repository = FakeAccountRepository()
+      final repository = FakeAccountRepository(user: _fakeUser)
         ..updateProfileError = const AccountUnexpectedException(
           'Kaydedilemedi.',
         );
@@ -209,7 +165,7 @@ void main() {
   testWidgets('e-posta satırına dokunmak /account/security\'e gider', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository()));
+    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository(user: _fakeUser)));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('ece@example.invalid'));
@@ -223,7 +179,7 @@ void main() {
     '44x44 touch target minimum',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(accountRepository: FakeAccountRepository()),
+        _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
       );
       await tester.pumpAndSettle();
 

@@ -8,18 +8,17 @@ import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
 import 'package:panelya_mobile/features/account/domain/account_exceptions.dart';
-import 'package:panelya_mobile/features/account/domain/account_provider.dart';
 import 'package:panelya_mobile/features/account/domain/account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_session.dart';
-import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
 import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/account/presentation/security_screen.dart';
+import 'package:panelya_mobile/features/auth/data/auth_browser.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
 import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
 import 'package:panelya_mobile/shared/widgets/state_views.dart';
+
+import '../../../support/account_test_doubles.dart';
 
 const _fakeUser = AuthUser(
   id: 'user-1',
@@ -53,49 +52,27 @@ class _FakeAuthRepository implements AuthRepository {
   void dispose() {}
 }
 
-class _NeverResolvingAccountRepository implements AccountRepository {
-  @override
-  Future<AccountProvider> fetchSignInProvider() =>
-      Completer<AccountProvider>().future;
+/// Taze kimlik doğrulaması gerektiğinde sistem tarayıcısını simüle eder;
+/// [callbackUri] `null` ise kullanıcı iptal etmiş sayılır.
+class _FakeAuthBrowser implements AuthBrowser {
+  const _FakeAuthBrowser({this.callbackUri});
+
+  final Uri? callbackUri;
 
   @override
-  Future<void> updateProfile({required String displayName}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestEmailChange({required String newEmail}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestPasswordReset() => throw UnimplementedError();
-
-  @override
-  Future<List<AccountSession>> listSessions() => throw UnimplementedError();
-
-  @override
-  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
-
-  @override
-  Future<void> revokeOtherSessions() => throw UnimplementedError();
-
-  @override
-  Future<List<BlockedAccount>> listBlockedAccounts() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> unblockAccount(String blockedAccountId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<AccountDeletionSummary> fetchDeletionSummary() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> deleteAccount({required String reauthCredential}) =>
-      throw UnimplementedError();
+  Future<Uri?> authenticate({
+    required Uri authorizationUrl,
+    required String callbackUrlScheme,
+  }) async => callbackUri;
 }
 
-Widget _wrap({required AccountRepository accountRepository}) {
+Uri _successfulCallback() =>
+    Uri.parse('panelya://auth/callback?code=fresh-code&state=fresh-state');
+
+Widget _wrap({
+  required AccountRepository accountRepository,
+  AuthBrowser? authBrowser,
+}) {
   final router = GoRouter(
     initialLocation: '/account/security',
     routes: [
@@ -116,6 +93,9 @@ Widget _wrap({required AccountRepository accountRepository}) {
         const AuthFeatureConfig(enabled: true),
       ),
       authRepositoryProvider.overrideWithValue(_FakeAuthRepository()),
+      authBrowserProvider.overrideWithValue(
+        authBrowser ?? _FakeAuthBrowser(callbackUri: _successfulCallback()),
+      ),
       accountRepositoryProvider.overrideWithValue(accountRepository),
     ],
     child: MaterialApp.router(theme: buildAppTheme(), routerConfig: router),
@@ -125,7 +105,7 @@ Widget _wrap({required AccountRepository accountRepository}) {
 void main() {
   testWidgets('yüklenirken AppLoadingView gösterir', (tester) async {
     await tester.pumpWidget(
-      _wrap(accountRepository: _NeverResolvingAccountRepository()),
+      _wrap(accountRepository: NeverResolvingAccountRepository()),
     );
     await tester.pump();
 
@@ -136,7 +116,7 @@ void main() {
     'hesap özeti getirilemezse AppErrorView + Tekrar dene gösterir',
     (tester) async {
       final repository = FakeAccountRepository()
-        ..fetchSignInProviderError = Exception('boom');
+        ..fetchOverviewError = Exception('boom');
 
       await tester.pumpWidget(_wrap(accountRepository: repository));
       await tester.pumpAndSettle();
@@ -154,7 +134,7 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             accountRepository: FakeAccountRepository(
-              provider: AccountProvider.database,
+              provider: AccountProviderKind.database,
             ),
           ),
         );
@@ -166,11 +146,14 @@ void main() {
     );
 
     testWidgets(
-      '"E-postayı değiştir"e dokunmak requestEmailChange\'i çağırır ve '
-      'onay paneli gösterir',
+      'emailChange yeteneği "enabled" iken taze kimlik doğrulaması '
+      'YAPILMADAN doğrudan requestEmailChange çağrılır',
       (tester) async {
         final repository = FakeAccountRepository(
-          provider: AccountProvider.database,
+          provider: AccountProviderKind.database,
+          capabilities: testCapabilities(
+            emailChange: AccountActionCapability.enabled,
+          ),
         );
         await tester.pumpWidget(_wrap(accountRepository: repository));
         await tester.pumpAndSettle();
@@ -185,6 +168,10 @@ void main() {
         expect(repository.calls, contains('requestEmailChange'));
         expect(repository.lastRequestedEmail, 'yeni-eposta@example.invalid');
         expect(
+          repository.calls,
+          isNot(contains('startReauthentication:email_change')),
+        );
+        expect(
           find.text(
             'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
           ),
@@ -194,11 +181,82 @@ void main() {
     );
 
     testWidgets(
+      'emailChange yeteneği "reauthentication_required" iken ÖNCE '
+      'start/complete reauth akışı çalışır ve mutation\'a dönen token '
+      'geçirilir (authorization code DEĞİL)',
+      (tester) async {
+        final repository = FakeAccountRepository(
+          provider: AccountProviderKind.database,
+          capabilities: testCapabilities(
+            emailChange: AccountActionCapability.reauthentication_required,
+          ),
+        );
+        await tester.pumpWidget(_wrap(accountRepository: repository));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byType(TextField),
+          'yeni-eposta@example.invalid',
+        );
+        await tester.tap(find.text('E-postayı değiştir'));
+        await tester.pumpAndSettle();
+
+        expect(
+          repository.calls,
+          containsAllInOrder([
+            'startReauthentication:email_change',
+            'completeReauthentication',
+            'requestEmailChange',
+          ]),
+        );
+        expect(
+          repository.lastEmailChangeToken,
+          'fake-reauthentication-token-0000000000000000000000',
+        );
+        expect(repository.lastEmailChangeToken, isNot('fresh-code'));
+      },
+    );
+
+    testWidgets(
+      'reauth gerektiğinde kullanıcı sistem tarayıcısını iptal ederse '
+      'e-posta değiştirme HİÇ çağrılmaz ve hata gösterilmez',
+      (tester) async {
+        final repository = FakeAccountRepository(
+          provider: AccountProviderKind.database,
+          capabilities: testCapabilities(
+            emailChange: AccountActionCapability.reauthentication_required,
+          ),
+        );
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: repository,
+            authBrowser: const _FakeAuthBrowser(callbackUri: null),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('E-postayı değiştir'));
+        await tester.pumpAndSettle();
+
+        expect(repository.calls, isNot(contains('requestEmailChange')));
+        expect(
+          find.text(
+            'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
+          ),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
       'requestEmailChange başarısız olursa SnackBar ile hata gösterilir, '
       'onay paneli GÖRÜNMEZ',
       (tester) async {
         final repository = FakeAccountRepository(
-          provider: AccountProvider.database,
+          provider: AccountProviderKind.database,
+          capabilities: testCapabilities(
+            emailChange: AccountActionCapability.enabled,
+          ),
         )..requestEmailChangeError = const AccountUnexpectedException(
           'E-posta değiştirilemedi.',
         );
@@ -223,7 +281,7 @@ void main() {
       'çağırır ve onay paneli gösterir',
       (tester) async {
         final repository = FakeAccountRepository(
-          provider: AccountProvider.database,
+          provider: AccountProviderKind.database,
         );
         await tester.pumpWidget(_wrap(accountRepository: repository));
         await tester.pumpAndSettle();
@@ -243,7 +301,7 @@ void main() {
       'requestPasswordReset başarısız olursa SnackBar ile hata gösterilir',
       (tester) async {
         final repository = FakeAccountRepository(
-          provider: AccountProvider.database,
+          provider: AccountProviderKind.database,
         )..requestPasswordResetError = const AccountUnexpectedException(
           'Sıfırlama e-postası gönderilemedi.',
         );
@@ -269,15 +327,23 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             accountRepository: FakeAccountRepository(
-              provider: AccountProvider.google,
+              provider: AccountProviderKind.google,
+              capabilities: testCapabilities(
+                emailChange: AccountActionCapability.provider_managed,
+                passwordAction: AccountActionCapability.provider_managed,
+                avatarEditing: AccountActionCapability.provider_managed,
+              ),
             ),
           ),
         );
         await tester.pumpAndSettle();
 
+        // Açıklama SAĞLAYICI-AGNOSTİKTİR: capability sözleşmesi yalnız
+        // "provider_managed" der, hangi sağlayıcı olduğunu söylemez —
+        // bu yüzden metin "giriş sağlayıcın" ifadesini kullanır.
         expect(
-          find.textContaining('Google tarafından yönetiliyor'),
-          findsOneWidget,
+          find.textContaining('giriş sağlayıcın tarafından yönetiliyor'),
+          findsNWidgets(2),
         );
         expect(find.byType(TextField), findsNothing);
         expect(find.text('E-postayı değiştir'), findsNothing);

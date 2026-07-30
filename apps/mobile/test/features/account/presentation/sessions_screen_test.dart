@@ -8,18 +8,16 @@ import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
 import 'package:panelya_mobile/features/account/domain/account_exceptions.dart';
-import 'package:panelya_mobile/features/account/domain/account_provider.dart';
 import 'package:panelya_mobile/features/account/domain/account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_session.dart';
-import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
 import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/account/presentation/sessions_screen.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
 import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
 import 'package:panelya_mobile/shared/widgets/state_views.dart';
+
+import '../../../support/account_test_doubles.dart';
 
 const _fakeUser = AuthUser(
   id: 'user-1',
@@ -65,65 +63,21 @@ class _FakeAuthRepository implements AuthRepository {
   }
 }
 
-class _NeverResolvingAccountRepository implements AccountRepository {
-  @override
-  Future<AccountProvider> fetchSignInProvider() =>
-      Completer<AccountProvider>().future;
+/// Sözleşmede `lastActiveAt` bir ISO-8601 STRING'dir (DateTime değil).
+const _fixedTimestamp = '2030-01-01T12:00:00.000Z';
 
-  @override
-  Future<void> updateProfile({required String displayName}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestEmailChange({required String newEmail}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestPasswordReset() => throw UnimplementedError();
-
-  @override
-  Future<List<AccountSession>> listSessions() =>
-      Completer<List<AccountSession>>().future;
-
-  @override
-  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
-
-  @override
-  Future<void> revokeOtherSessions() => throw UnimplementedError();
-
-  @override
-  Future<List<BlockedAccount>> listBlockedAccounts() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> unblockAccount(String blockedAccountId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<AccountDeletionSummary> fetchDeletionSummary() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> deleteAccount({required String reauthCredential}) =>
-      throw UnimplementedError();
-}
-
-final _fixedDate = DateTime(2026, 7, 23, 9);
-
-final _currentSession = AccountSession(
+final _currentSession = testSession(
   id: 's-current',
   deviceLabel: 'Bu cihaz — Android',
-  platform: AccountSessionPlatform.android,
-  lastActiveAt: _fixedDate,
-  isCurrentDevice: true,
+  lastActiveAt: _fixedTimestamp,
+  current: true,
 );
 
-final _otherSession = AccountSession(
+final _otherSession = testSession(
   id: 's-web',
   deviceLabel: 'Chrome — Windows',
   platform: AccountSessionPlatform.web,
-  lastActiveAt: _fixedDate,
-  isCurrentDevice: false,
+  lastActiveAt: _fixedTimestamp,
 );
 
 Widget _wrap({
@@ -161,7 +115,7 @@ Widget _wrap({
 void main() {
   testWidgets('yüklenirken AppLoadingView gösterir', (tester) async {
     await tester.pumpWidget(
-      _wrap(accountRepository: _NeverResolvingAccountRepository()),
+      _wrap(accountRepository: NeverResolvingAccountRepository()),
     );
     await tester.pump();
 
@@ -172,7 +126,7 @@ void main() {
     tester,
   ) async {
     final repository = FakeAccountRepository()
-      ..listSessionsError = Exception('boom');
+      ..fetchSessionsError = Exception('boom');
 
     await tester.pumpWidget(_wrap(accountRepository: repository));
     await tester.pumpAndSettle();
@@ -255,7 +209,10 @@ void main() {
       final authRepository = _FakeAuthRepository();
       final repository = FakeAccountRepository(
         sessions: [_currentSession],
-      );
+      )
+        // Yerel çıkış artık `isCurrentDevice`'dan TAHMİN EDİLMEZ; sunucunun
+        // döndürdüğü `currentSessionRevoked` bayrağına bakılır.
+        ..revokeSessionRevokesCurrent = true;
       await tester.pumpWidget(
         _wrap(accountRepository: repository, authRepository: authRepository),
       );
@@ -326,9 +283,51 @@ void main() {
       await tester.tap(find.text('Kapat'));
       await tester.pumpAndSettle();
 
-      expect(repository.calls, contains('revokeOtherSessions'));
+      expect(repository.calls, contains('revokeSessions:others'));
       expect(find.text('Chrome — Windows'), findsNothing);
       expect(find.text('Bu cihaz — Android'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'BİLİNEN SINIR: scope=others sunucuda 503 fail-closed dönerse hata '
+    'DÜRÜSTÇE gösterilir — sahte başarı gösterilmez, liste değişmez',
+    (tester) async {
+      final authRepository = _FakeAuthRepository();
+      final repository = FakeAccountRepository(
+        sessions: [_currentSession, _otherSession],
+      )..revokeSessionsError = AccountServerException(
+        const AccountErrorResponse(
+          schemaVersion: kSchemaVersion,
+          error: 'service_unavailable',
+          errorDescription:
+              'Bu cihazın oturumu eşlenemediği için diğer oturumlar şu an '
+              'kapatılamıyor.',
+          reauthenticate: false,
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(accountRepository: repository, authRepository: authRepository),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Diğer tüm oturumları kapat'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kapat'));
+      await tester.pumpAndSettle();
+
+      // Sunucunun gerçek mesajı gösterilir.
+      expect(
+        find.text(
+          'Bu cihazın oturumu eşlenemediği için diğer oturumlar şu an '
+          'kapatılamıyor.',
+        ),
+        findsOneWidget,
+      );
+      // Hiçbir oturum listeden düşmedi ve yerel çıkış TETİKLENMEDİ.
+      expect(find.text('Chrome — Windows'), findsOneWidget);
+      expect(find.text('Bu cihaz — Android'), findsOneWidget);
+      expect(authRepository.logoutCalls, isEmpty);
     },
   );
 

@@ -3,37 +3,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
-import '../../auth/domain/auth_exceptions.dart';
 import '../../auth/presentation/auth_providers.dart';
-import '../domain/account_deletion_summary.dart';
 import '../domain/account_exceptions.dart';
+import 'account_capability_view.dart';
 import 'account_providers.dart';
 
-/// "Hesabı sil" ekranı (`/account/delete`, bkz. ADR-047): en yıkıcı/geri
-/// alınamaz aksiyon olduğu için bu uygulamadaki DİĞER tüm onay
-/// diyaloglarından (bkz. `downloads_screen.dart`, `sessions_screen.dart` —
-/// hepsi TEK adımlı) FARKLI olarak İKİ AYRI, artan şiddette onay diyaloğu
-/// ister; ikisi de aynı `showDialog<bool>` + `AlertDialog` + `TextButton`
-/// (`Vazgeç`/yıkıcı fiil) kalıbını kullanır, yalnız zincirlenmiştir.
+/// "Hesabı sil" ekranı (`/account/delete`, bkz. ADR-047).
 ///
-/// TAZE KİMLİK DOĞRULAMASI — MEVCUT ORKESTRASYON GEÇİCİDİR, DEĞİŞECEK:
+/// Bu uygulamadaki en yıkıcı/geri alınamaz aksiyon olduğu için diğer TÜM
+/// onay diyaloglarından (hepsi TEK adımlı) farklı olarak İKİ AYRI, artan
+/// şiddette onay ister; ikisi de aynı `showDialog<bool>` + `AlertDialog` +
+/// `TextButton` (`Vazgeç`/yıkıcı fiil) kalıbını kullanır, yalnız
+/// zincirlenmiştir.
 ///
-/// Bu ekran bugün `authRepositoryProvider.beginSignIn()` +
-/// `authBrowserProvider.authenticate()`yi çağırıp dönen callback'in
-/// `code`'unu `AccountRepository.deleteAccount`a geçirir. Bu YALNIZ
-/// presentation-only demo içindir — web tarafı bu zinciri açıkça REDDETTİ
-/// (Auth0 authorization code'u gerçek hesap mutation'ına doğrudan
-/// verilmeyecek). Gerçek akış (`/api/account/reauthentication/start` ->
-/// `max_age=0` + PKCE -> `.../complete` -> tek kullanımlık, amaca bağlı
-/// `reauthenticationToken`) için bkz. `AccountRepository`nin sınıf
-/// dokümantasyonundaki ayrıntılı not; sözleşme `main`e girdiğinde bu
-/// metodun (`_startDeletion`) gövdesi ona göre değişecek.
+/// TAZE KİMLİK DOĞRULAMASI: silme öncesi `AccountReauthenticator` ile
+/// sunucudan AMACA BAĞLI, tek kullanımlık bir `reauthenticationToken`
+/// alınır (`start` -> sistem tarayıcısı -> `complete`). Authorization code
+/// mutation'a ASLA doğrudan verilmez ve mevcut `AuthRepository` oturumu /
+/// `TokenStore` DEĞİŞTİRİLMEZ.
 ///
-/// Değişmeyecek olan: `completeSignIn` ÇAĞRILMAZ — bu canlı oturumu
-/// MUTASYONA UĞRATIR; gerçek sözleşme de mevcut `AuthRepository` oturumunu
-/// ve `TokenStore`u değiştirmemeyi garanti ediyor.
+/// Silme ASENKRON olabilir: sözleşme `status: pending | completed` döner.
+/// `pending` durumunda kullanıcı yerel olarak çıkışa alınır ama işlemin
+/// sunucuda sürdüğü dürüstçe bildirilir — "tamamlandı" DENMEZ.
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
@@ -75,8 +69,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Bu işlem geri alınamaz'),
         content: const Text(
-          'Hesabın, Auth0 kimliğin ve tüm aktif oturumların kalıcı olarak '
-          'silinecek.',
+          'Kimliğini doğruladıktan sonra hesabın kalıcı olarak silinecek.',
         ),
         actions: [
           TextButton(
@@ -108,34 +101,39 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
     setState(() => _busy = true);
     try {
-      final authRepository = ref.read(authRepositoryProvider);
-      final request = await authRepository.beginSignIn();
-      final browser = ref.read(authBrowserProvider);
-      final callbackUri = await browser.authenticate(
-        authorizationUrl: request.authorizationUrl,
-        callbackUrlScheme: request.callbackUrlScheme,
-      );
-      if (callbackUri == null) {
-        // Kullanıcı taze kimlik doğrulamasını iptal etti — sessizce çık
-        // (bkz. `AuthUserCancelledException` ile aynı desen, ama burada
-        // `completeSignIn` hiç çağrılmadığı için o istisna tipi
-        // kullanılmaz).
-        return;
-      }
-      final reauthCredential = callbackUri.queryParameters['code'];
-      if (reauthCredential == null || reauthCredential.isEmpty) {
-        throw const AuthCallbackException(
-          'callback code parametresi eksik.',
+      // 1-3: start -> sistem tarayıcısı -> complete; sonuç amaca bağlı,
+      // tek kullanımlık bir token.
+      final token = await ref
+          .read(accountReauthenticatorProvider)
+          .obtainToken(AccountReauthenticationPurpose.account_deletion);
+
+      // 4: token YALNIZ bu mutation'da kullanılır. `Idempotency-Key`
+      // adapter tarafından üretilip gönderilir (bkz.
+      // `HttpAccountRepository.deleteAccount`).
+      final operation = await ref
+          .read(accountRepositoryProvider)
+          .deleteAccount(reauthenticationToken: token);
+
+      // Sunucu tarafında hesap silindi/silinmek üzere; yerel oturumu da
+      // temizle.
+      await ref.read(authRepositoryProvider).logout();
+      if (!mounted) return;
+
+      if (operation.status == 'pending') {
+        // ASENKRON silme: "tamamlandı" demeyiz.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Silme işlemi başlatıldı ve kısa süre içinde tamamlanacak.',
+            ),
+          ),
         );
       }
-      await ref
-          .read(accountRepositoryProvider)
-          .deleteAccount(reauthCredential: reauthCredential);
-      await authRepository.logout();
-      if (mounted) context.go('/');
+      context.go('/');
+    } on AccountReauthenticationCancelledException {
+      // Kullanıcı taze kimlik doğrulamasını iptal etti — hata gösterilmez,
+      // silme yapılmaz.
     } on AccountRepositoryException catch (error) {
-      _showError(error.message);
-    } on AuthRepositoryException catch (error) {
       _showError(error.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -176,7 +174,7 @@ class _DeleteAccountBody extends StatelessWidget {
     required this.onDelete,
   });
 
-  final AccountDeletionSummary summary;
+  final AccountDeletionSummaryResponse summary;
   final bool busy;
   final VoidCallback onDelete;
 
@@ -187,14 +185,38 @@ class _DeleteAccountBody extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.all(tokens.spacing.md),
       children: [
-        Text('Silinecekler', style: tokens.typography.titleMedium),
-        SizedBox(height: tokens.spacing.sm),
-        for (final item in summary.deletedItems) _BulletItem(text: item),
-        SizedBox(height: tokens.spacing.lg),
-        Text('Anonimleştirilecekler', style: tokens.typography.titleMedium),
-        SizedBox(height: tokens.spacing.sm),
-        for (final item in summary.anonymizedItems) _BulletItem(text: item),
-        SizedBox(height: tokens.spacing.xl),
+        if (summary.deleted.isNotEmpty) ...[
+          Text('Silinecekler', style: tokens.typography.titleMedium),
+          SizedBox(height: tokens.spacing.sm),
+          for (final effect in summary.deleted)
+            _BulletItem(text: accountDeletionEffectLabel(effect)),
+          SizedBox(height: tokens.spacing.lg),
+        ],
+        if (summary.anonymized.isNotEmpty) ...[
+          Text('Anonimleştirilecekler', style: tokens.typography.titleMedium),
+          SizedBox(height: tokens.spacing.sm),
+          for (final effect in summary.anonymized)
+            _BulletItem(text: accountDeletionEffectLabel(effect)),
+          SizedBox(height: tokens.spacing.lg),
+        ],
+        // `retained`: silinmeyen/anonimleşmeyen, yasal olarak SAKLANAN
+        // kayıtlar. Kullanıcı eksik bilgiyle onay vermesin diye dürüstçe
+        // gösterilir (sözleşme bunu ayrı bir liste olarak tanımlar).
+        if (summary.retained.isNotEmpty) ...[
+          Text('Saklanacaklar', style: tokens.typography.titleMedium),
+          SizedBox(height: tokens.spacing.xs),
+          Text(
+            'Aşağıdaki kayıtlar yasal yükümlülükler nedeniyle silinmez.',
+            style: tokens.typography.bodySmall.copyWith(
+              color: tokens.colors.muted,
+            ),
+          ),
+          SizedBox(height: tokens.spacing.sm),
+          for (final effect in summary.retained)
+            _BulletItem(text: accountDeletionEffectLabel(effect)),
+          SizedBox(height: tokens.spacing.lg),
+        ],
+        SizedBox(height: tokens.spacing.md),
         Center(
           child: busy
               ? const CircularProgressIndicator()

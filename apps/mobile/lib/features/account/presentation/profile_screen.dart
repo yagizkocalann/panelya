@@ -5,9 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../domain/account_exceptions.dart';
-import '../domain/account_overview.dart';
 import 'account_avatar.dart';
+import 'account_capability_view.dart';
 import 'account_providers.dart';
 
 /// "Profil" ekranı (`/account/profile`, bkz. ADR-047): görünen adı
@@ -40,6 +41,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref
           .read(accountRepositoryProvider)
           .updateProfile(displayName: _displayNameController.text.trim());
+      // Sözleşme `PATCH /api/account/profile`den TAZELENMİŞ özeti döner;
+      // provider'ı geçersiz kılmak diğer ekranların (ör. Hesabım ana
+      // ekranı) da sunucunun gerçeğini görmesini sağlar.
+      ref.invalidate(accountOverviewProvider);
     } on AccountRepositoryException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -96,7 +101,7 @@ class _ProfileBody extends StatelessWidget {
     required this.onSave,
   });
 
-  final AccountOverview overview;
+  final AccountOverviewResponse overview;
   final TextEditingController displayNameController;
   final bool saving;
   final VoidCallback onSave;
@@ -113,8 +118,14 @@ class _ProfileBody extends StatelessWidget {
             children: [
               AccountAvatar(user: overview.user),
               SizedBox(height: tokens.spacing.sm),
+              // Avatar düzenleme durumu SÖZLEŞMEDEN gelir (capability);
+              // hiçbir durumda tıklanabilir bir kamera ikonu/devre dışı
+              // buton gösterilmez (ADR-010).
               Text(
-                'Profil fotoğrafı düzenleme bu sürümde desteklenmiyor.',
+                overview.capabilities.avatarEditing.isProviderManaged
+                    ? 'Profil fotoğrafın giriş sağlayıcın tarafından '
+                          'yönetiliyor.'
+                    : 'Profil fotoğrafı düzenleme bu sürümde desteklenmiyor.',
                 textAlign: TextAlign.center,
                 style: tokens.typography.bodySmall.copyWith(
                   color: tokens.colors.muted,

@@ -552,7 +552,15 @@ const _generatedHeader =
     'üretici: tool/generate_contracts.dart\n'
     '// Bu dosyayı elle düzenlemeyin; değişiklik gerekiyorsa\n'
     '// packages/contracts/schema.json güncellenip codegen yeniden\n'
-    '// çalıştırılmalıdır (dart run tool/generate_contracts.dart).\n';
+    '// çalıştırılmalıdır (dart run tool/generate_contracts.dart).\n'
+    '//\n'
+    '// `constant_identifier_names` KAPALI: üretilen enum üyeleri şemadaki\n'
+    '// JSON değerlerini (ör. `provider_managed`, `auth_identity`) BİREBİR\n'
+    '// yansıtır. lowerCamelCase\'e çevirmek, `fromJson`/`toJson`\n'
+    '// eşlemesini şemadan görsel olarak ayırır ve sessiz bir eşleme\n'
+    '// hatası riski yaratır; sözleşmeyle bire bir aynı kalması bilinçli\n'
+    '// bir tercihtir.\n'
+    '// ignore_for_file: constant_identifier_names\n';
 
 String _fromJsonLines(String name, Resolved resolved) {
   final buffer = StringBuffer();
@@ -717,15 +725,23 @@ String _renderObjectClass(ObjectSpec spec, {List<String> extraImports = const []
     '/// Kaynak: `packages/contracts/schema.json` -> `\$defs/${spec.className}`.',
   );
   buffer.writeln('class ${spec.className} {');
-  buffer.writeln('  const ${spec.className}({');
-  for (final prop in spec.properties) {
-    if (prop.requiredKey) {
-      buffer.writeln('    required this.${prop.name},');
-    } else {
-      buffer.writeln('    this.${prop.name},');
+  if (spec.properties.isEmpty) {
+    // ALANSIZ DTO (ör. `AccountPasswordResetRequest`: şemada
+    // `properties: {}` + `maxProperties: 0`, gövdesi literal `{}` olan bir
+    // istek). Dart'ta BOŞ bir adlandırılmış parametre listesi (`({})`)
+    // sözdizimi hatasıdır, bu yüzden parametresiz kurucu üretilir.
+    buffer.writeln('  const ${spec.className}();');
+  } else {
+    buffer.writeln('  const ${spec.className}({');
+    for (final prop in spec.properties) {
+      if (prop.requiredKey) {
+        buffer.writeln('    required this.${prop.name},');
+      } else {
+        buffer.writeln('    this.${prop.name},');
+      }
     }
+    buffer.writeln('  });');
   }
-  buffer.writeln('  });');
   buffer.writeln();
 
   // fromJson

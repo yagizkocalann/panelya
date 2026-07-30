@@ -86,3 +86,23 @@ class AuthApiException implements Exception {
   String toString() =>
       'AuthApiException: ${error.errorDescription ?? error.error}';
 }
+
+/// `/api/account/*` uçlarından dönen, `{"error": "...", "reauthenticate": ...}`
+/// şeklindeki (bkz. `AccountErrorResponse`, ADR-047) yapılandırılmış hata.
+///
+/// [AuthApiException] ile aynı gerekçeyle [ApiException]'ı GENİŞLETMEZ ve
+/// genel [HttpStatusException]'dan ayrı tutulur: çağıran (bkz.
+/// `features/account/data/http_account_repository.dart`) `error` koduna göre
+/// (`reauthentication_required`, `unsupported_action`,
+/// `service_unavailable`, ...) farklı davranmak zorundadır ve bunu
+/// domain'in sealed `AccountRepositoryException` hiyerarşisine çevirir.
+@immutable
+class AccountApiException implements Exception {
+  const AccountApiException(this.error);
+
+  final AccountErrorResponse error;
+
+  @override
+  String toString() =>
+      'AccountApiException: ${error.errorDescription ?? error.error}';
+}

@@ -9,17 +9,15 @@ import 'package:panelya_mobile/core/config/account_management_feature_config.dar
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_deletion_summary.dart';
-import 'package:panelya_mobile/features/account/domain/account_provider.dart';
 import 'package:panelya_mobile/features/account/domain/account_repository.dart';
-import 'package:panelya_mobile/features/account/domain/account_session.dart';
-import 'package:panelya_mobile/features/account/domain/blocked_account.dart';
 import 'package:panelya_mobile/features/account/presentation/account_home_screen.dart';
 import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_repository.dart';
 import 'package:panelya_mobile/features/auth/domain/auth_session_state.dart';
 import 'package:panelya_mobile/features/auth/presentation/auth_providers.dart';
 import 'package:panelya_mobile/shared/widgets/state_views.dart';
+
+import '../../../support/account_test_doubles.dart';
 
 import '../../../support/overflow_watcher.dart';
 
@@ -76,53 +74,6 @@ class _FakeAuthRepository implements AuthRepository {
   void dispose() {
     _controller.close();
   }
-}
-
-/// `accountOverviewProvider`'ı sonsuza kadar "loading" durumunda dondurmak
-/// için (bkz. `test/app/router/router_test.dart`'taki aynı desen) —
-/// yalnız [AccountHomeScreen]'in gerçekten çağırdığı [fetchSignInProvider]
-/// anlamlı bir şekilde uygulanır, geri kalanı bu test dosyasında hiç
-/// çağrılmadığı için kasıtlı olarak uygulanmamıştır.
-class _NeverResolvingAccountRepository implements AccountRepository {
-  @override
-  Future<AccountProvider> fetchSignInProvider() =>
-      Completer<AccountProvider>().future;
-
-  @override
-  Future<void> updateProfile({required String displayName}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestEmailChange({required String newEmail}) =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> requestPasswordReset() => throw UnimplementedError();
-
-  @override
-  Future<List<AccountSession>> listSessions() => throw UnimplementedError();
-
-  @override
-  Future<void> revokeSession(String sessionId) => throw UnimplementedError();
-
-  @override
-  Future<void> revokeOtherSessions() => throw UnimplementedError();
-
-  @override
-  Future<List<BlockedAccount>> listBlockedAccounts() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> unblockAccount(String blockedAccountId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<AccountDeletionSummary> fetchDeletionSummary() =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> deleteAccount({required String reauthCredential}) =>
-      throw UnimplementedError();
 }
 
 Widget _wrap({
@@ -206,7 +157,7 @@ Widget _wrap({
 void main() {
   testWidgets('yüklenirken AppLoadingView gösterir', (tester) async {
     await tester.pumpWidget(
-      _wrap(accountRepository: _NeverResolvingAccountRepository()),
+      _wrap(accountRepository: NeverResolvingAccountRepository()),
     );
     await tester.pump();
 
@@ -216,8 +167,8 @@ void main() {
   testWidgets(
     'sağlayıcı bilgisi getirilemezse AppErrorView + Tekrar dene gösterir',
     (tester) async {
-      final repository = FakeAccountRepository()
-        ..fetchSignInProviderError = Exception('boom');
+      final repository = FakeAccountRepository(user: _fakeUser)
+        ..fetchOverviewError = Exception('boom');
 
       await tester.pumpWidget(_wrap(accountRepository: repository));
       await tester.pumpAndSettle();
@@ -235,7 +186,8 @@ void main() {
       await tester.pumpWidget(
         _wrap(
           accountRepository: FakeAccountRepository(
-            provider: AccountProvider.database,
+            provider: AccountProviderKind.database,
+            user: _fakeUser,
           ),
         ),
       );
@@ -263,7 +215,8 @@ void main() {
       await tester.pumpWidget(
         _wrap(
           accountRepository: FakeAccountRepository(
-            provider: AccountProvider.google,
+            provider: AccountProviderKind.google,
+            user: _fakeUser,
           ),
         ),
       );
@@ -276,7 +229,7 @@ void main() {
   testWidgets('"Profil" satırına dokunmak /account/profile\'a gider', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository()));
+    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository(user: _fakeUser)));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Profil'));
@@ -289,7 +242,7 @@ void main() {
     '"E-posta ve şifre" satırına dokunmak /account/security\'e gider',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(accountRepository: FakeAccountRepository()),
+        _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
       );
       await tester.pumpAndSettle();
 
@@ -304,7 +257,7 @@ void main() {
     '"Aktif oturumlar" satırına dokunmak /account/sessions\'a gider',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(accountRepository: FakeAccountRepository()),
+        _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
       );
       await tester.pumpAndSettle();
 
@@ -319,7 +272,7 @@ void main() {
     '"Engellenen hesaplar" satırına dokunmak /account/blocked\'a gider',
     (tester) async {
       await tester.pumpWidget(
-        _wrap(accountRepository: FakeAccountRepository()),
+        _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
       );
       await tester.pumpAndSettle();
 
@@ -333,7 +286,7 @@ void main() {
   testWidgets('"Hesabı sil" satırına dokunmak /account/delete\'e gider', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository()));
+    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository(user: _fakeUser)));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Hesabı sil'));
@@ -346,7 +299,7 @@ void main() {
     final authRepository = _FakeAuthRepository();
     await tester.pumpWidget(
       _wrap(
-        accountRepository: FakeAccountRepository(),
+        accountRepository: FakeAccountRepository(user: _fakeUser),
         authRepository: authRepository,
       ),
     );
@@ -375,7 +328,7 @@ void main() {
 
       await tester.pumpWidget(
         _wrap(
-          accountRepository: FakeAccountRepository(),
+          accountRepository: FakeAccountRepository(user: _fakeUser),
           authRepository: _FakeAuthRepository(
             initialState: const AuthSessionState.authenticated(
               longNameUser,
@@ -400,7 +353,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            accountRepository: FakeAccountRepository(),
+            accountRepository: FakeAccountRepository(user: _fakeUser),
             managementEnabled: false,
           ),
         );
@@ -418,7 +371,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            accountRepository: FakeAccountRepository(),
+            accountRepository: FakeAccountRepository(user: _fakeUser),
             managementEnabled: false,
           ),
         );
@@ -441,7 +394,7 @@ void main() {
       (tester) async {
         await tester.pumpWidget(
           _wrap(
-            accountRepository: FakeAccountRepository(),
+            accountRepository: FakeAccountRepository(user: _fakeUser),
             managementEnabled: false,
           ),
         );
@@ -504,7 +457,7 @@ void main() {
       final authRepository = _FakeAuthRepository();
       await tester.pumpWidget(
         _wrap(
-          accountRepository: FakeAccountRepository(),
+          accountRepository: FakeAccountRepository(user: _fakeUser),
           authRepository: authRepository,
           managementEnabled: false,
         ),

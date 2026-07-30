@@ -8,8 +8,8 @@ import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../../auth/domain/auth_session_state.dart';
 import '../../auth/presentation/auth_providers.dart';
-import '../domain/account_provider.dart';
 import 'account_avatar.dart';
+import 'account_capability_view.dart';
 import 'account_providers.dart';
 
 /// "Hesabım ana ekranı" (bkz. ADR-047): avatar/görünen ad, e-posta +
@@ -71,7 +71,7 @@ class _AccountHomeScreenState extends ConsumerState<AccountHomeScreen> {
       return _AccountHomeBody(
         user: user,
         providerLabel: null,
-        showManagementEntries: false,
+        capabilities: null,
         busy: _signOutBusy,
         onSignOut: _signOut,
       );
@@ -87,31 +87,43 @@ class _AccountHomeScreenState extends ConsumerState<AccountHomeScreen> {
       data: (overview) => _AccountHomeBody(
         user: overview.user,
         providerLabel: _providerLabel(overview.provider),
-        showManagementEntries: true,
+        capabilities: overview.capabilities,
         busy: _signOutBusy,
         onSignOut: _signOut,
       ),
     );
   }
 
-  static String _providerLabel(AccountProvider provider) => switch (provider) {
-    AccountProvider.database => 'E-posta ve şifre ile giriş yaptın.',
-    AccountProvider.google => 'Google ile giriş yaptın.',
-  };
+  static String _providerLabel(AccountProviderKind provider) =>
+      switch (provider) {
+        AccountProviderKind.database => 'E-posta ve şifre ile giriş yaptın.',
+        AccountProviderKind.google => 'Google ile giriş yaptın.',
+        AccountProviderKind.other_social =>
+          'Bir sosyal hesapla giriş yaptın.',
+        // İleri-uyumluluk fallback'i: bu istemcinin bilmediği yeni bir
+        // sağlayıcı geldiğinde yanlış bir etiket UYDURULMAZ.
+        AccountProviderKind.unknown => 'Bir kimlik sağlayıcısıyla giriş yaptın.',
+      };
 }
 
 class _AccountHomeBody extends StatelessWidget {
   const _AccountHomeBody({
     required this.user,
     required this.providerLabel,
-    required this.showManagementEntries,
+    required this.capabilities,
     required this.busy,
     required this.onSignOut,
   });
 
   final AuthUser user;
   final String? providerLabel;
-  final bool showManagementEntries;
+
+  /// `null` ise hesap yönetimi KAPALIDIR (bkz.
+  /// [AccountManagementFeatureConfig]) ve hiçbir yönetim girişi
+  /// gösterilmez. Doluysa her giriş kendi yeteneğine göre gösterilir —
+  /// yeteneği `unavailable`/`unknown` olan satır HİÇ render edilmez
+  /// (ADR-010: devre dışı buton/placeholder yok).
+  final AccountCapabilities? capabilities;
   final bool busy;
   final VoidCallback onSignOut;
 
@@ -178,40 +190,13 @@ class _AccountHomeBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: tokens.spacing.lg),
-        if (showManagementEntries) ...[
-          _AccountNavRow(
-            icon: Icons.person_outline,
-            label: 'Profil',
-            onTap: () => context.push('/account/profile'),
-          ),
-          Divider(color: tokens.colors.line, height: 1),
-          _AccountNavRow(
-            icon: Icons.lock_outline,
-            label: 'E-posta ve şifre',
-            onTap: () => context.push('/account/security'),
-          ),
-          Divider(color: tokens.colors.line, height: 1),
-          _AccountNavRow(
-            icon: Icons.devices_outlined,
-            label: 'Aktif oturumlar',
-            onTap: () => context.push('/account/sessions'),
-          ),
-          Divider(color: tokens.colors.line, height: 1),
-          _AccountNavRow(
-            icon: Icons.block_outlined,
-            label: 'Engellenen hesaplar',
-            onTap: () => context.push('/account/blocked'),
-          ),
-          Divider(color: tokens.colors.line, height: 1),
-          _AccountNavRow(
-            icon: Icons.delete_forever_outlined,
-            label: 'Hesabı sil',
-            iconColor: tokens.colors.coral,
-            labelColor: tokens.colors.coral,
-            onTap: () => context.push('/account/delete'),
-          ),
-          SizedBox(height: tokens.spacing.lg),
-        ],
+        // Her giriş kendi YETENEĞİNE göre gösterilir. "Profil" satırı
+        // profil düzenleme VEYA e-posta/şifre yeteneklerinden biri
+        // kullanılabilirse anlamlıdır; e-posta/şifre ekranı kendi içinde
+        // ayrıca `provider_managed` durumunu açıklayıcı metinle ele alır
+        // (bkz. `security_screen.dart`), bu yüzden o satır
+        // `provider_managed`da da gösterilir.
+        ...?_managementRows(context, tokens),
         if (busy)
           const Center(child: CircularProgressIndicator())
         else
@@ -223,6 +208,68 @@ class _AccountHomeBody extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// Yönetim girişleri. [capabilities] `null` ise (bayrak kapalı) `null`
+  /// döner — hiçbir satır render edilmez.
+  List<Widget>? _managementRows(BuildContext context, AppTokens tokens) {
+    final capabilities = this.capabilities;
+    if (capabilities == null) return null;
+
+    // "E-posta ve şifre" ekranı, `provider_managed` durumunda AÇIKLAYICI
+    // metin gösterdiği için o durumda da erişilebilir olmalı; yalnız
+    // ikisi de tamamen kullanılamazsa satır gizlenir.
+    final securityReachable =
+        capabilities.emailChange.isActionable ||
+        capabilities.passwordAction.isActionable ||
+        capabilities.emailChange.isProviderManaged ||
+        capabilities.passwordAction.isProviderManaged;
+
+    final rows = <Widget>[
+      if (capabilities.profileEditing.isActionable)
+        _AccountNavRow(
+          icon: Icons.person_outline,
+          label: 'Profil',
+          onTap: () => context.push('/account/profile'),
+        ),
+      if (securityReachable)
+        _AccountNavRow(
+          icon: Icons.lock_outline,
+          label: 'E-posta ve şifre',
+          onTap: () => context.push('/account/security'),
+        ),
+      if (capabilities.sessionManagement.isActionable)
+        _AccountNavRow(
+          icon: Icons.devices_outlined,
+          label: 'Aktif oturumlar',
+          onTap: () => context.push('/account/sessions'),
+        ),
+      if (capabilities.blockedAccounts.isActionable)
+        _AccountNavRow(
+          icon: Icons.block_outlined,
+          label: 'Engellenen hesaplar',
+          onTap: () => context.push('/account/blocked'),
+        ),
+      if (capabilities.accountDeletion.isActionable)
+        _AccountNavRow(
+          icon: Icons.delete_forever_outlined,
+          label: 'Hesabı sil',
+          iconColor: tokens.colors.coral,
+          labelColor: tokens.colors.coral,
+          onTap: () => context.push('/account/delete'),
+        ),
+    ];
+    if (rows.isEmpty) return null;
+
+    // Satırların ARASINA ayırıcı koyar (sonuna koymaz).
+    final withDividers = <Widget>[];
+    for (var i = 0; i < rows.length; i++) {
+      if (i > 0) {
+        withDividers.add(Divider(color: tokens.colors.line, height: 1));
+      }
+      withDividers.add(rows[i]);
+    }
+    return [...withDividers, SizedBox(height: tokens.spacing.lg)];
   }
 }
 

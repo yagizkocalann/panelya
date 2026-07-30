@@ -3,44 +3,55 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../core/contracts/generated/generated.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../domain/account_exceptions.dart';
-import '../domain/account_session.dart';
+import 'account_capability_view.dart';
 import 'account_providers.dart';
 
-const _turkishMonthAbbreviations = [
-  'Oca',
-  'Şub',
-  'Mar',
-  'Nis',
-  'May',
-  'Haz',
-  'Tem',
-  'Ağu',
-  'Eyl',
-  'Eki',
-  'Kas',
-  'Ara',
-];
-
-String _formatLastActive(DateTime dateTime) {
-  final month = _turkishMonthAbbreviations[dateTime.month - 1];
-  final hour = dateTime.hour.toString().padLeft(2, '0');
-  final minute = dateTime.minute.toString().padLeft(2, '0');
-  return '${dateTime.day} $month ${dateTime.year}, $hour:$minute';
+/// Sözleşmenin ISO-8601 `lastActiveAt` string'ini kullanıcıya gösterilecek
+/// yerel metne çevirir. Sözleşme bunu bilerek STRING olarak tanımlar
+/// (`DateTime` değil); ayrıştırılamayan bir değer UYDURULMAZ, olduğu gibi
+/// gösterilir.
+String formatSessionLastActive(String isoTimestamp) {
+  final parsed = DateTime.tryParse(isoTimestamp);
+  if (parsed == null) return isoTimestamp;
+  final local = parsed.toLocal();
+  const months = [
+    'Oca',
+    'Şub',
+    'Mar',
+    'Nis',
+    'May',
+    'Haz',
+    'Tem',
+    'Ağu',
+    'Eyl',
+    'Eki',
+    'Kas',
+    'Ara',
+  ];
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.day} ${months[local.month - 1]} ${local.year}, $hour:$minute';
 }
 
-/// "Aktif oturumlar" ekranı (`/account/sessions`, bkz. ADR-047): web/
-/// Android/iOS oturumlarını listeler, mevcut cihazı "Bu cihaz" rozetiyle
-/// vurgular, tek tek veya toplu (mevcut cihaz HARİÇ) kapatma sağlar.
+/// "Aktif oturumlar" ekranı (`/account/sessions`, bkz. ADR-047).
 ///
-/// Mevcut cihazın KENDİ oturumu kapatılırsa (bkz. [AccountSession.isCurrentDevice])
-/// uygulama yerel olarak da güvenli şekilde çıkış durumuna alınır (bkz.
-/// `_confirmRevokeSession` — `authRepositoryProvider.logout()` çağrısı);
-/// `AccountRepository.revokeSession` bunu KENDİSİ yapmaz (bkz. o
-/// metodun dokümantasyonu).
+/// Her oturum sözleşmeden `current` (bu cihaz mı) ve `revocable`
+/// (kapatılabilir mi) bayraklarını taşır; ekran bunları TAHMİN ETMEZ.
+/// Tek oturum kapatma `DELETE /sessions/{id}` ile yapılır ve dönen
+/// `currentSessionRevoked` SUNUCUDAN gelir — `true` ise uygulama yerel
+/// oturumu da güvenli şekilde kapatır.
+///
+/// BİLİNEN SINIR (web tarafının bildirdiği): mobilde native refresh
+/// credential kimliği access token'dan kesin eşlenemediği için
+/// `scope: others` toplu kapatma şu an sunucuda **503 fail-closed**
+/// döner. Bu ekran bunu TAKLİT ETMEZ/başarılı göstermez — aksiyonu
+/// gösterir, sunucu 503 dönerse hatayı dürüstçe iletir. current-device
+/// gateway eşlemesi ayrı bir teslim.
 class SessionsScreen extends ConsumerStatefulWidget {
   const SessionsScreen({super.key});
 
@@ -52,14 +63,19 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   String? _pendingSessionId;
   bool _revokingOthers = false;
 
-  void _showError(Object error) {
+  void _showError(String message) {
     if (!mounted) return;
-    final message = error is AccountRepositoryException
-        ? error.message
-        : 'Beklenmeyen bir hata oluştu.';
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Yerel oturumu kapatıp ana sayfaya döner. Sunucu
+  /// `currentSessionRevoked: true` dediğinde çağrılır — istemci bunu
+  /// kendisi tahmin etmez.
+  Future<void> _signOutLocally() async {
+    await ref.read(authRepositoryProvider).logout();
+    if (mounted) context.go('/');
   }
 
   Future<void> _confirmRevokeSession(AccountSession session) async {
@@ -84,15 +100,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
     setState(() => _pendingSessionId = session.id);
     try {
-      await ref.read(accountRepositoryProvider).revokeSession(session.id);
+      final result = await ref
+          .read(accountRepositoryProvider)
+          .revokeSession(session.id);
       ref.invalidate(accountSessionsProvider);
-      if (session.isCurrentDevice) {
-        await ref.read(authRepositoryProvider).logout();
-        if (mounted) context.go('/');
+      if (result.currentSessionRevoked) {
+        await _signOutLocally();
         return;
       }
     } on AccountRepositoryException catch (error) {
-      _showError(error);
+      _showError(error.message);
     } finally {
       if (mounted) setState(() => _pendingSessionId = null);
     }
@@ -122,10 +139,19 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 
     setState(() => _revokingOthers = true);
     try {
-      await ref.read(accountRepositoryProvider).revokeOtherSessions();
+      final result = await ref
+          .read(accountRepositoryProvider)
+          .revokeSessions(scope: 'others');
       ref.invalidate(accountSessionsProvider);
+      if (result.currentSessionRevoked) {
+        await _signOutLocally();
+        return;
+      }
     } on AccountRepositoryException catch (error) {
-      _showError(error);
+      // `scope: others` mobilde şu an 503 fail-closed dönüyor (bkz. sınıf
+      // dokümantasyonu). Hata OLDUĞU GİBİ gösterilir; sahte bir başarı
+      // veya sessiz yutma YOKTUR.
+      _showError(error.message);
     } finally {
       if (mounted) setState(() => _revokingOthers = false);
     }
@@ -147,15 +173,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             message: 'Beklenmeyen bir hata oluştu.',
             onRetry: () => ref.invalidate(accountSessionsProvider),
           ),
-          data: (sessionList) => sessionList.isEmpty
+          data: (response) => response.sessions.isEmpty
               ? const AppEmptyView(message: 'Aktif oturum bulunamadı.')
               : _SessionsList(
-                  sessions: sessionList,
+                  sessions: response.sessions,
                   pendingSessionId: _pendingSessionId,
                   revokingOthers: _revokingOthers,
                   onRevoke: _confirmRevokeSession,
-                  onRevokeOthers: () =>
-                      _confirmRevokeOthers(sessionList.length - 1),
+                  onRevokeOthers: () => _confirmRevokeOthers(
+                    response.sessions.where((s) => !s.current).length,
+                  ),
                 ),
         ),
       ),
@@ -181,12 +208,15 @@ class _SessionsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    final otherRevocableCount = sessions
+        .where((s) => !s.current && s.revocable)
+        .length;
 
     return Column(
       children: [
-        // ADR-010: mevcut cihazdan başka kapatılacak oturum yoksa bu
-        // aksiyon HİÇ render edilmez.
-        if (sessions.length > 1)
+        // ADR-010: kapatılabilecek başka bir oturum yoksa bu aksiyon HİÇ
+        // render edilmez.
+        if (otherRevocableCount > 0)
           Padding(
             padding: EdgeInsets.all(tokens.spacing.md),
             child: Align(
@@ -231,12 +261,6 @@ class _SessionTile extends StatelessWidget {
   final bool busy;
   final VoidCallback onRevoke;
 
-  IconData _platformIcon(AccountSessionPlatform platform) => switch (platform) {
-    AccountSessionPlatform.web => Icons.language,
-    AccountSessionPlatform.android => Icons.phone_android,
-    AccountSessionPlatform.ios => Icons.phone_iphone,
-  };
-
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
@@ -250,7 +274,10 @@ class _SessionTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(_platformIcon(session.platform), color: tokens.colors.ink),
+          Icon(
+            accountSessionPlatformIcon(session.platform),
+            color: tokens.colors.ink,
+          ),
           SizedBox(width: tokens.spacing.md),
           Expanded(
             child: Column(
@@ -266,7 +293,7 @@ class _SessionTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (session.isCurrentDevice) ...[
+                    if (session.current) ...[
                       SizedBox(width: tokens.spacing.xs),
                       Container(
                         padding: EdgeInsets.symmetric(
@@ -291,7 +318,7 @@ class _SessionTile extends StatelessWidget {
                 ),
                 SizedBox(height: tokens.spacing.xs),
                 Text(
-                  _formatLastActive(session.lastActiveAt),
+                  formatSessionLastActive(session.lastActiveAt),
                   style: tokens.typography.bodySmall.copyWith(
                     color: tokens.colors.muted,
                   ),
@@ -306,7 +333,10 @@ class _SessionTile extends StatelessWidget {
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          else
+          // ADR-010: sözleşme bu oturumun kapatılamayacağını söylüyorsa
+          // (`revocable: false`) buton HİÇ gösterilmez — devre dışı bir
+          // buton da gösterilmez.
+          else if (session.revocable)
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Oturumu kapat',
