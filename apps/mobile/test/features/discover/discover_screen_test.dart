@@ -857,6 +857,80 @@ void main() {
     });
 
     testWidgets(
+      'erişilebilirlik yazı boyutunda hero içeriği kartın DIŞINA taşıp '
+      'kırpılmaz — kart gerekirse uzar',
+      (tester) async {
+        useViewport(tester, phonePortrait);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+            featuredFirstEpisode: _episode('bolum-1', 1, 'İlk İşaret'),
+          ),
+        );
+
+        // iOS Dynamic Type AX boyutlarına karşılık gelen ölçek. Bu senaryo
+        // `OverflowWatcher` ile YAKALANAMAZ: sabit `AspectRatio` içeriği
+        // taşırdığında `RenderFlex` hatası düşmez, `ClipRRect` sessizce
+        // kırpar. Bu yüzden geometri doğrudan ölçülür.
+        await tester.pumpWidget(_wrap(repository, textScale: 2.4));
+        await tester.pumpAndSettle();
+
+        final pill = find.text('Haftanın hikâyesi');
+        expect(pill, findsOneWidget);
+
+        final heroCard = find
+            .ancestor(of: pill, matching: find.byType(ClipRRect))
+            .first;
+        final cardRect = tester.getRect(heroCard);
+        final pillRect = tester.getRect(pill);
+
+        // İçerik sütununun EN ÜST parçası kartın içinde kalmalı; taştığında
+        // pill'in üstü kartın üstünün YUKARISINA çıkar ve kırpılırdı.
+        expect(
+          pillRect.top,
+          greaterThanOrEqualTo(cardRect.top - 0.5),
+          reason:
+              'hero içeriği kartın üstünden taşıyor: '
+              'pill.top=${pillRect.top}, card.top=${cardRect.top}',
+        );
+
+        // Kart bu ölçekte 4:5'ten UZUN olmalı (içeriğe yer açmak için).
+        expect(
+          cardRect.height,
+          greaterThan(cardRect.width * 5 / 4),
+          reason: 'kart içeriğe göre büyümemiş',
+        );
+      },
+    );
+
+    testWidgets(
+      'varsayılan yazı boyutunda hero kartı 4:5 oranını korur',
+      (tester) async {
+        useViewport(tester, phonePortrait);
+        final repository = _FakeDiscoveryRepository(
+          () async => _discoveryWith(
+            featuredSeries: _series('gece-vardiyasi', 'Gece Vardiyası'),
+            featuredFirstEpisode: _episode('bolum-1', 1, 'İlk İşaret'),
+          ),
+        );
+
+        await tester.pumpWidget(_wrap(repository));
+        await tester.pumpAndSettle();
+
+        final heroCard = find
+            .ancestor(
+              of: find.text('Haftanın hikâyesi'),
+              matching: find.byType(ClipRRect),
+            )
+            .first;
+        final cardRect = tester.getRect(heroCard);
+
+        // Kısa metinde minimum yükseklik devrede: kart tam 4:5 görünür.
+        expect(cardRect.height, closeTo(cardRect.width * 5 / 4, 1));
+      },
+    );
+
+    testWidgets(
       'hata durumu (yeniden dene butonuyla) taşmadan render edilir ve buton '
       'en az 44 px yükseklikte kalır',
       (tester) async {

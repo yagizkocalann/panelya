@@ -174,9 +174,7 @@ class _DiscoverContent extends ConsumerWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           // 1) Açılır tür dizini — sayfanın en üstünde (bkz. PLAN Görev 4).
-          SliverToBoxAdapter(
-            child: GenreDisclosure(genres: response.genres),
-          ),
+          SliverToBoxAdapter(child: GenreDisclosure(genres: response.genres)),
           // 2) Haftanın hikâyesi.
           if (response.featuredSeries != null)
             SliverToBoxAdapter(
@@ -252,9 +250,7 @@ class _SectionHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: Text(title, style: tokens.typography.titleLarge),
-          ),
+          Expanded(child: Text(title, style: tokens.typography.titleLarge)),
           Semantics(
             button: true,
             label: '$title, tümünü gör',
@@ -437,97 +433,113 @@ class _FeaturedHero extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(tokens.radii.lg),
-        child: AspectRatio(
-          aspectRatio: 4 / 5,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CoverImage(
-                src: series.coverImage,
-                position: series.coverPosition,
-                semanticLabel: series.title,
-                tone: series.tone,
-                showDecorativeIcon: showDecorativeIcon,
-                variants: series.coverImageVariants,
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0.3, 1],
-                    colors: [
-                      Colors.transparent,
-                      tokens.colors.background.withValues(alpha: 0.94),
-                    ],
+        // Kart 4:5'ten KISA olmaz ama gerekirse UZAR. Sabit `AspectRatio`
+        // kullanıldığında, erişilebilirlik yazı boyutlarında (iOS Dynamic
+        // Type AX boyutları / Android büyük yazı tipi) metin sütunu kartı
+        // aşıyor ve `ClipRRect` başlığın üstünü kırpıyordu — `RenderFlex`
+        // hatası da düşmediği için sessizce bozuluyordu.
+        child: LayoutBuilder(
+          builder: (context, constraints) => ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxWidth * 5 / 4,
+            ),
+            // İçerik alta yaslanır; kısa metinde kart yine 4:5 görünür,
+            // uzun metinde aşağı doğru büyür.
+            child: Stack(
+              alignment: Alignment.bottomLeft,
+              children: [
+                Positioned.fill(
+                  child: CoverImage(
+                    src: series.coverImage,
+                    position: series.coverPosition,
+                    semanticLabel: series.title,
+                    tone: series.tone,
+                    showDecorativeIcon: showDecorativeIcon,
+                    variants: series.coverImageVariants,
                   ),
                 ),
-              ),
-              Positioned(
-                left: tokens.spacing.md,
-                right: tokens.spacing.md,
-                bottom: tokens.spacing.md,
-                child: Semantics(
-                  label: 'Öne çıkan seri: ${series.title}. ${series.eyebrow}.',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Wrap(
-                        spacing: tokens.spacing.xs,
-                        runSpacing: tokens.spacing.xs,
-                        children: [
-                          _Pill(
-                            text: 'Haftanın hikâyesi',
-                            tokens: tokens,
-                            highlight: true,
-                          ),
-                          _Pill(text: series.status, tokens: tokens),
-                          _Pill(
-                            text: '${series.episodeCount} bölüm',
-                            tokens: tokens,
-                          ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.3, 1],
+                        colors: [
+                          Colors.transparent,
+                          tokens.colors.background.withValues(alpha: 0.94),
                         ],
                       ),
-                      SizedBox(height: tokens.spacing.sm),
-                      Text(
-                        series.title,
-                        style: tokens.typography.displayLarge,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: tokens.spacing.xs),
-                      Text(
-                        series.description,
-                        style: tokens.typography.bodyMedium.copyWith(
-                          color: tokens.colors.ink,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: tokens.spacing.md),
-                      // Sabit `SizedBox(height: minTouchTarget)` yerine
-                      // tema `FilledButtonThemeData.minimumSize` (44 px alt
-                      // sınır) uygulanır; büyük yazı tipinde buton
-                      // gerekirse büyür (bkz. PLAN Görev B.2 — buton
-                      // etiketi kırpılmaz).
-                      if (episode != null)
-                        FilledButton(
-                          onPressed: () => context.push(
-                            '/series/${series.slug}/read/${episode.slug}',
-                          ),
-                          child: const Text('İlk bölümü oku'),
-                        ),
-                      if (episode != null) SizedBox(height: tokens.spacing.sm),
-                      OutlinedButton(
-                        onPressed: () => context.push('/series/${series.slug}'),
-                        child: const Text('Seriyi incele'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: EdgeInsets.all(tokens.spacing.md),
+                  child: Semantics(
+                    label:
+                        'Öne çıkan seri: ${series.title}. ${series.eyebrow}.',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Wrap(
+                          spacing: tokens.spacing.xs,
+                          runSpacing: tokens.spacing.xs,
+                          children: [
+                            _Pill(
+                              text: 'Haftanın hikâyesi',
+                              tokens: tokens,
+                              highlight: true,
+                            ),
+                            _Pill(text: series.status, tokens: tokens),
+                            _Pill(
+                              text: '${series.episodeCount} bölüm',
+                              tokens: tokens,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: tokens.spacing.sm),
+                        Text(
+                          series.title,
+                          style: tokens.typography.displayLarge,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: tokens.spacing.xs),
+                        Text(
+                          series.description,
+                          style: tokens.typography.bodyMedium.copyWith(
+                            color: tokens.colors.ink,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: tokens.spacing.md),
+                        // Sabit `SizedBox(height: minTouchTarget)` yerine
+                        // tema `FilledButtonThemeData.minimumSize` (44 px alt
+                        // sınır) uygulanır; büyük yazı tipinde buton
+                        // gerekirse büyür (bkz. PLAN Görev B.2 — buton
+                        // etiketi kırpılmaz).
+                        if (episode != null)
+                          FilledButton(
+                            onPressed: () => context.push(
+                              '/series/${series.slug}/read/${episode.slug}',
+                            ),
+                            child: const Text('İlk bölümü oku'),
+                          ),
+                        if (episode != null)
+                          SizedBox(height: tokens.spacing.sm),
+                        OutlinedButton(
+                          onPressed: () =>
+                              context.push('/series/${series.slug}'),
+                          child: const Text('Seriyi incele'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
