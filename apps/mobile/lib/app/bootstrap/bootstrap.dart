@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/storage/offline_storage_provider.dart';
 import '../../core/storage/shared_preferences_provider.dart';
+import '../../features/push/data/deferred_push_notification_repository.dart';
 import '../../features/push/data/firebase_push_notification_repository.dart';
 import '../../features/push/presentation/push_providers.dart';
 import '../app.dart';
@@ -29,14 +30,28 @@ import '../app.dart';
 /// Bildirim izni isteme İLK KARE'yi geciktirmemesi için `runApp` SONRASINA,
 /// fire-and-forget olarak bırakılır (izin diyaloğu zaten bir sistem UI'ı —
 /// Flutter'ın ilk çizimini beklemesi gerekmez).
+///
+/// `Firebase.initializeApp()` de AYNI GEREKÇEYLE beklenmez. Ölçüm (Pixel 8
+/// emülatörü, profile modu): Firebase başlatması tek başına **~405 ms**,
+/// buna karşılık `SharedPreferences` + `path_provider` ikisi birlikte
+/// yalnız **6 ms**. Eskiden `runApp`ten önce await edildiği için ilk kare,
+/// arayüzün hiç ihtiyaç duymadığı bir başlatma yüzünden bu kadar
+/// gecikiyordu. Artık başlatma `runApp` ile PARALEL yürür ve push
+/// repository'si [DeferredPushNotificationRepository] ile sarmalanır —
+/// hazır olmadan gelen çağrılar sessizce bekler, hiçbir çağıran farkı
+/// görmez.
 Future<void> bootstrap() async {
   WidgetsFlutterBinding.ensureInitialized();
   final sharedPreferences = await SharedPreferences.getInstance();
   final offlineStorageDirectory = await getApplicationDocumentsDirectory();
-  await Firebase.initializeApp();
-  final pushRepository = FirebasePushNotificationRepository(
-    FirebaseMessaging.instance,
+
+  // BASLAT ama BEKLEME: `runApp` bunun bitmesini beklemez.
+  final pushRepository = DeferredPushNotificationRepository(
+    Firebase.initializeApp().then(
+      (_) => FirebasePushNotificationRepository(FirebaseMessaging.instance),
+    ),
   );
+
   runApp(
     ProviderScope(
       overrides: [
