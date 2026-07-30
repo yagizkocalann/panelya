@@ -22,9 +22,15 @@
 1. Tamamlandi: Studio kullanici envanteri, guvenli admin/okuyucu rol degisikligi, kendi rolunu ve son admini koruma, rol degisikliginde oturum kapatma.
 2. Tamamlandi: 24 saatlik tek kullanimlik admin daveti, yenileme/iptal/kabul akisi; production public kaydinda otomatik admin yetkisinin kaldirilmasi ve sifir admin kosullu tek seferlik Studio bootstrap.
 3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk yerel saklama-purge politikasi. Production kimlik saglayicisi Auth0 ve mobil PKCE oturumu ADR-039 ile secildi; mobil runtime/canli Android turu ile web BFF callback, host-only cookie, exact logout ve acik hesap baglama kaynak siniri tamamlandi. Kalan dis is: confidential web istemcisini deployment ortaminda provision edip canli web turunu calistirmak, canli e-posta saglayicisi ve genel KVKK/GDPR veri envanteri.
-4. Tamamlandi: mevcut uzun pencere kotalarini atomik D1 sayaciyla kesinlestirme; production'da Cloudflare Rate Limiting binding'ini lokasyon bazli ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter.
-5. Tamamlandi: idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasi. Production Auth0 admin MFA/step-up ayari gercek tenant smoke testinde ayrica dogrulanacak.
-6. Contract-first teslim ve web runtime tamamlandi (ADR-047): web ve Flutter icin ortak
+4. Tamamlandi: Auth0 bagli web `Hesabim` arayuzu ortak JSON hesap yuzeyine
+   baglandi. Profil, sifre yenileme, provider-yonetimli e-posta, web/native
+   oturumlar, engeller ve yapilandirilmis silme etkileri ekranda gercek
+   endpointleri kullanir. E-posta degisikligi ve silme PKCE S256 taze
+   dogrulama callback'iyle tamamlanir; canli tur confidential web/M2M
+   provision'ina baglidir.
+5. Tamamlandi: mevcut uzun pencere kotalarini atomik D1 sayaciyla kesinlestirme; production'da Cloudflare Rate Limiting binding'ini lokasyon bazli ani trafik kalkani olarak one ekleyen fail-closed hibrit adapter.
+6. Tamamlandi: idle session timeout ve yuksek riskli islemlerde yeniden kimlik dogrulama politikasi. Production Auth0 admin MFA/step-up ayari gercek tenant smoke testinde ayrica dogrulanacak.
+7. Contract-first teslim ve web runtime tamamlandi (ADR-047): web ve Flutter icin ortak
    `Hesabim` kapsami profil, provider-yonetimli e-posta/sifre, birlesik
    web/native oturumlar, engellenen hesaplar ve Auth0 kimligini de kapsayan
    hesap silmedir. Reauthentication kaniti dahil schema/OpenAPI/fixture

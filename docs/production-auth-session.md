@@ -46,6 +46,12 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Refresh token mutlak omru: 30 gun; idle omru en cok 7 gun olarak provider tarafinda ayarlanir.
 - Refresh retry cakismasi icin provider overlap/leeway en fazla 5 saniye olur.
 - Mobil logout/revoke refresh grantini kapatir; mevcut JWT access tokeni en gec 15 dakika icinde sona erer. Web logout host-only Panelya oturumunu siler ve yalniz exact `AUTH0_WEB_LOGOUT_URIS` allowlist'indeki donus adresiyle Auth0 `/v2/logout` akisini kullanir. Hassas Studio islemleri yine yakin zamanda kimlik dogrulama ve guncel D1 rol kontrolu ister.
+- Confidential web uygulamasinin Allowed Callback URLs listesi iki ayri amaci kapsar:
+  `https://<public-domain>/api/auth/web/callback` normal giris/kayit BFF callback'idir;
+  `https://<public-domain>/account/reauthentication/callback` ise e-posta degisikligi
+  ve hesap silme icin taze kimlik dogrulama callback'idir. Iki adres de exact
+  `AUTH0_WEB_REDIRECT_URIS` listesinde bulunur; wildcard, query ve fragment
+  kullanilmaz.
 - `token_reused`, `session_revoked`, `token_expired` ve `login_required` istemciyi secure storage'i temizleyip tekrar login'e goturur.
 - `rate_limited` yalniz `retryAfterSeconds` sonrasinda yeniden denenir; sonsuz otomatik retry yapilmaz.
 - Token, authorization code, verifier ve provider subject log/audit/analytics olayina yazilmaz.
