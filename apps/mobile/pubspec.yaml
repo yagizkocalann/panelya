@@ -88,6 +88,10 @@ dependencies:
   # uzaktan push bildirimi platform SDK'si gerektirir; bunu elle (native
   # platform kanali) yazmak Google'in resmi/first-party cozdugu bir sorunu
   # yeniden icat etmek olurdu.
+  # Yasal sayfalar (gizlilik/kosullar/telif) SISTEM TARAYICISINDA acilir —
+  # uygulama ici WebView yok (ADR-039'un auth icin koydugu sinirla ayni
+  # gerekce: kullanici adres cubugunu ve sertifikayi gorebilmeli).
+  url_launcher: ^6.3.1
   firebase_core: ^4.12.1
   firebase_messaging: ^16.4.3
   # Auth0 sistem tarayici Authorization Code + PKCE oturum acma (ADR-039).

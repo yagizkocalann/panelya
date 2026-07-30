@@ -5,6 +5,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../../account/presentation/account_home_screen.dart';
+import '../../legal/presentation/legal_links.dart';
 import '../domain/auth_exceptions.dart';
 import '../domain/auth_session_state.dart';
 import 'auth_providers.dart';
@@ -83,18 +84,27 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         actions: const [HomeButton()],
       ),
       body: SafeArea(
-        child: switch (session) {
-          AuthAnonymous() => _AnonymousView(
-            busy: _busy,
-            errorMessage: _errorMessage,
-            onSignIn: _signIn,
-          ),
-          // Kimliği doğrulanmışken bu ekranın gösterdiği içerik (bkz.
-          // ADR-047 "Hesabım ana ekranı") `features/account/` modülüne
-          // devredilir — bu ekran yalnız Scaffold/AppBar/anonim kapıyı
-          // taşır.
-          AuthAuthenticated() => const AccountHomeScreen(),
-        },
+        child: Column(
+          children: [
+            Expanded(
+              child: switch (session) {
+                AuthAnonymous() => _AnonymousView(
+                  busy: _busy,
+                  errorMessage: _errorMessage,
+                  onSignIn: _signIn,
+                ),
+                // Kimliği doğrulanmışken bu ekranın gösterdiği içerik (bkz.
+                // ADR-047 "Hesabım ana ekranı") `features/account/` modülüne
+                // devredilir — bu ekran yalnız Scaffold/AppBar/anonim kapıyı
+                // taşır.
+                AuthAuthenticated() => const AccountHomeScreen(),
+              },
+            ),
+            // Giriş durumundan BAĞIMSIZ olarak her zaman görünür: yasal
+            // bilgiye ulaşmak hesap gerektirmez (bkz. [LegalLinks]).
+            const LegalLinks(),
+          ],
+        ),
       ),
     );
   }
@@ -127,8 +137,16 @@ class _AnonymousView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // ADR-010: burada YALNIZ girişin bu sürümde gerçekten
+            // sağladığı şey yazılır. Eskiden "kütüphaneni ve favorilerini
+            // senkronize et" deniyordu; oysa mobilde kütüphane/favori
+            // ekranı YOK ve ortak sözleşmede de bir kütüphane yüzeyi
+            // tanımlı değil (`library`, şemada yalnız bir hesap SİLME
+            // etkisi olarak geçiyor). Kullanıcıya var olmayan bir özellik
+            // vaat edilmez; kütüphane senkronu geldiğinde bu metin
+            // güncellenecek.
             Text(
-              'Hesabına giriş yaparak kütüphaneni ve favorilerini senkronize et.',
+              'Hesabına giriş yaparak profilini ve oturumlarını yönet.',
               textAlign: TextAlign.center,
               style: tokens.typography.bodyMedium,
             ),

@@ -15,20 +15,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// bkz. `apps/mobile/README.md`.
 @immutable
 class AppConfig {
-  const AppConfig({required this.apiOrigin});
+  const AppConfig({required this.apiOrigin, required this.webOrigin});
 
   factory AppConfig.fromDartDefines() {
-    return const AppConfig(
-      apiOrigin: String.fromEnvironment(
-        'API_ORIGIN',
-        defaultValue: 'http://localhost:3000',
-      ),
+    const apiOrigin = String.fromEnvironment(
+      'API_ORIGIN',
+      defaultValue: 'http://localhost:3000',
+    );
+    const webOrigin = String.fromEnvironment('WEB_ORIGIN');
+    return AppConfig(
+      apiOrigin: apiOrigin,
+      // Define verilmezse `apiOrigin`e düşülür (bkz. [webOrigin]).
+      webOrigin: webOrigin.isEmpty ? apiOrigin : webOrigin,
     );
   }
 
   /// Web deployment'ının API sınırı. Mobil istemci D1/R2'ye doğrudan
   /// bağlanmaz; yalnız bu origin altındaki `/api/*` uçlarını kullanır.
   final String apiOrigin;
+
+  /// Herkese açık web sitesinin origin'i — yasal sayfalar (gizlilik,
+  /// kullanım koşulları, telif bildirimi) buradan açılır.
+  ///
+  /// `WEB_ORIGIN` define'ı verilmezse [apiOrigin]'e düşer: yerel
+  /// geliştirmede ve tek origin'li deployment'ta ikisi AYNIDIR. Ayrı bir
+  /// domain kullanılacaksa (ör. API başka bir alt alan adındaysa) define
+  /// açıkça verilmelidir — burada tahmin YAPILMAZ.
+  final String webOrigin;
 }
 
 /// Aktif [AppConfig]. Testlerde override edilebilir; varsayılan olarak
