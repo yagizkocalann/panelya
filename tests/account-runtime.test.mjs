@@ -122,3 +122,30 @@ test("yerel QA şifre yenilemesi Auth0 management yapılandırmasına yönelmez"
   assert.match(source, /actor\.issuer && gateway && management/);
   assert.match(source, /else if \(!actor\.issuer\)/);
 });
+
+test("web Hesabım arayüzü ortak JSON yüzeyini ve tek kullanımlık reauthentication akışını tüketir", async () => {
+  const [manager, callback, page] = await Promise.all([
+    readFile(new URL("../app/account/ProductionAccountManager.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/reauthentication/callback/ReauthenticationCallbackClient.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+  ]);
+  for (const endpoint of [
+    "/api/account/profile",
+    "/api/account/password-reset",
+    "/api/account/sessions",
+    "/api/account/blocks/",
+    "/api/account/deletion",
+    "/api/account/reauthentication/start",
+  ]) {
+    assert.match(manager, new RegExp(endpoint.replaceAll("/", "\\/")));
+  }
+  assert.match(page, /providerAccount\s*\?\s*<ProductionAccountManager/);
+  assert.match(manager, /codeChallengeMethod:\s*"S256"/);
+  assert.match(manager, /sessionStorage\.setItem/);
+  assert.doesNotMatch(manager, /localStorage/);
+  assert.match(callback, /history\.replaceState/);
+  assert.match(callback, /sessionStorage\.removeItem/);
+  assert.match(callback, /\/api\/account\/reauthentication\/complete/);
+  assert.match(callback, /"Idempotency-Key"/);
+  assert.doesNotMatch(callback, /localStorage|console\./);
+});
