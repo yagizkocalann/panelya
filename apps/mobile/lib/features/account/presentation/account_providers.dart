@@ -8,6 +8,7 @@ import '../../auth/presentation/auth_providers.dart';
 import '../data/account_reauthentication.dart';
 import '../data/http_account_repository.dart';
 import '../domain/account_repository.dart';
+import 'account_retry_policy.dart';
 
 /// Aktif [AccountRepository]: ortak `/api/account/*` sözleşmesine konuşan
 /// GERÇEK [HttpAccountRepository]'yi bağlar (bkz. ADR-047, OpenAPI 1.4.1).
@@ -42,6 +43,7 @@ final accountReauthenticatorProvider = Provider<AccountReauthenticator>((ref) {
 /// aksiyonu göstereceğine yalnız `capabilities` üzerinden karar verir.
 final accountOverviewProvider = FutureProvider<AccountOverviewResponse>(
   (ref) => ref.watch(accountRepositoryProvider).fetchOverview(),
+  retry: accountProviderRetry,
 );
 
 /// `GET /api/account/sessions`. Mutasyonlar sonrası çağıran bu provider'ı
@@ -49,15 +51,18 @@ final accountOverviewProvider = FutureProvider<AccountOverviewResponse>(
 /// `offline_providers.dart` -> `downloadedEpisodesProvider` deseni).
 final accountSessionsProvider = FutureProvider<AccountSessionsResponse>(
   (ref) => ref.watch(accountRepositoryProvider).fetchSessions(),
+  retry: accountProviderRetry,
 );
 
 /// `GET /api/account/blocks`.
 final blockedAccountsProvider = FutureProvider<BlockedAccountsResponse>(
   (ref) => ref.watch(accountRepositoryProvider).fetchBlockedAccounts(),
+  retry: accountProviderRetry,
 );
 
 /// `GET /api/account/deletion` — silme/anonimleştirme/SAKLAMA özeti.
 final accountDeletionSummaryProvider =
     FutureProvider<AccountDeletionSummaryResponse>(
       (ref) => ref.watch(accountRepositoryProvider).fetchDeletionSummary(),
+      retry: accountProviderRetry,
     );
