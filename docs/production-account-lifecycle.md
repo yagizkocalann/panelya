@@ -237,6 +237,16 @@ envanteri `read:device_credentials` ve tekil/toplu native oturum iptali
 `delete:device_credentials` kullanir. Daha genis tenant yonetim izinleri
 verilmez.
 
+Canli smoke testinden once Git disi `.dev.vars` yapilandirmasi
+`npm run auth0:preflight` ile kontrol edilir. Bu komut secret degerlerini
+yazdirmaz; yalniz zorunlu alanlarin varligini, en az uzunluk sinirini, mobile
+callback'i, iki exact web callback'ini, logout origin'ini ve Management API
+audience seklini denetler. Eksik kontrolde sifir olmayan kodla kapanir. Farkli
+bir Git disi dosya veya origin icin
+`npm run auth0:preflight -- --env-file <dosya> --origin <origin>` kullanilir.
+Dashboard provisioning ve canli iki-provider QA sirasi
+`docs/auth0-live-provisioning.md` runbook'unda tutulur.
+
 Auth0 device credential API'si mevcut access tokeni belirli refresh
 credential id'sine baglamadigi icin native envanter kayitlari bu teslimde
 guvenli bicimde listelenip iptal edilir fakat `current` isareti tahmin
