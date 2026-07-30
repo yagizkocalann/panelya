@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   parseEnvText,
@@ -68,4 +69,23 @@ test("env parser yorumları ve tırnakları secret değerlerini açmadan işler"
     AUTH0_WEB_CLIENT_ID: "fixture-client",
     AUTH0_DATABASE_CONNECTION: "fixture-connection",
   });
+});
+
+test("Auth0 provisioning runbook'u en az yetki ve exact callback sınırını korur", async () => {
+  const runbook = await readFile(
+    new URL("../docs/auth0-live-provisioning.md", import.meta.url),
+    "utf8",
+  );
+  assert.match(runbook, /Regular Web Applications/);
+  assert.match(runbook, /http:\/\/localhost:3000\/api\/auth\/web\/callback/);
+  assert.match(runbook, /http:\/\/localhost:3000\/account\/reauthentication\/callback/);
+  assert.match(runbook, /read:users/);
+  assert.match(runbook, /update:users/);
+  assert.match(runbook, /delete:users/);
+  assert.match(runbook, /read:device_credentials/);
+  assert.match(runbook, /delete:device_credentials/);
+  assert.match(runbook, /Client secret/i);
+  assert.doesNotMatch(runbook, /AUTH0_WEB_CLIENT_SECRET\s*=\s*\S+/);
+  assert.doesNotMatch(runbook, /AUTH0_MANAGEMENT_CLIENT_SECRET\s*=\s*\S+/);
+  assert.doesNotMatch(runbook, /ACCOUNT_RUNTIME_SECRET\s*=\s*\S+/);
 });

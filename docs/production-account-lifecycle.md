@@ -244,6 +244,8 @@ callback'i, iki exact web callback'ini, logout origin'ini ve Management API
 audience seklini denetler. Eksik kontrolde sifir olmayan kodla kapanir. Farkli
 bir Git disi dosya veya origin icin
 `npm run auth0:preflight -- --env-file <dosya> --origin <origin>` kullanilir.
+Dashboard provisioning ve canli iki-provider QA sirasi
+`docs/auth0-live-provisioning.md` runbook'unda tutulur.
 
 Auth0 device credential API'si mevcut access tokeni belirli refresh
 credential id'sine baglamadigi icin native envanter kayitlari bu teslimde
