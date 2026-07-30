@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
+import '../domain/push_exceptions.dart';
 import 'push_providers.dart';
 
 /// Bildirim ayarları ekranı (`/notifications`, bkz.
@@ -21,15 +22,35 @@ import 'push_providers.dart';
 class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
 
-  Future<void> _setEnabled(WidgetRef ref, bool value) async {
+  Future<void> _setEnabled(
+    BuildContext context,
+    WidgetRef ref,
+    bool value,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
     final repository = ref.read(pushNotificationRepositoryProvider);
     if (value) {
       final granted = await repository.requestPermission();
       if (!granted) return;
-      await repository.subscribeToNewEpisodes();
+      try {
+        await repository.subscribeToNewEpisodes();
+      } on PushSubscriptionUnavailableException catch (error) {
+        // Abonelik olmadan tercihi AÇIK yazmayız — anahtar kapalı kalır ve
+        // kullanıcı neden olduğunu öğrenir (bkz. ADR-010).
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+        return;
+      }
       await ref.read(notificationPreferenceProvider.notifier).setEnabled(true);
     } else {
-      await repository.unsubscribeFromNewEpisodes();
+      try {
+        await repository.unsubscribeFromNewEpisodes();
+      } on PushSubscriptionUnavailableException catch (error) {
+        // Abonelik gerçekten kaldırılamadıysa tercihi KAPALI yazmayız —
+        // aksi hâlde kullanıcı bildirim almaya devam ederken anahtarı
+        // kapalı görürdü.
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+        return;
+      }
       await ref.read(notificationPreferenceProvider.notifier).setEnabled(false);
     }
     ref.invalidate(pushPermissionStatusProvider);
@@ -60,7 +81,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
               padding: EdgeInsets.all(tokens.spacing.md),
               child: SwitchListTile(
                 value: effectiveEnabled,
-                onChanged: (value) => _setEnabled(ref, value),
+                onChanged: (value) => _setEnabled(context, ref, value),
                 title: const Text('Yeni bölüm bildirimleri'),
                 subtitle: Text(
                   !hasPermission && preference

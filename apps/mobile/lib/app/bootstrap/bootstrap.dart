@@ -62,7 +62,19 @@ Future<void> bootstrap() async {
     final wantsNewEpisodes =
         sharedPreferences.getBool(notifyNewEpisodesPreferenceKey) ?? true;
     if (wantsNewEpisodes) {
-      await pushRepository.subscribeToNewEpisodes();
+      // BEST-EFFORT: abonelik uygulamanın açılmasını engellemez. Burası
+      // `runApp`ten SONRA çalışan, kullanıcı arayüzü olmayan bir arka plan
+      // adımıdır; hata fırlatırsa yakalanmadan "Unhandled Exception" olarak
+      // açılışa düşerdi (iOS'ta APNs token'ı henüz gelmemişken bu HER ilk
+      // açılışta olur). Kullanıcı tercihi zaten açık kaldığı için bir
+      // sonraki açılışta yeniden denenir; Bildirimler ekranından da elle
+      // tekrar denenebilir.
+      try {
+        await pushRepository.subscribeToNewEpisodes();
+      } on Object {
+        // Sessizce geçilir: burada gösterilecek bir arayüz yok ve
+        // kullanıcıya yanlışlıkla "abone oldun" izlenimi VERİLMEZ.
+      }
     }
   }
 }

@@ -22,11 +22,19 @@ abstract class PushNotificationRepository {
   /// [newEpisodesPushTopic] konusuna abone olur (bkz. sınıf doc yorumu).
   /// Yalnız izin verilmişken çağrılmalıdır (bkz. docs/mobile-handoff.md
   /// "Bildirim izni verilmeden topic aboneliği yapılmaz").
+  ///
+  /// Abonelik ŞU AN yapılamıyorsa [PushSubscriptionUnavailableException]
+  /// fırlatır (bkz. o sınıf — iOS'ta APNs token'ı hazır değilse).
+  /// Çağıranlar bunu yakalayıp dürüstçe göstermelidir.
   Future<void> subscribeToNewEpisodes();
 
   /// [newEpisodesPushTopic] konusundan aboneliği kaldırır. İzin durumundan
-  /// bağımsız her zaman güvenle çağrılabilir (hiç abone olunmamışsa
-  /// no-op).
+  /// bağımsız çağrılabilir (hiç abone olunmamışsa no-op).
+  ///
+  /// [subscribeToNewEpisodes] ile aynı şekilde, işlem ŞU AN
+  /// yapılamıyorsa [PushSubscriptionUnavailableException] fırlatır —
+  /// sessizce "kaldırıldı" SAYILMAZ, çünkü cihaz önceki bir açılışta
+  /// abone olmuş olabilir.
   Future<void> unsubscribeFromNewEpisodes();
 
   /// Uygulama arka plandayken/kapalıyken bir bildirime dokunulduğunda

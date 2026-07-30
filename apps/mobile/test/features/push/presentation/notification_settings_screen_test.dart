@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/storage/shared_preferences_provider.dart';
+import 'package:panelya_mobile/features/push/domain/push_exceptions.dart';
 import 'package:panelya_mobile/features/push/domain/push_notification_repository.dart';
 import 'package:panelya_mobile/features/push/presentation/notification_settings_screen.dart';
 import 'package:panelya_mobile/features/push/presentation/push_providers.dart';
@@ -18,10 +19,17 @@ class _FakePushNotificationRepository implements PushNotificationRepository {
   _FakePushNotificationRepository({
     this.permissionGranted = true,
     this.requestPermissionResult = true,
+    this.subscribeError,
+    this.unsubscribeError,
   });
 
   bool permissionGranted;
   bool requestPermissionResult;
+  /// Kuruldugunda `subscribeToNewEpisodes` bunu firlatir (bkz. iOS APNs
+  /// token yarisi -> `PushSubscriptionUnavailableException`).
+  Object? subscribeError;
+  /// Kuruldugunda `unsubscribeFromNewEpisodes` bunu firlatir.
+  Object? unsubscribeError;
   final List<String> calls = [];
 
   @override
@@ -37,11 +45,13 @@ class _FakePushNotificationRepository implements PushNotificationRepository {
   @override
   Future<void> subscribeToNewEpisodes() async {
     calls.add('subscribe');
+    if (subscribeError != null) throw subscribeError!;
   }
 
   @override
   Future<void> unsubscribeFromNewEpisodes() async {
     calls.add('unsubscribe');
+    if (unsubscribeError != null) throw unsubscribeError!;
   }
 
   @override
@@ -192,6 +202,71 @@ void main() {
         find.byType(SwitchListTile),
       );
       expect(tile.value, isFalse);
+    },
+  );
+
+  testWidgets(
+    'abonelik tamamlanamazsa (iOS APNs token yarışı) anahtar AÇIK '
+    'yazılmaz, sebep kullanıcıya gösterilir',
+    (tester) async {
+      final repository = _FakePushNotificationRepository(
+        permissionGranted: false,
+        subscribeError: const PushSubscriptionUnavailableException(),
+      );
+      await tester.pumpWidget(
+        await _wrap(repository, initialPreference: false),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      // Sunucu/SDK aboneliği tamamlayamadı: dürüst mesaj gösterilir.
+      expect(
+        find.text(
+          'Bildirim tercihi şu an güncellenemedi. Lütfen daha sonra tekrar '
+          'dene.',
+        ),
+        findsOneWidget,
+      );
+
+      // Tercih AÇIK yazılmadı — anahtar kapalı kaldı (ADR-010: olmayan bir
+      // durumu var gibi göstermeyiz).
+      final tile = tester.widget<SwitchListTile>(
+        find.byType(SwitchListTile),
+      );
+      expect(tile.value, isFalse);
+      expect(repository.calls, ['requestPermission', 'subscribe']);
+    },
+  );
+
+  testWidgets(
+    'abonelik KALDIRILAMAZSA anahtar KAPALI yazılmaz — kullanıcı bildirim '
+    'almaya devam ederken kapalı görmemeli',
+    (tester) async {
+      final repository = _FakePushNotificationRepository(
+        unsubscribeError: const PushSubscriptionUnavailableException(),
+      );
+      await tester.pumpWidget(await _wrap(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Bildirim tercihi şu an güncellenemedi. Lütfen daha sonra tekrar '
+          'dene.',
+        ),
+        findsOneWidget,
+      );
+
+      // Tercih KAPALI yazılmadı — anahtar açık kaldı.
+      final tile = tester.widget<SwitchListTile>(
+        find.byType(SwitchListTile),
+      );
+      expect(tile.value, isTrue);
+      expect(repository.calls, ['unsubscribe']);
     },
   );
 
