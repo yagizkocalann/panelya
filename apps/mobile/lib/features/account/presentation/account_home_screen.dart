@@ -75,8 +75,8 @@ class _AccountHomeScreenState extends ConsumerState<AccountHomeScreen> {
     if (!managementEnabled) {
       // Hesap yönetimi kapalı: gerçek oturum kullanıcısını doğrudan
       // `authSessionProvider`dan okuruz — `accountRepositoryProvider` HİÇ
-      // okunmaz (o, gerçek runtime'da bilerek bağlanmamıştır ve okunursa
-      // fırlatır, bkz. o provider'ın dokümantasyonu).
+      // okunmaz. Böylece bayrak kapalıyken `GET /api/account` isteği bile
+      // gitmez; ekran yalnız elde zaten bulunan oturum bilgisini gösterir.
       final session = ref.watch(authSessionProvider);
       final user = switch (session) {
         AuthAuthenticated(:final user) => user,

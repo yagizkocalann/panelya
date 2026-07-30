@@ -68,10 +68,11 @@ import 'route_args.dart';
 /// [redirect] bunları FAIL-CLOSED biçimde `/account`a yönlendirir — bu,
 /// `AccountHomeScreen`in girişleri hiç render etmemesine EK bir savunma
 /// katmanıdır (doğrudan navigasyon/deep-link ile de ulaşılamaz). Gerekçe:
-/// hesap yönetimi bugün yalnız presentation-only `FakeAccountRepository`
-/// üzerinde çalışır ve mutation'ları sahte başarı gösterir; `AUTH_ENABLED`
-/// (gerçek Auth0 girişi, hazır) ile birlikte açılmaması gerekir (bkz.
-/// `core/config/account_management_feature_config.dart`).
+/// hesap yönetimi gerçek `HttpAccountRepository` ile ortak
+/// `/api/account/*` sözleşmesine bağlıdır ve geri alınamaz aksiyonlar
+/// (hesap silme) içerir; bu yüzden `AUTH_ENABLED` (gerçek Auth0 girişi)
+/// ile birlikte otomatik açılmaz — ayrı bir yayın kapısı olarak durur
+/// (bkz. `core/config/account_management_feature_config.dart`).
 ///
 /// Güvenli düşüş (PLAN Görev 3): `panelya://` custom scheme linkleri
 /// [redirect] içinde [resolveCustomSchemeRoute] ile bilinen rotalardan birine

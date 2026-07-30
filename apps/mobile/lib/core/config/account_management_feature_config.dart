@@ -6,29 +6,34 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// ADR-047) açma/kapama anahtarı.
 ///
 /// `AuthFeatureConfig`ten (`AUTH_ENABLED`) KASITLI OLARAK AYRIDIR ve ondan
-/// bağımsız değerlendirilir. Gerekçe: `AUTH_ENABLED` gerçek Auth0
-/// giriş/çıkış/oturum davranışını kontrol eder ve bu artık HAZIRDIR (bkz.
-/// ADR-039, canlı doğrulandı); hesap YÖNETİMİ ise henüz yalnız
-/// presentation-only `FakeAccountRepository` üzerinde çalışır ve
-/// mutation'ları (profil kaydetme, e-posta değiştirme, şifre sıfırlama,
-/// oturum kapatma, engel kaldırma, hesap silme) hiçbir şey yapmadan
-/// BAŞARILI görünür. Tek bir bayrak ikisini birlikte açsaydı, gerçek girişi
-/// yayına almak için bayrağı `true` yapmak sahte hesap mutation'larını da
-/// kullanıcıya açardı.
+/// bağımsız değerlendirilir.
+///
+/// Gerekçe artık "sahte mutation" DEĞİLDİR: hesap yönetimi gerçek
+/// `HttpAccountRepository` ile ortak `/api/account/*` sözleşmesine bağlıdır
+/// (bkz. ADR-047, OpenAPI 1.4.1) ve mutation'lar gerçekten sunucuya gider.
+/// Bayrak bir YAYIN KAPISI olarak duruyor: hesap yönetimi geri alınamaz
+/// aksiyonlar içerir (hesap silme) ve akışların bir kısmı henüz her iki
+/// platformda da canlı doğrulanamadı — oturum envanteri ile şifre
+/// yenileme, gerekli Auth0 Management/runtime değerleri o ortama
+/// kurulmadan 503 fail-closed döner; hesap silme ise yalnız disposable bir
+/// test hesabıyla çalıştırılabileceği için hiç denenmedi. Bu yüzden gerçek
+/// girişi (`AUTH_ENABLED`) yayına almak, hesap yönetimini de otomatik
+/// açmaz.
 ///
 /// `enabled == false` (VARSAYILAN) iken:
 /// - `AccountHomeScreen` yalnız GERÇEK oturum bilgisini (`authSessionProvider`
 ///   -> `AuthUser`) ve "Çıkış yap"ı gösterir; `accountRepositoryProvider`a
-///   HİÇ DOKUNMAZ (bu yüzden sahte sağlayıcı etiketi de gösterilmez).
+///   HİÇ DOKUNMAZ (bu yüzden sağlayıcı etiketi de gösterilmez).
 /// - Beş yönetim girişi HİÇ RENDER EDİLMEZ — devre dışı buton veya
 ///   "yakında" placeholder olarak DA gösterilmez (ADR-010).
 /// - `/account/*` alt rotaları (deep-link/doğrudan navigasyon dahil)
 ///   router'da fail-closed biçimde `/account`a yönlendirilir (bkz.
 ///   `app/router/router.dart` -> `redirect`).
 ///
-/// Production'da yalnız ortak `/api/account/*` sözleşmesi ve gerçek
-/// `HttpAccountRepository` hazır olduğunda açılacaktır; bugün `true`
-/// değeri yalnız presentation testleri/geliştirme önizlemesi içindir.
+/// Açılma koşulu: hedef ortamda gerekli Auth0 Management/runtime
+/// değerleri kurulu olmalı (aksi hâlde oturum envanteri ve şifre yenileme
+/// 503 döner) ve hesap silme akışı disposable bir test hesabıyla canlı
+/// doğrulanmış olmalı. `true` değeri bugün geliştirme/QA turları içindir.
 @immutable
 class AccountManagementFeatureConfig {
   const AccountManagementFeatureConfig({required this.enabled});

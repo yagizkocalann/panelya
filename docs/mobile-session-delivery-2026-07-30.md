@@ -178,11 +178,24 @@ yazıldı. History rewrite **yapılmadı**; anahtarlar eski commit'lerde
 okunabilir kalıyor ve ancak Google/Firebase Console'da döndürülüp
 uygulama/API kısıtları verildikten sonra kapanır. (`c1d65e6`)
 
-Kısıt eklendikten sonra aynı debug APK ile yeniden doğrulandı: Firebase
-başlatma, bildirim izni, `panelya-new-episodes` topic aboneliği ve
-Installations `Status = 3` (REGISTERED) — API key reddi sıfır. Gerçek FCM
-teslimi ve deep-link açılışı `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` /
-`FCM_PRIVATE_KEY` sağlanmadığı için doğrulanamadı.
+**FCM doğrulamasının kapsamı — iki ayrı tur olduğu için netleştirilmiştir:**
+
+- **Kısıt öncesi tur (bu turdan önce):** uçtan uca doğrulandı — topic
+  aboneliği, **gerçek FCM teslimi** ve **deep-link açılışı** dahil.
+- **Kısıt sonrası tur (bu turda):** Google Cloud'da Android API
+  anahtarına uygulama kısıtı eklendikten sonra, aynı debug APK ile temiz
+  kurulumda YALNIZ kayıt yolu yeniden doğrulandı — Firebase başlatma,
+  bildirim izni, Installations `Status = 3` (REGISTERED) ve
+  `panelya-new-episodes` topic aboneliği (`Topic subscribe … succeeded`,
+  `topic sync succeeded`). API key reddi sıfır; kısıt paket adı + SHA-1
+  ile doğru yapılandırılmış.
+
+Kısıt sonrasında gerçek teslim ve deep-link **yeniden çalıştırılmadı**:
+gönderim `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` / `FCM_PRIVATE_KEY`
+gerektiriyor ve bu değerler bu Mac ortamında kurulu değildi. Kısıtın
+etkilediği yüzey zaten kayıt/abonelik tarafıdır (`fcmregistrations.
+googleapis.com`); gönderim tarafı servis hesabı kullandığı için Android
+API anahtarı kısıtından etkilenmez.
 
 ---
 
@@ -192,7 +205,8 @@ Kapsam ölçüldüğünde `http_account_repository.dart` **%48.1** çıktı:
 12 metodun 8'inin hiç testi yoktu. Bu metotlar ortak sözleşmeye göre HTTP
 yolu ve gövdesi kuruyor; yanlış bir alan adı yalnızca canlıda görülürdü —
 ve bu uçların bir kısmı canlıda **da** görülemiyor (`sessions`,
-`password-reset` yerel ortamda 503 fail-closed dönüyor).
+`password-reset` bu Mac ortamında gerekli runtime değerleri kurulu
+olmadığı için 503 fail-closed dönüyordu).
 
 11 test eklendi; her biri metodu, yolu ve gövdeyi kilitliyor. Yol
 kodlaması ayrıca doğrulanıyor: oturum/kullanıcı kimliğindeki `/` ve boşluk
@@ -268,7 +282,9 @@ EncryptedSharedPreferences yolundan ayrı kod, ilk kez doğrulandı), silme
 hatası + toplu silme, AX yazı boyutunda yerleşim.
 
 **Doğrulanamayanlar:** hesap silme (disposable hesap yok, geri alınamaz),
-oturum envanteri ve şifre yenileme (503 — eksik değişkenler),
+oturum envanteri ve şifre yenileme (mobil Mac ortamında Auth0
+Management/account runtime değerleri kurulu olmadığı için 503; web
+tarafında bu akışlar provision edilip canlı doğrulanmış durumda),
 iOS APNs push (simulator APNs token alamaz).
 
 Ayrıntılı engel listesi: `mobile-web-handoff-findings.md`.

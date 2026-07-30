@@ -8,22 +8,31 @@ alınmıştır; buradakiler mobil koddan kapatılamaz.
 Değer taşımayan hiçbir varsayım yazılmadı: her madde canlı bir turda
 gözlendi ve nasıl gözlendiği belirtildi.
 
-## 1. Eksik runtime yapılandırması (iki akış bloke)
+## 1. Runtime yapılandırması — web tarafında çözüldü, mobil ortama kurulacak
 
-Aşağıdaki uçlar yerel ortamda 503 fail-closed dönüyor. Mobil istemci bunu
-doğru ele alıyor (sunucunun kendi mesajını gösteriyor, sahte başarı
-üretmiyor), ama akışlar **hiçbir platformda doğrulanamadı**.
+**Durum güncellendi.** Web tarafı Auth0 Management M2M ve account runtime
+değerlerini provision etti; **web** oturum envanteri ve şifre yenileme
+e-postası canlı doğrulandı. Yani bu artık bir web eksiği değildir.
 
-| Akış | Eksik değişken adları |
+Kalan iş mobil tarafta ortam kurulumudur: aşağıdaki değerler mobil
+geliştirme Mac'inde de **Git dışı yerel runtime dosyasına** (`.dev.vars`,
+kök `.gitignore` kapsamında) kurulmalı ki mobil canlı QA turu bu iki
+akışı doğrulayabilsin.
+
+| Akış | Gereken değişken adları |
 | --- | --- |
 | `GET /api/account/sessions` (ve oturum kapatma) | `ACCOUNT_RUNTIME_SECRET` |
 | `POST /api/account/password-reset`, e-posta değişikliği | `AUTH0_MANAGEMENT_CLIENT_ID`, `AUTH0_MANAGEMENT_CLIENT_SECRET`, `AUTH0_MANAGEMENT_AUDIENCE` |
 
-Yalnız değişken **adları** listelenmiştir; değerler bu dokümana veya
-herhangi bir loga yazılmaz.
+Yalnız değişken **adları** listelenmiştir; değerler bu dokümana, herhangi
+bir loga veya commit'e yazılmaz.
 
-Gözlem: iOS canlı turunda "Aktif oturumlar" ekranı sunucunun
-`Hesap çalışma anahtarı yapılandırılmamış.` mesajını gösterdi.
+Mobil tarafta doğrulanmamış olarak kalan: bu iki akışın **mobil**
+istemciden çalıştırılması. Son turda mobil ortamda değerler kurulu
+olmadığı için sunucu 503 döndü ve istemci bunu doğru ele aldı —
+"Aktif oturumlar" ekranı sunucunun `Hesap çalışma anahtarı
+yapılandırılmamış.` mesajını olduğu gibi gösterdi, sahte başarı
+üretmedi.
 
 ## 2. `scope=others` — current-device gateway eşlemesi
 
