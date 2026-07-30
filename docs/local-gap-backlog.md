@@ -36,8 +36,14 @@
    hesap silmedir. Reauthentication kaniti dahil schema/OpenAPI/fixture
    OpenAPI `1.4.1` teslimindedir. AccountActor, Auth0 Management API adapteri,
    session envanteri, PKCE/JWE yeniden dogrulama ve idempotent silme saga'si
-   `main`dedir. Mobil local PBKDF2 form endpoint'lerini kopyalamaz; mobil HTTP
-   repository entegrasyonu ve iki platformun canli QA turu bekler.
+   `main`dedir. Mobil local PBKDF2 form endpoint'lerini kopyalamaz. Mobil HTTP
+   repository entegrasyonu `codex/mobile` dalinda tamamlandi: uretilen DTO'lar,
+   `HttpAccountRepository`, amaca-bagli reauthentication akisi ve alti ekranin
+   gercek uclara baglanmasi dahil. Kalan is canli QA turudur; Android'de alti
+   okuma/mutation akisi dogrulandi, iOS turu suruyor. Oturum envanteri ve sifre
+   yenileme akislari `ACCOUNT_RUNTIME_SECRET` ve Auth0 Management M2M
+   degiskenleri saglanana kadar 503 fail-closed doner; mobilde `scope=others`
+   ayrica current-device gateway eslemesi teslimine baglidir.
 
 ## P1 - Operasyon ve gelir
 
