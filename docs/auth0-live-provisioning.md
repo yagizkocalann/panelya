@@ -28,9 +28,9 @@ Allowed Logout URLs:
 
 - `http://localhost:3000`
 
-Application Login URI:
-
-- `http://localhost:3000/login`
+Application Login URI yerel QA'da bos kalir. Auth0 bu `initiate_login_uri`
+alaninda yalniz HTTPS kabul eder; Panelya girisi uygulamanin kendi `/login`
+rotasindan baslatildigi icin localhost icin sahte bir HTTPS adresi yazilmaz.
 
 Allowed Web Origins ve Allowed Origins (CORS) bos kalir. Panelya web girisi
 server-side BFF akisi oldugu icin browser JavaScript'inin Auth0 API'ye
