@@ -223,6 +223,36 @@ Yeni bir clone'da build almadan önce Firebase istemci yapılandırma
 dosyalarını yerine koy — bu dosyaların gerçekleri Git'e commit edilmez,
 bkz. [`docs/mobile-firebase-config.md`](../../docs/mobile-firebase-config.md).
 
+### Release build — Android'de `flutter build apk` KULLANMA
+
+Düz `flutter build apk --release` **üç ABI'yi birden** tek bir APK'ya
+koyar. Ölçüldü:
+
+| Artefakt | Boyut | Not |
+| --- | --- | --- |
+| `flutter build apk` (tek APK) | **55.9 MB** | kullanıcı bunu indirir |
+| `--split-per-abi`, arm64 | 19.9 MB | cihazın gerçekten kullandığı |
+| `--split-per-abi`, armeabi-v7a | 17.4 MB | |
+| `--split-per-abi`, x86_64 | 21.3 MB | **yalnız emülatör** |
+
+55.9 MB'ın 51.9 MB'ı native kütüphane; bir cihaz bunlardan yalnız birini
+çalıştırır. `x86_64` hiçbir gerçek telefonda kullanılmaz. Tek APK
+dağıtmak arm64 kullanıcısına **36 MB fazladan indirtir (%64 israf)**.
+
+Bu yüzden:
+
+```sh
+# Play Store (onerilen): Play her cihaza yalniz kendi dilimini indirir
+flutter build appbundle --release --dart-define-from-file=env/local.json
+
+# Dogrudan APK dagitimi gerekiyorsa (Play disi)
+flutter build apk --release --split-per-abi --dart-define-from-file=env/local.json
+```
+
+`android/app/build.gradle.kts` şu an release'i **debug anahtarıyla**
+imzalıyor (dosyada `TODO` olarak duruyor). Mağaza yayını öncesinde
+gerçek bir release imza yapılandırması gerekir.
+
 ## Mimari notlar
 
 - **Tema**: `lib/app/theme/` — tüm renk/spacing/tipografi token'ları
