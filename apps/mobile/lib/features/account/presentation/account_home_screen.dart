@@ -10,6 +10,7 @@ import '../../auth/domain/auth_session_state.dart';
 import '../../auth/presentation/auth_providers.dart';
 import 'account_avatar.dart';
 import 'account_capability_view.dart';
+import 'account_error_message.dart';
 import 'account_providers.dart';
 
 /// "Hesabım ana ekranı" (bkz. ADR-047): avatar/görünen ad, e-posta +
@@ -81,7 +82,7 @@ class _AccountHomeScreenState extends ConsumerState<AccountHomeScreen> {
     return overview.when(
       loading: () => const AppLoadingView(label: 'Hesap bilgilerin yükleniyor'),
       error: (error, stackTrace) => AppErrorView(
-        message: 'Beklenmeyen bir hata oluştu.',
+        message: accountErrorMessage(error),
         onRetry: () => ref.invalidate(accountOverviewProvider),
       ),
       data: (overview) => _AccountHomeBody(

@@ -6,6 +6,7 @@ import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../../../core/contracts/generated/generated.dart';
 import '../domain/account_exceptions.dart';
+import 'account_error_message.dart';
 import 'account_providers.dart';
 
 /// "Engellenen hesaplar" ekranı (`/account/blocked`, bkz. ADR-047): listeler
@@ -56,7 +57,7 @@ class _BlockedAccountsScreenState extends ConsumerState<BlockedAccountsScreen> {
           loading: () =>
               const AppLoadingView(label: 'Engellenen hesaplar yükleniyor'),
           error: (error, stackTrace) => AppErrorView(
-            message: 'Beklenmeyen bir hata oluştu.',
+            message: accountErrorMessage(error),
             onRetry: () => ref.invalidate(blockedAccountsProvider),
           ),
           data: (response) => response.accounts.isEmpty

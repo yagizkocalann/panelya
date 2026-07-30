@@ -7,6 +7,7 @@ import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../domain/account_exceptions.dart';
 import 'account_capability_view.dart';
+import 'account_error_message.dart';
 import 'account_providers.dart';
 
 /// "E-posta ve şifre" ekranı (`/account/security`, bkz. ADR-047).
@@ -108,7 +109,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         child: overview.when(
           loading: () => const AppLoadingView(label: 'Yükleniyor'),
           error: (error, stackTrace) => AppErrorView(
-            message: 'Beklenmeyen bir hata oluştu.',
+            message: accountErrorMessage(error),
             onRetry: () => ref.invalidate(accountOverviewProvider),
           ),
           data: (overview) => _SecurityBody(

@@ -9,6 +9,7 @@ import '../../../shared/widgets/state_views.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../domain/account_exceptions.dart';
 import 'account_capability_view.dart';
+import 'account_error_message.dart';
 import 'account_providers.dart';
 
 /// "Hesabı sil" ekranı (`/account/delete`, bkz. ADR-047).
@@ -153,7 +154,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         child: summary.when(
           loading: () => const AppLoadingView(label: 'Yükleniyor'),
           error: (error, stackTrace) => AppErrorView(
-            message: 'Beklenmeyen bir hata oluştu.',
+            message: accountErrorMessage(error),
             onRetry: () => ref.invalidate(accountDeletionSummaryProvider),
           ),
           data: (summary) => _DeleteAccountBody(

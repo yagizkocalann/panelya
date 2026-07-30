@@ -9,6 +9,7 @@ import '../../../core/contracts/generated/generated.dart';
 import '../domain/account_exceptions.dart';
 import 'account_avatar.dart';
 import 'account_capability_view.dart';
+import 'account_error_message.dart';
 import 'account_providers.dart';
 
 /// "Profil" ekranı (`/account/profile`, bkz. ADR-047): görünen adı
@@ -68,7 +69,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: overview.when(
           loading: () => const AppLoadingView(label: 'Profil yükleniyor'),
           error: (error, stackTrace) => AppErrorView(
-            message: 'Beklenmeyen bir hata oluştu.',
+            message: accountErrorMessage(error),
             onRetry: () => ref.invalidate(accountOverviewProvider),
           ),
           data: (overview) {

@@ -135,6 +135,32 @@ void main() {
     expect(find.text('Tekrar dene'), findsOneWidget);
   });
 
+  testWidgets(
+    'yükleme hatası sözleşmenin yapılandırılmış gövdesiyse SUNUCUNUN '
+    'kendi açıklaması gösterilir, genel metinle örtülmez',
+    (tester) async {
+      final repository = FakeAccountRepository()
+        ..fetchSessionsError = AccountServerException(
+          const AccountErrorResponse(
+            schemaVersion: kSchemaVersion,
+            error: 'service_unavailable',
+            errorDescription:
+                'Oturum listesi şu an hazırlanamıyor (sunucu mesajı).',
+            reauthenticate: false,
+          ),
+        );
+
+      await tester.pumpWidget(_wrap(accountRepository: repository));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Oturum listesi şu an hazırlanamıyor (sunucu mesajı).'),
+        findsOneWidget,
+      );
+      expect(find.text('Beklenmeyen bir hata oluştu.'), findsNothing);
+    },
+  );
+
   testWidgets('hiç oturum yoksa boş durum mesajı gösterir', (tester) async {
     final repository = FakeAccountRepository(sessions: const []);
     await tester.pumpWidget(_wrap(accountRepository: repository));
