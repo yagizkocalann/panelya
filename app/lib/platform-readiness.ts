@@ -97,6 +97,7 @@ export async function getPlatformReadiness() {
     webClientId,
     webClientSecret,
     webRedirectUris,
+    webLogoutUris,
     managementClientId,
     managementClientSecret,
     databaseConnection,
@@ -108,6 +109,7 @@ export async function getPlatformReadiness() {
     runtimeValue("AUTH0_WEB_CLIENT_ID"),
     runtimeValue("AUTH0_WEB_CLIENT_SECRET"),
     runtimeValue("AUTH0_WEB_REDIRECT_URIS"),
+    runtimeValue("AUTH0_WEB_LOGOUT_URIS"),
     runtimeValue("AUTH0_MANAGEMENT_CLIENT_ID"),
     runtimeValue("AUTH0_MANAGEMENT_CLIENT_SECRET"),
     runtimeValue("AUTH0_DATABASE_CONNECTION"),
@@ -118,6 +120,7 @@ export async function getPlatformReadiness() {
     && webClientId.trim()
     && webClientSecret.trim()
     && webRedirectUris.split(",").some((value) => value.trim())
+    && webLogoutUris.split(",").some((value) => value.trim())
     && managementClientId.trim()
     && managementClientSecret.trim()
     && databaseConnection.trim()

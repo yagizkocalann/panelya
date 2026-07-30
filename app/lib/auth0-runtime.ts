@@ -271,6 +271,7 @@ export async function validateAuth0AccessToken(
   accessToken: string,
   config: Auth0GatewayConfig,
   requiredScopes: readonly string[] = [],
+  authorizedParty = config.clientId,
 ) {
   try {
     const verified = await jwtVerify(accessToken, jwksFor(config), {
@@ -282,7 +283,7 @@ export async function validateAuth0AccessToken(
     if (typeof verified.payload.sub !== "string" || !verified.payload.sub) {
       throw new Auth0RuntimeError("invalid_grant", "Access token kullanıcı kimliği taşımıyor.", 401, true);
     }
-    if (verified.payload.azp !== undefined && verified.payload.azp !== config.clientId) {
+    if (verified.payload.azp !== undefined && verified.payload.azp !== authorizedParty) {
       throw new Auth0RuntimeError("invalid_grant", "Access token farklı bir istemciye ait.", 401, true);
     }
     const scopes = typeof verified.payload.scope === "string"
@@ -298,6 +299,34 @@ export async function validateAuth0AccessToken(
       throw new Auth0RuntimeError("token_expired", "Access token süresi dolmuş.", 401, true);
     }
     throw new Auth0RuntimeError("invalid_grant", "Access token doğrulanamadı.", 401, true);
+  }
+}
+
+export async function validateAuth0IdToken(
+  idToken: string,
+  config: Auth0GatewayConfig,
+  audience: string,
+  nonce: string,
+) {
+  try {
+    const verified = await jwtVerify(idToken, jwksFor(config), {
+      issuer: config.issuer,
+      audience,
+      algorithms: ["RS256"],
+      clockTolerance: 5,
+    });
+    if (typeof verified.payload.sub !== "string"
+      || !verified.payload.sub
+      || verified.payload.nonce !== nonce) {
+      throw new Auth0RuntimeError("invalid_grant", "Kimlik tokeni oturum isteğiyle eşleşmiyor.", 401, true);
+    }
+    return verified.payload;
+  } catch (error) {
+    if (error instanceof Auth0RuntimeError) throw error;
+    if (error instanceof joseErrors.JWTExpired) {
+      throw new Auth0RuntimeError("token_expired", "Kimlik tokeninin süresi dolmuş.", 401, true);
+    }
+    throw new Auth0RuntimeError("invalid_grant", "Kimlik tokeni doğrulanamadı.", 401, true);
   }
 }
 
@@ -463,6 +492,85 @@ async function resolveProviderUser(
     createdAt: now,
   };
   await writeAudit(user.id, "account.provider_login", { provider: "auth0", created: true });
+  return user;
+}
+
+export async function resolveAuth0ProviderSession(
+  accessToken: string,
+  config: Auth0GatewayConfig,
+  authorizedParty: string,
+) {
+  const evidence = await resolveAuth0ProviderEvidence(accessToken, config, authorizedParty);
+  const user = await resolveProviderUser(evidence.profile, config.issuer);
+  return { user, subject: evidence.subject, profile: evidence.profile };
+}
+
+export async function resolveAuth0ProviderEvidence(
+  accessToken: string,
+  config: Auth0GatewayConfig,
+  authorizedParty: string,
+) {
+  const verified = await validateAuth0AccessToken(accessToken, config, [], authorizedParty);
+  const subject = verified.payload.sub as string;
+  const profile = await fetchAuth0UserInfo(accessToken, subject, config);
+  return { subject, profile };
+}
+
+export async function linkAuth0ProviderIdentity(
+  user: LocalUser,
+  evidence: Awaited<ReturnType<typeof resolveAuth0ProviderEvidence>>,
+  issuer: string,
+) {
+  if (!evidence.profile.emailVerified || evidence.profile.email !== user.email) {
+    throw new Auth0RuntimeError(
+      "login_required",
+      "Bağlanacak Auth0 hesabının doğrulanmış e-postası mevcut Panelya hesabıyla aynı olmalı.",
+      409,
+      true,
+    );
+  }
+  const db = await getDatabase();
+  const subjectHash = await hashOpaqueToken(`${issuer}\n${evidence.subject}`);
+  const existingIdentity = await findProviderIdentity(issuer, subjectHash);
+  if (existingIdentity) {
+    if (existingIdentity.user.id !== user.id) {
+      throw new Auth0RuntimeError("login_required", "Bu Auth0 kimliği başka bir Panelya hesabına bağlı.", 409, true);
+    }
+    return existingIdentity.user;
+  }
+  const userIdentity = await db.prepare(`SELECT subject_hash FROM provider_identities
+    WHERE provider = 'auth0' AND user_id = ?`).bind(user.id).first<{ subject_hash: string }>();
+  if (userIdentity) {
+    throw new Auth0RuntimeError("login_required", "Panelya hesabı zaten başka bir Auth0 kimliğine bağlı.", 409, true);
+  }
+  const now = Date.now();
+  try {
+    await db.prepare(`INSERT INTO provider_identities
+      (provider, issuer, subject_hash, provider_kind, user_id, created_at, updated_at, last_login_at)
+      VALUES ('auth0', ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(
+        issuer,
+        subjectHash,
+        providerKindForSubject(evidence.subject),
+        user.id,
+        now,
+        now,
+        now,
+      )
+      .run();
+  } catch {
+    const raced = await findProviderIdentity(issuer, subjectHash);
+    if (!raced || raced.user.id !== user.id) {
+      throw new Auth0RuntimeError("service_unavailable", "Auth0 hesabı güvenli biçimde bağlanamadı.", 503, false, 60);
+    }
+  }
+  if (!user.emailVerifiedAt) {
+    await db.prepare("UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?")
+      .bind(now, now, user.id)
+      .run();
+    user.emailVerifiedAt = now;
+  }
+  await writeAudit(user.id, "account.provider_linked", { provider: "auth0" });
   return user;
 }
 

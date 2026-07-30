@@ -214,9 +214,20 @@ Canli aktivasyon icin `AUTH0_MANAGEMENT_CLIENT_ID`,
 `AUTH0_MANAGEMENT_CLIENT_SECRET`, `AUTH0_DATABASE_CONNECTION` ve en az 32
 karakterlik `ACCOUNT_RUNTIME_SECRET` zorunludur. Web reauthentication icin
 ayrica confidential BFF istemcisinin `AUTH0_WEB_CLIENT_ID`,
-`AUTH0_WEB_CLIENT_SECRET` ve exact `AUTH0_WEB_REDIRECT_URIS` degerleri
+`AUTH0_WEB_CLIENT_SECRET`, exact `AUTH0_WEB_REDIRECT_URIS` ve
+`AUTH0_WEB_LOGOUT_URIS` degerleri
 provision edilmelidir. Bu degerler yokken ilgili hassas davranis 503 ile
 fail-closed kalir.
+
+Web uygulamasinda normal giris callback'i
+`https://<public-domain>/api/auth/web/callback`, hesap e-posta/silme
+reauthentication callback'i ise
+`https://<public-domain>/account/reauthentication/callback` olur. Ikisi hem Auth0
+Allowed Callback URLs hem de `AUTH0_WEB_REDIRECT_URIS` exact allowlist'inde yer
+alir. Reauthentication istemcisi verifier ve bekleyen mutation bilgisini yalniz
+ayni sekmenin `sessionStorage` alaninda tutar; authorization code callback
+basladiginda adres cubugundan silinir, provider tokeni tarayici depolamasina
+yazilmaz.
 
 Auth0 Management API'ye baglanan M2M uygulamasina yalniz su izinler verilir:
 `read:users`, `update:users`, `delete:users`, `read:device_credentials` ve

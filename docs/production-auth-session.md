@@ -9,6 +9,7 @@ Production okuyucu kimligi icin yonetilen saglayici olarak Auth0 secildi. Web ve
 - Access token 15 dakika yasayan Panelya API audience tokenidir. Flutter bunu yalniz isletim sistemi secure storage katmaninda tutar ve API'ye `Authorization: Bearer` ile gonderir.
 - Refresh token doner, 30 gunluk mutlak omurle sinirlidir ve her kullanimda yenilenir. Mobil istemci yeni refresh tokeni atomik olarak yazmadan eskisini silmez; reuse algilanirsa tum token ailesi iptal edilir ve yeniden giris gerekir.
 - Web, Auth0 callback'inden sonra mevcut host-only `HttpOnly`, `Secure`, `SameSite=Lax` Panelya session cookie'sini kullanir. Provider tokeni tarayici JavaScript'ine veya `localStorage`'a verilmez. Public ve Studio cookie kapsamlari ayri kalir.
+- Web authorize islemi state, OIDC nonce ve PKCE S256 kullanir. Verifier yalniz 10 dakikalik, callback path'ine sinirli, `HttpOnly` ve sifreli gecici cookie'de tutulur; callback tamamlaninca silinir.
 - API, mobil access tokenini JWKS ile; issuer, audience, algoritma, sure ve scope kontrolleriyle dogrular. ID token API yetkilendirmesinde kabul edilmez.
 - Panelya `reader`/`admin` rolu D1'de kalir. Token claim'i tek basina Studio yetkisi vermez; her admin istegi sunucu tarafinda guncel yerel rolu yeniden kontrol eder.
 
@@ -44,7 +45,13 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Access token omru: 900 saniye.
 - Refresh token mutlak omru: 30 gun; idle omru en cok 7 gun olarak provider tarafinda ayarlanir.
 - Refresh retry cakismasi icin provider overlap/leeway en fazla 5 saniye olur.
-- Logout/revoke refresh grantini kapatir; mevcut JWT access tokeni en gec 15 dakika icinde sona erer. Hassas Studio islemleri yine yakin zamanda kimlik dogrulama ve guncel D1 rol kontrolu ister.
+- Mobil logout/revoke refresh grantini kapatir; mevcut JWT access tokeni en gec 15 dakika icinde sona erer. Web logout host-only Panelya oturumunu siler ve yalniz exact `AUTH0_WEB_LOGOUT_URIS` allowlist'indeki donus adresiyle Auth0 `/v2/logout` akisini kullanir. Hassas Studio islemleri yine yakin zamanda kimlik dogrulama ve guncel D1 rol kontrolu ister.
+- Confidential web uygulamasinin Allowed Callback URLs listesi iki ayri amaci kapsar:
+  `https://<public-domain>/api/auth/web/callback` normal giris/kayit BFF callback'idir;
+  `https://<public-domain>/account/reauthentication/callback` ise e-posta degisikligi
+  ve hesap silme icin taze kimlik dogrulama callback'idir. Iki adres de exact
+  `AUTH0_WEB_REDIRECT_URIS` listesinde bulunur; wildcard, query ve fragment
+  kullanilmaz.
 - `token_reused`, `session_revoked`, `token_expired` ve `login_required` istemciyi secure storage'i temizleyip tekrar login'e goturur.
 - `rate_limited` yalniz `retryAfterSeconds` sonrasinda yeniden denenir; sonsuz otomatik retry yapilmaz.
 - Token, authorization code, verifier ve provider subject log/audit/analytics olayina yazilmaz.
@@ -54,6 +61,7 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Auth0 `sub` degeri public API'ye acilmaz; D1'de ayrik provider identity eslemesine baglanir.
 - Yeni production kullanicisi ilk basarili OIDC girisinde `reader` roluyle olusur.
 - Mevcut yerel hesap yalniz kullanici mevcut yerel oturumunu yeniden dogrularken Auth0 girisini de tamamladiginda baglanir. Sadece ayni e-posta metnine bakarak sessiz hesap birlestirme yapilmaz.
+- Acik baglama callback'i mevcut yerel oturumun ayni kullaniciya ait ve son 10 dakika icinde yeniden dogrulanmis olmasini, Auth0 e-postasinin dogrulanmis ve yerel e-postayla ayni olmasini ister. Auth0 kimligi baska bir Panelya hesabina bagliysa islem reddedilir.
 - Yerel PBKDF2 parola, reset ve dogrulama akislari localhost QA icin kalir; production kimlik kaynagi sayilmaz.
 - Studio production girisi Auth0 + yerel admin rolu ister. Adminler icin MFA ve hassas islemlerde yeniden kimlik dogrulama production tenant acilis kapisidir.
 - Production sifre, e-posta, oturum envanteri, engellenen hesaplar ve hesap
@@ -80,5 +88,7 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Admin MFA, breach protection, bot/rate-limit ve e-posta sender ayarlari tenant acilisinda manuel dogrulanmalidir.
 - Mobil runtime token gateway, RS256 JWKS doğrulama, exact redirect allowlist,
   hashli provider identity eşlemesi ve gerçek tenant smoke testi
-  tamamlanmıştır. Web BFF callback/acik hesap baglama ile ADR-047 hesap yasam
-  dongusu runtime'i beklemektedir.
+  tamamlanmıştır. Web BFF callback, host-only oturum, exact logout ve acik hesap
+  baglama kaynak/test sinirinda tamamlanmistir; confidential web istemcisi,
+  callback/logout allowlist'i ve canli tarayici turu deployment ortaminda
+  beklemektedir.
