@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { SiteHeader } from "../components/SiteHeader";
 import { AuthPageControls } from "../components/AuthPageControls";
 import { getCurrentUser, safeAuthClosePath, safeReturnTo } from "../lib/auth";
+import { auth0WebConfig } from "../lib/auth0-web";
+import { requestForCurrentHost } from "../lib/server-site-origins";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const query = await searchParams;
   const returnTo = safeReturnTo(query.return_to, "/account");
   const closeHref = safeAuthClosePath(query.return_to);
+  const providerEnabled = Boolean(await auth0WebConfig(await requestForCurrentHost()));
   if (user) redirect(returnTo);
   return (
     <div className="site-shell auth-shell"><SiteHeader compact />
@@ -18,14 +21,21 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <section className="auth-card"><p className="section-kicker">Tekrar hoş geldin</p><h1>Giriş yap</h1><p>Okuma listen ve favorilerin seni bekliyor.</p>
           {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
           {query.notice && <p className="form-message form-message--success" role="status">{query.notice}</p>}
-          <form className="stack-form" action="/api/auth/login" method="post">
-            <input type="hidden" name="return_to" value={returnTo} />
-            <label>E-posta<input name="email" type="email" autoComplete="email" required /></label>
-            <label>Şifre<input name="password" type="password" autoComplete="current-password" required /></label>
-            <Link className="form-inline-link" href="/forgot-password">Şifremi unuttum</Link>
-            <label className="check-row"><input name="remember" type="checkbox" value="yes" /> Bu cihazda oturumu açık tut</label>
-            <button className="button button--primary button--large" type="submit">Giriş yap</button>
-          </form>
+          {providerEnabled
+            ? <form className="stack-form" action="/api/auth/web/login" method="post">
+              <input type="hidden" name="return_to" value={returnTo} />
+              <p className="auth-provider-note">Giriş ve şifre işlemleri güvenli Auth0 sayfasında tamamlanır. Panelya şifreni görmez veya saklamaz.</p>
+              <label className="check-row"><input name="remember" type="checkbox" value="yes" /> Bu cihazda oturumu açık tut</label>
+              <button className="button button--primary button--large" type="submit">Girişe devam et</button>
+            </form>
+            : <form className="stack-form" action="/api/auth/login" method="post">
+              <input type="hidden" name="return_to" value={returnTo} />
+              <label>E-posta<input name="email" type="email" autoComplete="email" required /></label>
+              <label>Şifre<input name="password" type="password" autoComplete="current-password" required /></label>
+              <Link className="form-inline-link" href="/forgot-password">Şifremi unuttum</Link>
+              <label className="check-row"><input name="remember" type="checkbox" value="yes" /> Bu cihazda oturumu açık tut</label>
+              <button className="button button--primary button--large" type="submit">Giriş yap</button>
+            </form>}
           <p className="auth-switch">Hesabın yok mu? <Link href={`/register?return_to=${encodeURIComponent(returnTo)}`}>Üye ol</Link></p>
         </section>
       </main>

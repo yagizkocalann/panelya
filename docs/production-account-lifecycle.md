@@ -214,7 +214,8 @@ Canli aktivasyon icin `AUTH0_MANAGEMENT_CLIENT_ID`,
 `AUTH0_MANAGEMENT_CLIENT_SECRET`, `AUTH0_DATABASE_CONNECTION` ve en az 32
 karakterlik `ACCOUNT_RUNTIME_SECRET` zorunludur. Web reauthentication icin
 ayrica confidential BFF istemcisinin `AUTH0_WEB_CLIENT_ID`,
-`AUTH0_WEB_CLIENT_SECRET` ve exact `AUTH0_WEB_REDIRECT_URIS` degerleri
+`AUTH0_WEB_CLIENT_SECRET`, exact `AUTH0_WEB_REDIRECT_URIS` ve
+`AUTH0_WEB_LOGOUT_URIS` degerleri
 provision edilmelidir. Bu degerler yokken ilgili hassas davranis 503 ile
 fail-closed kalir.
 
