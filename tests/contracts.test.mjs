@@ -56,6 +56,10 @@ const validators = {
   libraryMutation: validator("LibraryMutationResponse"),
   libraryRemoval: validator("LibraryRemovalResponse"),
   libraryError: validator("LibraryErrorResponse"),
+  readingProgress: validator("ReadingProgressResponse"),
+  readingProgressUpsert: validator("ReadingProgressUpsertRequest"),
+  readingProgressMutation: validator("ReadingProgressMutationResponse"),
+  readingProgressError: validator("ReadingProgressErrorResponse"),
 };
 
 const fixtureCases = [
@@ -95,6 +99,10 @@ const fixtureCases = [
   ["library-mutation-response.v1.json", validators.libraryMutation],
   ["library-removal-response.v1.json", validators.libraryRemoval],
   ["library-error.v1.json", validators.libraryError],
+  ["reading-progress-response.v1.json", validators.readingProgress],
+  ["reading-progress-upsert-request.v1.json", validators.readingProgressUpsert],
+  ["reading-progress-mutation-response.v1.json", validators.readingProgressMutation],
+  ["reading-progress-error.v1.json", validators.readingProgressError],
 ];
 
 test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () => {
@@ -125,11 +133,12 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       "/api/discovery",
       "/api/library",
       "/api/library/{slug}",
+      "/api/progress",
       "/api/series/{slug}",
       "/api/series/{slug}/episodes/{episodeSlug}",
     ],
   );
-  assert.equal(openapi.info.version, "1.5.0");
+  assert.equal(openapi.info.version, "1.6.0");
   assert.deepEqual(contract.$defs.AccountPasswordResetRequest.properties, {});
   assert.deepEqual(
     contract.$defs.AccountSessionPlatform.enum,
@@ -154,6 +163,15 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       );
     }
   }
+  assert.deepEqual(
+    openapi.paths["/api/progress"].get.security,
+    [{ PanelyaAccessToken: [] }, { PanelyaWebSession: [] }],
+  );
+  assert.deepEqual(
+    openapi.paths["/api/progress"].post.security,
+    [{ PanelyaAccessToken: [] }, { PanelyaWebSession: [] }, {}],
+    "anonymous web progress write must remain an explicit device-local no-op",
+  );
 });
 
 test("kütüphane fixture'ları tam durum, public metadata ve stabil sıra taşır", async () => {
@@ -290,6 +308,23 @@ test("hesap sozlesmesi server capability ve tek kullanimlik reauthentication sin
   assert.doesNotMatch(serialized, /panelya-dev|auth0\.com/i);
 });
 
+test("reading progress fixtures carry exact position, public metadata and server time", async () => {
+  const [progress, request, mutation] = await Promise.all([
+    readFile(new URL("../packages/contracts/fixtures/reading-progress-response.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/reading-progress-upsert-request.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/reading-progress-mutation-response.v1.json", import.meta.url), "utf8").then(JSON.parse),
+  ]);
+  assert.deepEqual(Object.keys(request).sort(), ["episodeSlug", "percent", "seriesSlug"]);
+  assert.equal(mutation.item.episode.slug, request.episodeSlug);
+  assert.equal(mutation.item.percent, request.percent);
+  assert.equal(progress.items[0].series.slug, request.seriesSlug);
+  assert.match(progress.items[0].updatedAt, /Z$/);
+  assert.doesNotMatch(
+    JSON.stringify({ progress, mutation }),
+    /panels|storageKey|jobId|queue|providerSubject|accessToken|refreshToken/i,
+  );
+});
+
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 workerUrl.searchParams.set("contracts-test", `${process.pid}-${Date.now()}`);
 const { default: worker } = await import(workerUrl.href);
@@ -372,6 +407,24 @@ test("anonim kütüphane API'si JSON hata sözleşmesiyle fail-closed kalır", a
     assertContract(validators.libraryError, await response.json(), `${method} ${path}`);
     assert.match(response.headers.get("cache-control") ?? "", /no-store/);
   }
+});
+
+test("anonymous progress read is closed while reader write remains a compatible no-op", async () => {
+  const listResponse = await request("/api/progress");
+  assert.equal(listResponse.status, 401);
+  assertContract(validators.readingProgressError, await listResponse.json(), "GET /api/progress");
+
+  const writeResponse = await worker.fetch(
+    new Request("http://localhost/api/progress", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ seriesSlug: "gece-vardiyasi", episodeSlug: "bolum-1", percent: 24 }),
+    }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(writeResponse.status, 204);
+  assert.match(writeResponse.headers.get("cache-control") ?? "", /no-store/);
 });
 
 test("production auth gateway yapilandirilmadan fail-closed kalir", async () => {

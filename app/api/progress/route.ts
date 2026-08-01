@@ -1,21 +1,47 @@
-import { getEpisode } from "../../data/catalog";
-import { getPublishedSeries } from "../../lib/content-repository";
-import { assertSameOrigin, getCurrentUser } from "../../lib/auth";
-import { getDatabase } from "../../lib/database";
+import {
+  assertAccountMutationOrigin,
+  getAccountActor,
+  objectInput,
+  readLimitedAccountJson,
+  requireAccountActor,
+} from "../../lib/account-runtime";
+import {
+  listProgressItems,
+  PROGRESS_JSON_HEADERS,
+  progressErrorResponse,
+  upsertProgressItem,
+} from "../../lib/progress-runtime";
+
+export async function GET(request: Request) {
+  try {
+    const actor = await requireAccountActor(request, ["write:progress"]);
+    return Response.json({
+      schemaVersion: "1.0",
+      items: await listProgressItems(actor.user.id),
+    }, { headers: PROGRESS_JSON_HEADERS });
+  } catch (error) {
+    return progressErrorResponse(error);
+  }
+}
 
 export async function POST(request: Request) {
-  try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }
-  const user = await getCurrentUser();
-  if (!user) return new Response(null, { status: 204 });
-  const data = await request.json() as { seriesSlug?: string; episodeSlug?: string; percent?: number };
-  const series = await getPublishedSeries(String(data.seriesSlug ?? ""));
-  const episode = series && getEpisode(series, String(data.episodeSlug ?? ""));
-  if (!series || !episode) return new Response("İçerik bulunamadı.", { status: 404 });
-  const percent = Math.max(0, Math.min(100, Math.round(Number(data.percent) || 0)));
-  const db = await getDatabase();
-  await db.prepare(`INSERT INTO reading_progress (user_id, series_slug, episode_slug, episode_number, episode_title, percent, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, series_slug) DO UPDATE SET episode_slug = excluded.episode_slug, episode_number = excluded.episode_number, episode_title = excluded.episode_title, percent = excluded.percent, updated_at = excluded.updated_at`)
-    .bind(user.id, series.slug, episode.slug, episode.number, episode.title, percent, Date.now()).run();
-  return new Response(null, { status: 204 });
+  try {
+    const actor = await getAccountActor(request, ["write:progress"]);
+    // Anonim web okuyucusu ilerlemeyi cihazında tutar; mevcut sessiz no-op korunur.
+    if (!actor) return new Response(null, { status: 204, headers: PROGRESS_JSON_HEADERS });
+    assertAccountMutationOrigin(request, actor);
+    const input = objectInput(
+      await readLimitedAccountJson(request),
+      ["seriesSlug", "episodeSlug", "percent"],
+    );
+    const item = await upsertProgressItem(
+      actor.user.id,
+      input.seriesSlug,
+      input.episodeSlug,
+      input.percent,
+    );
+    return Response.json({ schemaVersion: "1.0", item }, { headers: PROGRESS_JSON_HEADERS });
+  } catch (error) {
+    return progressErrorResponse(error);
+  }
 }

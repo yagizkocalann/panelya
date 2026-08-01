@@ -77,7 +77,7 @@ export function parseLibraryFavorite(value: unknown) {
   return value;
 }
 
-function publicSeriesSummary(series: Series) {
+export function publicSeriesSummary(series: Series) {
   return {
     slug: series.slug,
     title: series.title,

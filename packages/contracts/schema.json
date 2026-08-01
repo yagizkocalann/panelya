@@ -826,6 +826,79 @@
         "retryAfterSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
       }
     },
+    "ReadingProgressItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["series", "episode", "percent", "updatedAt"],
+      "properties": {
+        "series": { "$ref": "#/$defs/DiscoverySeriesSummary" },
+        "episode": { "$ref": "#/$defs/EpisodeSummary" },
+        "percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Last server-accepted reading position for the episode. A value of 100 means the episode was completed."
+        },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 32,
+          "description": "ISO-8601 UTC server timestamp used for last-write-wins ordering."
+        }
+      }
+    },
+    "ReadingProgressResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "items"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ReadingProgressItem" }
+        }
+      }
+    },
+    "ReadingProgressUpsertRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seriesSlug", "episodeSlug", "percent"],
+      "properties": {
+        "seriesSlug": { "type": "string", "pattern": "^[a-z0-9-]{1,80}$" },
+        "episodeSlug": { "type": "string", "pattern": "^[a-z0-9-]{1,80}$" },
+        "percent": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "ReadingProgressMutationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "item"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "item": { "$ref": "#/$defs/ReadingProgressItem" }
+      }
+    },
+    "ReadingProgressErrorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "error"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "error": {
+          "type": "string",
+          "enum": [
+            "not_authenticated",
+            "insufficient_scope",
+            "invalid_request",
+            "not_found",
+            "rate_limited",
+            "service_unavailable"
+          ]
+        },
+        "errorDescription": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "retryAfterSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
+      }
+    },
     "AccountErrorResponse": {
       "type": "object",
       "additionalProperties": false,
