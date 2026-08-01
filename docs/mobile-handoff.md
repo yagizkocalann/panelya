@@ -32,10 +32,33 @@ bildiriminin sunucu siniri ADR-046 ile hazirdir.
 - `GET /api/series/:slug`
 - `GET /api/series/:slug/episodes/:episodeSlug`
 - `POST /api/auth/*`
-- `GET/POST /api/library/*`
+- `GET /api/library`, `POST/DELETE /api/library/{slug}`
 - `POST /api/progress`
 
 Mobil istemci D1 veya R2'ye doğrudan bağlanmaz. Bütün veri erişimi web deployment'ındaki API sınırından geçer.
+
+## Ortak kütüphane ve favori (ADR-048)
+
+Kanonik kaynak `packages/contracts/schema.json`, HTTP eşlemesi
+`packages/contracts/openapi.json` ve örnekler `library-*.v1.json`
+fixture'larıdır. Flutter web form parametrelerini veya toggle davranışını
+kopyalamaz:
+
+- `GET /api/library`, server sırasındaki `LibraryResponse` listesini verir ve
+  Bearer istemcide `read:library` ister.
+- `POST /api/library/{slug}`, `LibraryUpsertRequest` içindeki hedef `status` ve
+  `favorite` değerlerini birlikte yazar; Bearer istemcide `write:library` ister.
+- `DELETE /api/library/{slug}` idempotent kaldırmadır; aynı scope'u ister ve
+  tekrarında `removed:false` geçerli bir başarıdır.
+- Web host-only cookie ile aynı JSON rotalarını kullanabilir; cookie mutation'ı
+  same-origin kontrolünden geçer. Mobil cookie taklit etmez.
+- `LibraryItem.series`, `DiscoverySeriesSummary` kullanır. Kartta panel gövdesi,
+  storage key, Queue işi veya Studio metadata'sı yoktur. İstemci API sırasını
+  korur ve yerelleştirilmiş seri metinlerinden tarih/sıra türetmez.
+
+Mobil bu sözleşme main'e geldikten sonra deterministik codegen, fixture parser
+testleri ve gerçek `HttpLibraryRepository` ile bağlanır; geçici DTO veya web
+metni kopyalanmaz.
 
 ## Kimlik doğrulama uyarısı
 

@@ -51,6 +51,11 @@ const validators = {
   accountDeletionRequest: validator("AccountDeletionRequest"),
   accountDeletionOperation: validator("AccountDeletionOperationResponse"),
   accountError: validator("AccountErrorResponse"),
+  library: validator("LibraryResponse"),
+  libraryUpsert: validator("LibraryUpsertRequest"),
+  libraryMutation: validator("LibraryMutationResponse"),
+  libraryRemoval: validator("LibraryRemovalResponse"),
+  libraryError: validator("LibraryErrorResponse"),
 };
 
 const fixtureCases = [
@@ -85,6 +90,11 @@ const fixtureCases = [
   ["account-deletion-request.v1.json", validators.accountDeletionRequest],
   ["account-deletion-response.v1.json", validators.accountDeletionOperation],
   ["account-error.v1.json", validators.accountError],
+  ["library-response.v1.json", validators.library],
+  ["library-upsert-request.v1.json", validators.libraryUpsert],
+  ["library-mutation-response.v1.json", validators.libraryMutation],
+  ["library-removal-response.v1.json", validators.libraryRemoval],
+  ["library-error.v1.json", validators.libraryError],
 ];
 
 test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () => {
@@ -113,11 +123,13 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       "/api/auth/mobile/token",
       "/api/catalog",
       "/api/discovery",
+      "/api/library",
+      "/api/library/{slug}",
       "/api/series/{slug}",
       "/api/series/{slug}/episodes/{episodeSlug}",
     ],
   );
-  assert.equal(openapi.info.version, "1.4.1");
+  assert.equal(openapi.info.version, "1.5.0");
   assert.deepEqual(contract.$defs.AccountPasswordResetRequest.properties, {});
   assert.deepEqual(
     contract.$defs.AccountSessionPlatform.enum,
@@ -133,7 +145,7 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
   assert.equal(openapi.components.securitySchemes.PanelyaAccessToken.scheme, "bearer");
   assert.equal(openapi.components.securitySchemes.PanelyaWebSession.in, "cookie");
   for (const [path, item] of Object.entries(openapi.paths)) {
-    if (!path.startsWith("/api/account")) continue;
+    if (!path.startsWith("/api/account") && !path.startsWith("/api/library")) continue;
     for (const operation of Object.values(item)) {
       assert.deepEqual(
         operation.security,
@@ -142,6 +154,25 @@ test("OpenAPI path'leri mevcut JSON Schema tanımlarına bağlanır", async () =
       );
     }
   }
+});
+
+test("kütüphane fixture'ları tam durum, public metadata ve stabil sıra taşır", async () => {
+  const [library, request, mutation, removal] = await Promise.all([
+    readFile(new URL("../packages/contracts/fixtures/library-response.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/library-upsert-request.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/library-mutation-response.v1.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../packages/contracts/fixtures/library-removal-response.v1.json", import.meta.url), "utf8").then(JSON.parse),
+  ]);
+  assert.deepEqual(Object.keys(request).sort(), ["favorite", "status"]);
+  assert.equal(typeof request.favorite, "boolean");
+  assert.equal(mutation.item.series.slug, library.items[0].series.slug);
+  assert.equal(removal.removed, true);
+  assert.ok(library.items.every((item) => item.series.episodeCount >= 0));
+  assert.ok(library.items.every((item) => !Object.hasOwn(item.series, "episodes")));
+  assert.doesNotMatch(
+    JSON.stringify({ library, mutation }),
+    /storageKey|jobId|queue|providerSubject|accessToken|refreshToken/i,
+  );
 });
 
 test("paylaşılan fixture'lar JSON Schema sözleşmesine uyar", async () => {
@@ -320,6 +351,27 @@ test("anonim auth/me cevabi ortak auth state sozlesmesine uyar", async () => {
   assert.equal(state.authenticated, false);
   assert.equal(state.user, null);
   assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+});
+
+test("anonim kütüphane API'si JSON hata sözleşmesiyle fail-closed kalır", async () => {
+  for (const [path, method, body] of [
+    ["/api/library", "GET", undefined],
+    ["/api/library/gece-vardiyasi", "POST", JSON.stringify({ status: "reading", favorite: true })],
+    ["/api/library/gece-vardiyasi", "DELETE", undefined],
+  ]) {
+    const response = await worker.fetch(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { accept: "application/json", ...(body ? { "content-type": "application/json" } : {}) },
+        ...(body ? { body } : {}),
+      }),
+      { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+      { waitUntil() {}, passThroughOnException() {} },
+    );
+    assert.equal(response.status, 401, `${method} ${path} anonim isteği reddetmeli`);
+    assertContract(validators.libraryError, await response.json(), `${method} ${path}`);
+    assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+  }
 });
 
 test("production auth gateway yapilandirilmadan fail-closed kalir", async () => {

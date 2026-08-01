@@ -148,11 +148,14 @@ async function webProviderIdentity(userId: string) {
     .first<ProviderKindRow>();
 }
 
-export async function getAccountActor(request: Request): Promise<AccountActor | null> {
+export async function getAccountActor(
+  request: Request,
+  requiredScopes: readonly string[] = [],
+): Promise<AccountActor | null> {
   if (request.headers.has("authorization")) {
     const config = await auth0GatewayConfig();
     if (!config) throw new AccountRuntimeError("service_unavailable", "Production kimlik sağlayıcısı etkin değil.", 503, false, 300);
-    const identity = await identityFromBearerToken(request, config);
+    const identity = await identityFromBearerToken(request, config, requiredScopes);
     if (!identity) return null;
     return {
       user: identity.user,
@@ -179,8 +182,11 @@ export async function getAccountActor(request: Request): Promise<AccountActor | 
   };
 }
 
-export async function requireAccountActor(request: Request) {
-  const actor = await getAccountActor(request);
+export async function requireAccountActor(
+  request: Request,
+  requiredScopes: readonly string[] = [],
+) {
+  const actor = await getAccountActor(request, requiredScopes);
   if (!actor) throw new AccountRuntimeError("not_authenticated", "Bu işlem için giriş yapmalısın.", 401, true);
   return actor;
 }

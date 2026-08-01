@@ -746,6 +746,86 @@
         "status": { "type": "string", "enum": ["pending", "completed"] }
       }
     },
+    "LibraryStatus": {
+      "type": "string",
+      "enum": ["plan", "reading", "completed", "paused", "dropped"]
+    },
+    "LibraryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["series", "status", "favorite", "updatedAt"],
+      "properties": {
+        "series": { "$ref": "#/$defs/DiscoverySeriesSummary" },
+        "status": { "$ref": "#/$defs/LibraryStatus" },
+        "favorite": { "type": "boolean" },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 32,
+          "description": "ISO-8601 UTC timestamp used for stable server ordering."
+        }
+      }
+    },
+    "LibraryResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "items"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/LibraryItem" }
+        }
+      }
+    },
+    "LibraryUpsertRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "favorite"],
+      "properties": {
+        "status": { "$ref": "#/$defs/LibraryStatus" },
+        "favorite": { "type": "boolean" }
+      }
+    },
+    "LibraryMutationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "item"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "item": { "$ref": "#/$defs/LibraryItem" }
+      }
+    },
+    "LibraryRemovalResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "removed"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "removed": { "type": "boolean" }
+      }
+    },
+    "LibraryErrorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "error"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/SchemaVersion" },
+        "error": {
+          "type": "string",
+          "enum": [
+            "not_authenticated",
+            "insufficient_scope",
+            "invalid_request",
+            "not_found",
+            "rate_limited",
+            "service_unavailable"
+          ]
+        },
+        "errorDescription": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "retryAfterSeconds": { "type": "integer", "minimum": 1, "maximum": 86400 }
+      }
+    },
     "AccountErrorResponse": {
       "type": "object",
       "additionalProperties": false,

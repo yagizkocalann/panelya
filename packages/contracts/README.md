@@ -47,3 +47,12 @@ verilmez ve bu akış mevcut mobil login tokenlarını değiştirmez.
 `account-*.v1.json` fixture'ları yalnız sentetik `.example`/`.test`
 değerleridir. Gerçek Auth0 domaini, kullanıcı parolası, access/refresh token,
 client secret veya Management API credential'ı değildir.
+
+Kütüphane ve favori sözleşmesi ADR-048 uyarınca web session cookie'si ile mobil
+Bearer tokenini aynı `GET /api/library` ve `POST/DELETE
+/api/library/{slug}` yüzeyinde kabul eder. Bearer okumada `read:library`, yazmada
+`write:library` scope'u ister. JSON `POST`, yarışa açık toggle yerine hedef
+`status` ve `favorite` değerlerini birlikte taşır. Cevaplar yalnız public seri
+kartı metadata'sı ve `episodeCount` içerir; panel, storage, Queue veya Studio
+metadata'sı taşımaz. `library-*.v1.json` dosyaları tamamen sentetik parser
+fixture'larıdır.

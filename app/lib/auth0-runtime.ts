@@ -661,12 +661,16 @@ export async function revokeMobileToken(refreshToken: string, config: Auth0Gatew
   return { schemaVersion: "1.0" as const, revoked: true as const };
 }
 
-export async function identityFromBearerToken(request: Request, config: Auth0GatewayConfig) {
+export async function identityFromBearerToken(
+  request: Request,
+  config: Auth0GatewayConfig,
+  requiredScopes: readonly string[] = [],
+) {
   const authorization = request.headers.get("authorization");
   if (!authorization) return null;
   const match = /^Bearer ([A-Za-z0-9._~+\/=-]+)$/.exec(authorization);
   if (!match) throw new Auth0RuntimeError("invalid_grant", "Bearer token biçimi geçersiz.", 401, true);
-  const verified = await validateAuth0AccessToken(match[1], config);
+  const verified = await validateAuth0AccessToken(match[1], config, requiredScopes);
   const subject = verified.payload.sub as string;
   const subjectHash = await hashOpaqueToken(`${config.issuer}\n${subject}`);
   const identity = await findProviderIdentity(config.issuer, subjectHash);
