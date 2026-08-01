@@ -12,7 +12,7 @@
   "capabilities": {
     "profileEditing": "enabled",
     "avatarEditing": "provider_managed",
-    "emailChange": "provider_managed",
+    "emailChange": "unavailable",
     "passwordAction": "provider_managed",
     "sessionManagement": "enabled",
     "blockedAccounts": "enabled",

@@ -226,9 +226,9 @@ test("hesap sozlesmesi server capability ve tek kullanimlik reauthentication sin
   ]);
 
   assert.equal(database.capabilities.passwordAction, "enabled");
-  assert.equal(database.capabilities.emailChange, "reauthentication_required");
+  assert.equal(database.capabilities.emailChange, "unavailable");
   assert.equal(google.capabilities.passwordAction, "provider_managed");
-  assert.equal(google.capabilities.emailChange, "provider_managed");
+  assert.equal(google.capabilities.emailChange, "unavailable");
   assert.equal(start.codeChallengeMethod, "S256");
   assert.equal(complete.purpose, "account_deletion");
   assert.match(complete.reauthenticationToken, /^fixture_/);

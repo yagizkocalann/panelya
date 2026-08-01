@@ -142,7 +142,6 @@ export function ProductionAccountManager() {
   const [blocks, setBlocks] = useState<BlockedAccount[]>([]);
   const [deletionSummary, setDeletionSummary] = useState<DeletionSummary | null>(null);
   const [displayName, setDisplayName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
   const [deletionText, setDeletionText] = useState("");
   const [deletionAcknowledged, setDeletionAcknowledged] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -301,7 +300,6 @@ export function ProductionAccountManager() {
   }
 
   const otherRevocableSessions = sessions.filter((session) => !session.current && session.revocable);
-  const emailManagedByProvider = overview.capabilities.emailChange === "provider_managed";
   const passwordManagedByProvider = overview.capabilities.passwordAction === "provider_managed";
   const deletionReady = deletionAcknowledged && deletionText.trim().toLocaleUpperCase("tr-TR") === "HESABIMI SİL";
 
@@ -345,36 +343,8 @@ export function ProductionAccountManager() {
 
       <section className="settings-card">
         <h2>E-posta ve şifre</h2>
-        {emailManagedByProvider
-          ? <p>E-posta adresin {providerLabels[overview.provider]} hesabın tarafından yönetiliyor.</p>
-          : <form
-              className="stack-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const normalizedNewEmail = newEmail.trim().toLowerCase();
-                if (normalizedNewEmail === overview.user.email.trim().toLowerCase()) {
-                  setMessage({ tone: "error", text: "Yeni e-posta mevcut adresle aynı." });
-                  return;
-                }
-                void beginReauthentication("email_change", {
-                  kind: "email_change",
-                  newEmail: normalizedNewEmail,
-                });
-              }}
-            >
-              <label>Yeni e-posta
-                <input
-                  type="email"
-                  autoComplete="email"
-                  value={newEmail}
-                  onChange={(event) => setNewEmail(event.target.value)}
-                  required
-                />
-              </label>
-              <button className="button button--ghost" type="submit" disabled={busy === "reauth-email_change"}>
-                {busy === "reauth-email_change" ? "Yönlendiriliyor…" : "E-postayı doğrulayarak değiştir"}
-              </button>
-            </form>}
+        <p><strong>{overview.user.email}</strong> · {overview.user.emailVerified ? "Doğrulanmış e-posta" : "Doğrulama bekliyor"}</p>
+        {overview.provider !== "database" && <p>E-posta adresin {providerLabels[overview.provider]} hesabın tarafından yönetiliyor.</p>}
         {passwordManagedByProvider
           ? <p>Şifre ve giriş güvenliği {providerLabels[overview.provider]} hesabından yönetilir.</p>
           : <div className="account-inline-action">

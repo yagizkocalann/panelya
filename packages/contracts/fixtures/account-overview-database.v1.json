@@ -11,7 +11,7 @@
   "capabilities": {
     "profileEditing": "enabled",
     "avatarEditing": "unavailable",
-    "emailChange": "reauthentication_required",
+    "emailChange": "unavailable",
     "passwordAction": "enabled",
     "sessionManagement": "enabled",
     "blockedAccounts": "enabled",

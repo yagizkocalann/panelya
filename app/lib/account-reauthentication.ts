@@ -4,6 +4,7 @@ import {
   type AccountActor,
   type AccountReauthenticationPurpose,
   AccountRuntimeError,
+  accountCapabilities,
   hasExactKeys,
 } from "./account-runtime";
 import { auth0GatewayConfig } from "./auth0-runtime";
@@ -123,8 +124,8 @@ export async function startAccountReauthentication(
   actor: AccountActor,
   input: ReturnType<typeof parseReauthenticationStart>,
 ) {
-  if (input.purpose === "email_change" && actor.provider !== "database") {
-    throw new AccountRuntimeError("unsupported_action", "E-posta sosyal kimlik sağlayıcısı tarafından yönetiliyor.", 409);
+  if (input.purpose === "email_change" && accountCapabilities(actor.provider).emailChange === "unavailable") {
+    throw new AccountRuntimeError("unsupported_action", "E-posta değiştirme şu anda kullanıma açık değil.", 409);
   }
   if (!actor.providerSubjectHash) {
     throw new AccountRuntimeError("unsupported_action", "Bu yerel QA hesabı Auth0 yeniden doğrulamasına bağlı değil.", 409);

@@ -10,7 +10,7 @@ kullanir.
 Standart hesap kapsami iki platformda da sunlari icerir:
 
 1. hesap bilgisi ve profil,
-2. e-posta yonetimi,
+2. salt okunur e-posta ve dogrulama durumu,
 3. sifre/kimlik bilgisi yonetimi,
 4. aktif oturumlar ve tekil/toplu oturum iptali,
 5. engellenen hesaplar ve engeli kaldirma,
@@ -56,29 +56,26 @@ Yerel `eski sifre + yeni sifre` formu production UI'da gosterilmez.
 
 ## E-posta degistirme
 
-E-posta, Auth0 kimliginin ozelligidir; D1 production'da bagimsiz ana kaynak
-olamaz.
+E-posta mevcut urun kapsaminda salt okunur hesap bilgisidir. Ortak
+`AccountCapabilities.emailChange` tum providerlarda `unavailable` doner; web ve
+Flutter form, buton veya provider'a yonlendiren bir e-posta degistirme aksiyonu
+gostermez. Sunucu `/api/account/email-change` ve `email_change` reauthentication
+baslangicini capability kapaliyken `unsupported_action` ile fail-closed reddeder.
 
-- Auth0 database kimliginde degisiklikten once sistem tarayicisinda taze
-  kimlik dogrulama zorunludur. Yetkilendirme istegi `max_age=0` kullanir ve
-  sunucu, donen `auth_time` kanitini dogrular.
-- Degisiklik yalniz server-side Auth0 Management API istemcisiyle yapilir.
-  Yeni adres dogrulanmamis baslar ve dogrulama e-postasi gonderilir.
-- D1 e-posta degeri Auth0'daki dogrulanmis claim gorulmeden yeni adresi
-  authoritative kabul etmez.
-- Sosyal kimlikte e-posta provider tarafindan yonetiliyorsa Panelya alani
-  salt okunur olur; istemci bunu acikca anlatir ve calismayan form gostermez.
-
-Client uygulamalara Management API tokeni veya `update:users` yetkisi
-verilmez.
+Ortak DTO, reauthentication purpose ve endpoint sekli gelecekte ayri bir urun
+karariyla yeniden acilabilmesi icin korunur. Yeniden acilacaksa taze Auth0
+dogrulamasi, server-side Management API, yeni adres dogrulamasi ve D1 claim
+uzlastirmasi zorunlu olur. Client uygulamalara Management API tokeni veya
+`update:users` yetkisi verilmez.
 
 ## Taze kimlik dogrulama kaniti
 
 Auth0 callback'indeki authorization code tek basina bir
 `reauthenticationCredential` degildir. Code tek kullanimlidir ve onu ureteren
 PKCE verifier, redirect URI, state ve OIDC nonce baglamiyla birlikte
-dogrulanmalidir. Bu nedenle istemci ham `code` degerini e-posta degisikligi
-veya hesap silme mutation'ina dogrudan vermez.
+dogrulanmalidir. Bu nedenle istemci ham `code` degerini hassas hesap
+mutation'ina dogrudan vermez. Mevcut gorunur urunde bu akis hesap silme icin
+kullanilir; `email_change` amaci capability kapali oldugu surece baslatilmaz.
 
 Ortak akis su siniri kullanir:
 
