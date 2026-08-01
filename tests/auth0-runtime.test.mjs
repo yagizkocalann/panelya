@@ -179,6 +179,7 @@ test("web login and explicit provider linking remain separate, fail-closed flows
   assert.match(webSource, /state\.purpose === "link"/);
   assert.match(webSource, /searchParams\.set\("prompt", "login"\)/);
   assert.match(webSource, /searchParams\.set\("max_age", "0"\)/);
+  assert.match(webSource, /if \(input\.screenHint\) \{[\s\S]*searchParams\.set\("screen_hint", input\.screenHint\);[\s\S]*searchParams\.set\("prompt", "login"\);/);
   assert.match(webSource, /idToken\.auth_time/);
   assert.match(webSource, /currentUser\.id !== state\.linkUserId/);
   assert.match(webSource, /hasRecentAuthentication/);

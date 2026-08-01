@@ -167,14 +167,15 @@ desteklemediği için davranış farklıdır:
   girişi eklenip test sonrası geri alınabilir; bu depoya asla sabit bir
   IP veya `NSAllowsArbitraryLoads` commit edilmez.
 
-## Auth (adapter sınırı — henüz canlı bir login akışı DEĞİL)
+## Auth (production gateway ve yayın kapısı)
 
 ADR-039 production kimlik sözleşmesini (Auth0, sistem tarayıcılı
-Authorization Code + PKCE) tanımlar ve ortak schema/OpenAPI/fixture'lar
-`packages/contracts` altında hazırdır; ama gerçek Auth0 tenant, token
-gateway ve JWKS doğrulaması henüz sağlanmadı (bkz.
-docs/production-auth-session.md "Kalan deployment kapıları"). Bu yüzden
-`lib/features/auth/` bugün yalnız SINIR mimarisini kurar:
+Authorization Code + PKCE) tanımlar; ortak schema/OpenAPI/fixture'lar
+`packages/contracts` altında, gerçek istemci ve gateway adapter'ları ise
+`lib/features/auth/` altındadır. Geliştirme tenant'ıyla callback, token
+değişimi, `/api/auth/me`, refresh ve revoke akışları canlı doğrulanmıştır.
+Tenant değerleri veya test hesabı bilgileri repoya yazılmaz; web runtime'ı
+eksik yapılandırılırsa `/api/auth/config` fail-closed olarak 503 döner.
 
 - `domain/` — `AuthRepository` (soyut: `beginSignIn`/`completeSignIn`/
   `refresh`/`logout` + `currentState`/`stateChanges`) ve `AuthSessionState`
@@ -183,32 +184,32 @@ docs/production-auth-session.md "Kalan deployment kapıları"). Bu yüzden
 - `data/pkce.dart` — RFC 7636 `code_verifier`/`code_challenge` (S256)
   üretimi (`package:crypto`, SHA-256 için — bkz. pubspec.yaml gerekçesi).
 - `data/auth_browser.dart` — sistem tarayıcısı açma soyutlaması
-  (`AuthBrowser`); tek implementasyon `SystemAuthBrowser` bilerek bir
-  STUB'tır (`url_launcher` henüz eklenmedi).
-- `data/fake_auth_repository.dart` — in-memory sahte; Riverpod
-  provider'ları (`presentation/auth_providers.dart`) BUGÜN BUNU bağlar.
+  (`AuthBrowser`); `SystemAuthBrowser`, `flutter_web_auth_2` ile gerçek
+  Authorization Code + PKCE akışını açar.
+- `data/fake_auth_repository.dart` — yalnız testlerde açıkça provider
+  override'ı olarak kullanılan in-memory sahte.
 - `data/http_auth_repository.dart` — gerçek `/api/auth/*` uçlarına
-  konuşan iskelet; hiçbir provider'dan bağlanmaz, canlıda çağrılmaz.
+  konuşan ve `presentation/auth_providers.dart` tarafından bağlanan aktif
+  adapter.
 - `lib/core/storage/token_store.dart` — token saklama sınırı
-  (`TokenStore`); tek implementasyon `InMemoryTokenStore`
-  (`flutter_secure_storage` henüz eklenmedi, arayüz onu bekleyecek şekilde
-  async tasarlandı).
+  (`TokenStore`); gerçek runtime `SecureStorageTokenStore` ile iOS
+  Keychain/Android güvenli depolamayı kullanır. `InMemoryTokenStore` yalnız
+  testler içindir.
 - `lib/core/config/auth_feature_config.dart` — `AUTH_ENABLED` dart-define
   anahtarı (varsayılan `false`). `false` iken `authSessionProvider` hiçbir
   repository örneklemeden her zaman anonim kalır (ADR-010: görünür auth
-  butonu/placeholder yok). Gerçek tenant/gateway/JWKS entegrasyonu
-  tamamlanana kadar bu bayrak `true` yapılmaz.
+  butonu/placeholder yok). Bu bir yayın kapısıdır; yalnız hedef ortamın
+  Auth0 gateway yapılandırması tamamlandığında `true` verilir.
 - `panelya://auth/callback` — Auth0 sistem tarayıcı geri dönüş adresi
   (bkz. `app/router/deep_link.dart` — `authCallbackRedirectUri`,
-  `isAuthCallbackUri`); bir ekranı yoktur, `resolveCustomSchemeRoute`
-  onu tanımadığı için (bilerek) her zaman keşfe düşer.
+  `isAuthCallbackUri`). Callback normal bir içerik route'u değildir;
+  `SystemAuthBrowser` sonucu doğrudan auth adapter'ına teslim eder.
 
-Bu pakette bir login/hesap ekranı YOKTUR (kapsam dışı, bkz.
-docs/mobile-handoff.md "Şimdilik sonraya bırakılanlar"). Gerçek tenant
-sağlandığında geçiş tek noktadan yapılır: `authRepositoryProvider` ve
-`authBrowserProvider` içindeki örneklemeler `HttpAuthRepository`/gerçek
-bir `AuthBrowser` ile değiştirilir, `AUTH_ENABLED=true` dart-define'ı
-verilir.
+`AUTH_ENABLED=true` gerçek giriş/çıkış ve temel Hesabım görünümünü açar.
+Geri alınamaz hesap yönetimi aksiyonları ayrıca
+`ACCOUNT_MANAGEMENT_ENABLED` ile korunur; bu ikinci bayrak ortak
+`/api/account/*` runtime'ı ve canlı mutation QA'sı tamamlanmadan yayında
+`false` kalır.
 
 ## Geliştirme
 

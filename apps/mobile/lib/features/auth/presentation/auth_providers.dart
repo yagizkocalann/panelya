@@ -12,11 +12,11 @@ import '../domain/auth_session_state.dart';
 
 /// Aktif [AuthRepository]. Gerçek `/api/auth/*` uçlarına konuşan
 /// [HttpAuthRepository]'yi bağlar (bkz. o dosyadaki sınıf dokümantasyonu
-/// — mantığı zaten ADR-039 sözleşmesine göre yazılmış). Gerçek Auth0
-/// tenant/gateway/JWKS değerleri sağlanana kadar web tarafı
-/// `/api/auth/config`'i bilerek "fail closed" 503 döndürür; bu, ekranların
-/// (bkz. `account_screen.dart`) dürüstçe "servis şu an kullanılamıyor"
-/// göstermesiyle sonuçlanır — sahte bir "başarılı giriş" GÖSTERİLMEZ.
+/// — mantığı zaten ADR-039 sözleşmesine göre yazılmış). Hedef ortamın Auth0
+/// tenant/gateway/JWKS değerleri eksikse web tarafı `/api/auth/config`'i
+/// bilerek "fail closed" 503 döndürür; bu, ekranların dürüstçe "servis şu an
+/// kullanılamıyor" göstermesiyle sonuçlanır — sahte bir "başarılı giriş"
+/// GÖSTERİLMEZ.
 ///
 /// Testlerde bu provider `FakeAuthRepository` (bkz. `data/
 /// fake_auth_repository.dart`) ile override edilir; gerçek HTTP/secure
@@ -46,9 +46,9 @@ final authBrowserProvider = Provider<AuthBrowser>((ref) => const SystemAuthBrows
 /// eklenecek bir ekran yalnız bu provider'ı okuyarak zaten doğru davranır,
 /// ayrıca `AuthFeatureConfig`'i kontrol etmesi gerekmez.
 ///
-/// `enabled: true` olduğunda (bugün yalnız testlerde override edilerek)
-/// [authRepositoryProvider]'ın durum akışına abone olur ve mevcut durumla
-/// başlar.
+/// `enabled: true` olduğunda [authRepositoryProvider]'ın gerçek durum
+/// akışına abone olur ve mevcut durumla başlar. Testler aynı provider'ı
+/// `FakeAuthRepository` ile açıkça override eder.
 final authSessionProvider = NotifierProvider<AuthSessionNotifier, AuthSessionState>(
   AuthSessionNotifier.new,
 );

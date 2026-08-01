@@ -48,8 +48,10 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Mobil logout/revoke refresh grantini kapatir; mevcut JWT access tokeni en gec 15 dakika icinde sona erer. Web logout host-only Panelya oturumunu siler ve yalniz exact `AUTH0_WEB_LOGOUT_URIS` allowlist'indeki donus adresiyle Auth0 `/v2/logout` akisini kullanir. Hassas Studio islemleri yine yakin zamanda kimlik dogrulama ve guncel D1 rol kontrolu ister.
 - Confidential web uygulamasinin Allowed Callback URLs listesi iki ayri amaci kapsar:
   `https://<public-domain>/api/auth/web/callback` normal giris/kayit BFF callback'idir;
-  `https://<public-domain>/account/reauthentication/callback` ise e-posta degisikligi
-  ve hesap silme icin taze kimlik dogrulama callback'idir. Iki adres de exact
+  `https://<public-domain>/account/reauthentication/callback` ise hesap silme
+  icin taze kimlik dogrulama callback'idir. E-posta degistirme mevcut urun
+  kapsaminda kapali olsa da ayni ortak reauthentication sozlesmesindeki amac
+  gelecekteki ayri karar icin korunur. Iki adres de exact
   `AUTH0_WEB_REDIRECT_URIS` listesinde bulunur; wildcard, query ve fragment
   kullanilmaz.
 - `token_reused`, `session_revoked`, `token_expired` ve `login_required` istemciyi secure storage'i temizleyip tekrar login'e goturur.
@@ -64,7 +66,7 @@ Fixture tokenlari sentetiktir, `.example`/`.test` alan adlari kullanir ve hicbir
 - Acik baglama callback'i mevcut yerel oturumun ayni kullaniciya ait ve son 10 dakika icinde yeniden dogrulanmis olmasini, Auth0 e-postasinin dogrulanmis ve yerel e-postayla ayni olmasini ister. Auth0 kimligi baska bir Panelya hesabina bagliysa islem reddedilir.
 - Yerel PBKDF2 parola, reset ve dogrulama akislari localhost QA icin kalir; production kimlik kaynagi sayilmaz.
 - Studio production girisi Auth0 + yerel admin rolu ister. Adminler icin MFA ve hassas islemlerde yeniden kimlik dogrulama production tenant acilis kapisidir.
-- Production sifre, e-posta, oturum envanteri, engellenen hesaplar ve hesap
+- Production sifre aksiyonu, salt okunur e-posta, oturum envanteri, engellenen hesaplar ve hesap
   silme davranisi ADR-047'de (`docs/production-account-lifecycle.md`)
   tanimlanir. Web cookie'si ve mobil Bearer tokeni ayni `/api/account/*`
   JSON yuzeyini kullanir; `/api/account/mobile/*` acilmaz.
