@@ -184,7 +184,10 @@ export async function startAuth0WebLogin(
     authorizationUrl.searchParams.set("prompt", "login");
     authorizationUrl.searchParams.set("max_age", "0");
   }
-  if (input.screenHint) authorizationUrl.searchParams.set("screen_hint", input.screenHint);
+  if (input.screenHint) {
+    authorizationUrl.searchParams.set("screen_hint", input.screenHint);
+    authorizationUrl.searchParams.set("prompt", "login");
+  }
 
   const response = NextResponse.redirect(authorizationUrl, 303);
   response.headers.set("Cache-Control", "private, no-store");

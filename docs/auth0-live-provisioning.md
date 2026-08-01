@@ -48,6 +48,32 @@ Wildcard, query, fragment ve gereksiz trailing slash kullanilmaz. Dashboard
 allowlist'i ile `AUTH0_WEB_REDIRECT_URIS` ve `AUTH0_WEB_LOGOUT_URIS` exact ayni
 olur.
 
+### Production consent ekrani
+
+Yerel callback `localhost` kullandigi icin Auth0, uygulama first-party olsa da
+gelistirme turunda `Authorize App` onayini zorunlu gosterebilir. Development
+uygulamasinda `Settings > Advanced Settings > OAuth` altinda
+`Override tenant setting` acilir ve yalniz bu uygulama icin
+`Non-Verifiable Callback URI End-User Confirmation` kapatilir. Bu istisna
+localhost QA icindir; production uygulamasina kopyalanmaz.
+
+Production son kullanicisinda ayni ekran su sinirlarla engellenir:
+
+- production `Panelya Web` uygulamasi first-party kalir;
+- `Panelya API > Settings > Access Settings` altinda
+  `Allow Skipping User Consent` acik olur;
+- production uygulamasinin callback/logout listesinde yalniz kontrol edilen
+  HTTPS public origin bulunur; `localhost` girdisi kalmaz;
+- `Non-Verifiable Callback URI End-User Confirmation` production
+  uygulamasinda tenant guvenlik varsayimini devralir veya acik kalir;
+- development ve production Auth0 uygulamalari ayri tutulur.
+
+Production smoke testinde yeni bir kullanici ilk giriste dahi `Authorize App`
+ekranini gormeden Universal Login'den Panelya callback'ine donmelidir.
+2026-07-30 development uygulamasinda uygulama-ozel localhost istisnasi
+kaydedildi; yeni login islemi consent ekranina ugramadan `/account` rotasina
+dondu.
+
 ## 2. Database ve Google connection
 
 Authentication > Database > `Username-Password-Authentication` ve
@@ -61,6 +87,12 @@ Management M2M uygulamasi kullanici girisi yapmadigi icin bu connection'lara
 baglanmaz. Google development keys yalniz yerel tenant denemesi icindir;
 production SSO acilisindan once ayri Google OAuth istemcisi ve izin ekrani
 provision edilir.
+
+`/register` baslangici `screen_hint=signup` ile birlikte `prompt=login`
+gonderir. Bu ikili korunur: yalniz `screen_hint` kullanilirsa tarayicidaki
+mevcut Auth0 SSO oturumu kayit ekranini atlayip onceki kimlikle callback'e
+donebilir. 2026-08-01 canli localhost turunda bu regresyon bulundu, duzeltildi
+ve mevcut SSO varken Universal Login `/u/signup` ekraninin acildigi dogrulandi.
 
 ## 3. Panelya Account Management M2M
 

@@ -142,6 +142,8 @@ test("web Hesabım arayüzü ortak JSON yüzeyini ve tek kullanımlık reauthent
   assert.match(page, /providerAccount\s*\?\s*<ProductionAccountManager/);
   assert.match(manager, /codeChallengeMethod:\s*"S256"/);
   assert.match(manager, /sessionStorage\.setItem/);
+  assert.match(manager, /normalizedNewEmail === overview\.user\.email\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(manager, /Yeni e-posta mevcut adresle aynı\./);
   assert.doesNotMatch(manager, /localStorage/);
   assert.match(callback, /history\.replaceState/);
   assert.match(callback, /sessionStorage\.removeItem/);
