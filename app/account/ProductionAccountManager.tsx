@@ -351,7 +351,15 @@ export function ProductionAccountManager() {
               className="stack-form"
               onSubmit={(event) => {
                 event.preventDefault();
-                void beginReauthentication("email_change", { kind: "email_change", newEmail: newEmail.trim() });
+                const normalizedNewEmail = newEmail.trim().toLowerCase();
+                if (normalizedNewEmail === overview.user.email.trim().toLowerCase()) {
+                  setMessage({ tone: "error", text: "Yeni e-posta mevcut adresle aynı." });
+                  return;
+                }
+                void beginReauthentication("email_change", {
+                  kind: "email_change",
+                  newEmail: normalizedNewEmail,
+                });
               }}
             >
               <label>Yeni e-posta
