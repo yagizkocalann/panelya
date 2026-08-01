@@ -106,3 +106,20 @@ class AccountApiException implements Exception {
   String toString() =>
       'AccountApiException: ${error.errorDescription ?? error.error}';
 }
+
+/// `/api/library*` uclarinin dondugu yapilandirilmis hata govdesi (bkz.
+/// `packages/contracts/fixtures/library-error.v1.json`, ADR-048).
+///
+/// [AccountApiException]dan AYRIDIR: kutuphane hata govdesi
+/// `reauthenticate` tasimaz, buna karsilik `retryAfterSeconds` tasir.
+/// Ayni sinifi kullanmak, birinin govdesini digerinin DTO'suyla parse
+/// etmeye calismak demek olurdu.
+class LibraryApiException implements Exception {
+  const LibraryApiException(this.error);
+
+  final LibraryErrorResponse error;
+
+  @override
+  String toString() =>
+      'LibraryApiException: ${error.errorDescription ?? error.error}';
+}
