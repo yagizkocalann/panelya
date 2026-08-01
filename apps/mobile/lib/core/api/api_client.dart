@@ -68,7 +68,6 @@ class PanelyaApiClient {
     );
   }
 
-
   // --- Auth (bkz. ADR-039, docs/production-auth-session.md) ----------------
   //
   // Bu metotlar yalnız `HttpAuthRepository` (bkz.
@@ -82,7 +81,10 @@ class PanelyaApiClient {
   /// `GET /api/auth/config` — Auth0 sağlayıcı yapılandırması (issuer, public
   /// client id, audience, scope, endpoint'ler). Secret dönmez.
   Future<AuthProviderConfigResponse> fetchAuthConfig() {
-    return _authGetJson('/api/auth/config', AuthProviderConfigResponse.fromJson);
+    return _authGetJson(
+      '/api/auth/config',
+      AuthProviderConfigResponse.fromJson,
+    );
   }
 
   /// `POST /api/auth/mobile/token` (`grantType: authorization_code`) — ilk
@@ -319,6 +321,130 @@ class PanelyaApiClient {
     );
   }
 
+  /// `GET /api/library` — kullanicinin kutuphanesi.
+  ///
+  /// Sunucunun verdigi SIRALAMA korunur; istemci `updatedAt` veya Turkce
+  /// gosterim metninden yeniden siralama URETMEZ (bkz. ADR-048).
+  Future<LibraryResponse> fetchLibrary({required String accessToken}) {
+    return _libraryJson(
+      'GET',
+      '/api/library',
+      accessToken,
+      LibraryResponse.fromJson,
+    );
+  }
+
+  /// `POST /api/library/{slug}` — seri ekleme/guncelleme.
+  ///
+  /// Govde TOGGLE DEGILDIR: hedef durumun tamami (`status` + `favorite`)
+  /// gonderilir (bkz. `LibraryUpsertRequest`).
+  Future<LibraryMutationResponse> upsertLibraryEntry({
+    required String accessToken,
+    required String slug,
+    required LibraryUpsertRequest request,
+  }) {
+    return _libraryJson(
+      'POST',
+      '/api/library/${Uri.encodeComponent(slug)}',
+      accessToken,
+      LibraryMutationResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  /// `DELETE /api/library/{slug}` — kutuphaneden cikarma.
+  ///
+  /// IDEMPOTENT: kayit zaten yoksa sunucu `removed: false` ile 200 doner;
+  /// bu bir HATA DEGILDIR.
+  Future<LibraryRemovalResponse> removeLibraryEntry({
+    required String accessToken,
+    required String slug,
+  }) {
+    return _libraryJson(
+      'DELETE',
+      '/api/library/${Uri.encodeComponent(slug)}',
+      accessToken,
+      LibraryRemovalResponse.fromJson,
+    );
+  }
+
+  /// [_accountJson]in kutuphane esdegeri. Tek fark hata govdesinin
+  /// [LibraryErrorResponse] olarak ayristirilmasi ve [LibraryApiException]
+  /// firlatilmasidir — iki sozlesmenin hata sekilleri farklidir.
+  ///
+  /// Kimlik YALNIZ `Authorization: Bearer` ile tasinir; web'in cookie
+  /// oturumu mobilde KULLANILMAZ (OpenAPI 1.5.0 ikisini de tanimlar,
+  /// mobil istemci Bearer semasini secer).
+  Future<T> _libraryJson<T>(
+    String method,
+    String path,
+    String accessToken,
+    T Function(Map<String, dynamic> json) fromJson, {
+    Map<String, dynamic>? body,
+  }) async {
+    final uri = Uri.parse('$apiOrigin$path');
+    final headers = <String, String>{
+      'Authorization': 'Bearer $accessToken',
+      'Accept': 'application/json',
+      if (body != null) 'Content-Type': 'application/json',
+    };
+
+    http.Response response;
+    try {
+      final request = http.Request(method, uri)..headers.addAll(headers);
+      if (body != null) request.body = jsonEncode(body);
+      final streamed = await _httpClient.send(request).timeout(timeout);
+      response = await http.Response.fromStream(streamed);
+    } on TimeoutException catch (cause) {
+      throw NetworkException('Istek zaman asimina ugradi: $path', cause: cause);
+    } on SocketException catch (cause) {
+      throw NetworkException('Sunucuya baglanilamadi: $path', cause: cause);
+    } on http.ClientException catch (cause) {
+      throw NetworkException('Ag hatasi: $path', cause: cause);
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException catch (cause) {
+      throw ParseException('Gecersiz JSON govdesi: $path', cause: cause);
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw ParseException('Beklenmeyen JSON sekli: $path');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      try {
+        throw LibraryApiException(LibraryErrorResponse.fromJson(decoded));
+      } on TypeError {
+        throw HttpStatusException(statusCode: response.statusCode, path: path);
+      } on FormatException {
+        throw HttpStatusException(statusCode: response.statusCode, path: path);
+      }
+    }
+
+    final schemaVersion = decoded['schemaVersion'];
+    if (schemaVersion != null && schemaVersion != kSchemaVersion) {
+      throw SchemaMismatchException(
+        '$path su surumu dondurdu: $schemaVersion, beklenen: $kSchemaVersion',
+      );
+    }
+
+    try {
+      return fromJson(decoded);
+    } on TypeError catch (cause) {
+      throw ParseException(
+        'JSON sekli sozlesmeyle eslesmiyor: $path',
+        cause: cause,
+      );
+    } on FormatException catch (cause) {
+      throw ParseException(
+        'JSON sekli sozlesmeyle eslesmiyor: $path',
+        cause: cause,
+      );
+    }
+  }
+
   Future<T> _accountJson<T>(
     String method,
     String path,
@@ -381,9 +507,15 @@ class PanelyaApiClient {
     try {
       return fromJson(decoded);
     } on TypeError catch (cause) {
-      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+      throw ParseException(
+        'JSON şekli sözleşmeyle eşleşmiyor: $path',
+        cause: cause,
+      );
     } on FormatException catch (cause) {
-      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+      throw ParseException(
+        'JSON şekli sözleşmeyle eşleşmiyor: $path',
+        cause: cause,
+      );
     }
   }
 
@@ -471,9 +603,15 @@ class PanelyaApiClient {
     try {
       return fromJson(decoded);
     } on TypeError catch (cause) {
-      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+      throw ParseException(
+        'JSON şekli sözleşmeyle eşleşmiyor: $path',
+        cause: cause,
+      );
     } on FormatException catch (cause) {
-      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+      throw ParseException(
+        'JSON şekli sözleşmeyle eşleşmiyor: $path',
+        cause: cause,
+      );
     }
   }
 
@@ -540,9 +678,15 @@ class PanelyaApiClient {
     try {
       return fromJson(decoded);
     } on TypeError catch (cause) {
-      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+      throw ParseException(
+        'JSON şekli sözleşmeyle eşleşmiyor: $path',
+        cause: cause,
+      );
     } on FormatException catch (cause) {
-      throw ParseException('JSON şekli sözleşmeyle eşleşmiyor: $path', cause: cause);
+      throw ParseException(
+        'JSON şekli sözleşmeyle eşleşmiyor: $path',
+        cause: cause,
+      );
     }
   }
 

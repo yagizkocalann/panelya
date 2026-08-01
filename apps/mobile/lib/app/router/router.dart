@@ -12,6 +12,7 @@ import '../../features/catalog/presentation/catalog_screen.dart';
 import '../../features/discover/presentation/discover_screen.dart';
 import '../../features/discovery/presentation/new_episodes_screen.dart';
 import '../../features/discovery/presentation/new_series_screen.dart';
+import '../../features/library/presentation/library_screen.dart';
 import '../../features/offline/presentation/downloads_screen.dart';
 import '../../features/push/presentation/notification_settings_screen.dart';
 import '../../features/reader/presentation/reader_screen.dart';
@@ -59,7 +60,13 @@ import 'route_args.dart';
 ///   `AuthFeatureConfig`den bağımsız); `/downloads` ile aynı gerekçeyle
 ///   mobile-only.
 ///
-/// Kütüphane, Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
+/// - `/library` — Kütüphanem (bkz. `features/library/`, ADR-048): ortak
+///   `/api/library*` sözleşmesine bağlı liste, okuma durumu ve favori
+///   aksiyonları. Web'de de `/library` yolu var ama mobilde deep-link
+///   şeması TANIMLI DEĞİL, bu yüzden `resolveCustomSchemeRoute`de yok
+///   (`/downloads`, `/account` ile aynı gerekçe).
+///
+/// Studio rotaları kapsam dışıdır (bkz. PLAN Sınırlar).
 ///
 /// `/account/*` ALT ROTALARI İÇİN EK KAPI: yukarıdaki beş yönetim rotası
 /// (`profile`/`security`/`sessions`/`blocked`/`delete`) yalnız
@@ -151,6 +158,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/downloads',
         builder: (context, state) => const DownloadsScreen(),
+      ),
+      // `/library` (bkz. ADR-048). Web'de de aynı yol kullanılır ama
+      // `resolveCustomSchemeRoute`a EKLENMEZ: `panelya://library` bugün
+      // tanımlı bir deep-link değil (aynı gerekçe: `/downloads`,
+      // `/account`).
+      GoRoute(
+        path: '/library',
+        builder: (context, state) => const LibraryScreen(),
       ),
       GoRoute(
         path: '/account',
