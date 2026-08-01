@@ -99,8 +99,7 @@ Widget _wrap({
       ),
       GoRoute(
         path: '/account',
-        builder: (context, state) =>
-            const Scaffold(body: AccountHomeScreen()),
+        builder: (context, state) => const Scaffold(body: AccountHomeScreen()),
       ),
       GoRoute(
         path: '/account/profile',
@@ -183,34 +182,28 @@ void main() {
     },
   );
 
-  testWidgets(
-    'database sağlayıcısıyla girişte ad/e-posta/doğrulanma/sağlayıcı '
-    'etiketi ve tüm gezinme satırları gösterilir',
-    (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          accountRepository: FakeAccountRepository(
-            provider: AccountProviderKind.database,
-            user: _fakeUser,
-          ),
+  testWidgets('database sağlayıcısıyla girişte ad/e-posta/doğrulanma/sağlayıcı '
+      'etiketi ve tüm gezinme satırları gösterilir', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        accountRepository: FakeAccountRepository(
+          provider: AccountProviderKind.database,
+          user: _fakeUser,
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Ece Yılmaz'), findsOneWidget);
-      expect(find.text('ece@example.invalid'), findsOneWidget);
-      expect(
-        find.text('E-posta ve şifre ile giriş yaptın.'),
-        findsOneWidget,
-      );
-      expect(find.text('Profil'), findsOneWidget);
-      expect(find.text('E-posta ve şifre'), findsOneWidget);
-      expect(find.text('Aktif oturumlar'), findsOneWidget);
-      expect(find.text('Engellenen hesaplar'), findsOneWidget);
-      expect(find.text('Hesabı sil'), findsOneWidget);
-      expect(find.text('Çıkış yap'), findsOneWidget);
-    },
-  );
+    expect(find.text('Ece Yılmaz'), findsOneWidget);
+    expect(find.text('ece@example.invalid'), findsOneWidget);
+    expect(find.text('E-posta ve şifre ile giriş yaptın.'), findsOneWidget);
+    expect(find.text('Profil'), findsOneWidget);
+    expect(find.text('E-posta ve şifre'), findsOneWidget);
+    expect(find.text('Aktif oturumlar'), findsOneWidget);
+    expect(find.text('Engellenen hesaplar'), findsOneWidget);
+    expect(find.text('Hesabı sil'), findsOneWidget);
+    expect(find.text('Çıkış yap'), findsOneWidget);
+  });
 
   testWidgets(
     'google sağlayıcısıyla girişte "Google ile giriş yaptın." etiketi '
@@ -230,10 +223,68 @@ void main() {
     },
   );
 
+  // E-posta + doğrulama rozeti, ekran okuyucuya TEK ve anlamlı bir düğüm
+  // olarak okunmalıdır. `Semantics(label:)` tek başına yeni bir düğüm
+  // OLUŞTURMAZ: çocukların (metin + ikon) kendi semantiği geçerli olur ve
+  // ikonun `semanticLabel`ı olmadığı için doğrulama durumu sessizce
+  // kaybolurdu. `container: true` + `ExcludeSemantics` bunu düzeltir.
+  group('e-posta doğrulama rozeti erişilebilirliği', () {
+    testWidgets('doğrulanmış hesapta durum tek düğümde okunur', (tester) async {
+      await tester.pumpWidget(
+        _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel('${_fakeUser.email}, doğrulanmış'),
+        findsOneWidget,
+      );
+      // Ham e-posta metni AYRI bir semantik düğüm olarak sızmaz.
+      expect(find.bySemanticsLabel(_fakeUser.email), findsNothing);
+      // Görsel davranış korunur: rozet hâlâ görünür.
+      expect(find.byIcon(Icons.verified_outlined), findsOneWidget);
+      expect(find.text(_fakeUser.email), findsOneWidget);
+    });
+
+    testWidgets('doğrulanmamış hesapta durum tek düğümde okunur', (
+      tester,
+    ) async {
+      const unverified = AuthUser(
+        id: 'user-2',
+        displayName: 'Deniz Kaya',
+        email: 'deniz@example.invalid',
+        emailVerified: false,
+        role: 'reader',
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(user: unverified),
+          authRepository: _FakeAuthRepository(
+            initialState: const AuthSessionState.authenticated(unverified),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel('${unverified.email}, doğrulanmamış'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel('${unverified.email}, doğrulanmış'),
+        findsNothing,
+      );
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    });
+  });
+
   testWidgets('"Profil" satırına dokunmak /account/profile\'a gider', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository(user: _fakeUser)));
+    await tester.pumpWidget(
+      _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Profil'));
@@ -290,7 +341,9 @@ void main() {
   testWidgets('"Hesabı sil" satırına dokunmak /account/delete\'e gider', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(accountRepository: FakeAccountRepository(user: _fakeUser)));
+    await tester.pumpWidget(
+      _wrap(accountRepository: FakeAccountRepository(user: _fakeUser)),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Hesabı sil'));
@@ -315,134 +368,123 @@ void main() {
     expect(authRepository.logoutCalls, hasLength(1));
   });
 
-  testWidgets(
-    'cikis basarisiz olursa buton spinner\'da KILITLENMEZ ve sebep '
-    'gosterilir',
-    (tester) async {
-      final authRepository = _FakeAuthRepository(
-        logoutError: Exception('yerel temizlik basarisiz'),
-      );
-      await tester.pumpWidget(
-        _wrap(
-          accountRepository: FakeAccountRepository(user: _fakeUser),
-          authRepository: authRepository,
+  testWidgets('cikis basarisiz olursa buton spinner\'da KILITLENMEZ ve sebep '
+      'gosterilir', (tester) async {
+    final authRepository = _FakeAuthRepository(
+      logoutError: Exception('yerel temizlik basarisiz'),
+    );
+    await tester.pumpWidget(
+      _wrap(
+        accountRepository: FakeAccountRepository(user: _fakeUser),
+        authRepository: authRepository,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Çıkış yap'));
+    await tester.pumpAndSettle();
+
+    expect(authRepository.logoutCalls, hasLength(1));
+    // `finally` mesgul bayragini sifirladi: buton yine tiklanabilir.
+    expect(find.text('Çıkış yap'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    // Sahte basari YOK, durust mesaj VAR.
+    expect(find.text('Çıkış yapılamadı. Tekrar dene.'), findsOneWidget);
+  });
+
+  testWidgets('uzun bir görünen adla scale=2.0\'da hiçbir taşma oluşmaz', (
+    tester,
+  ) async {
+    final watcher = OverflowWatcher()..start();
+    addTearDown(watcher.stop);
+
+    const longNameUser = AuthUser(
+      id: 'user-2',
+      displayName: 'Çok Uzun Bir Görünen Ad Örneği Taşma Testi İçin Yazıldı',
+      email: 'cok-uzun-bir-eposta-adresi-ornegi@example.invalid',
+      emailVerified: false,
+      role: 'reader',
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        accountRepository: FakeAccountRepository(user: _fakeUser),
+        authRepository: _FakeAuthRepository(
+          initialState: const AuthSessionState.authenticated(longNameUser),
         ),
-      );
-      await tester.pumpAndSettle();
+        textScale: 2.0,
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Çıkış yap'));
-      await tester.pumpAndSettle();
-
-      expect(authRepository.logoutCalls, hasLength(1));
-      // `finally` mesgul bayragini sifirladi: buton yine tiklanabilir.
-      expect(find.text('Çıkış yap'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-      // Sahte basari YOK, durust mesaj VAR.
-      expect(find.text('Çıkış yapılamadı. Tekrar dene.'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'uzun bir görünen adla scale=2.0\'da hiçbir taşma oluşmaz',
-    (tester) async {
-      final watcher = OverflowWatcher()..start();
-      addTearDown(watcher.stop);
-
-      const longNameUser = AuthUser(
-        id: 'user-2',
-        displayName:
-            'Çok Uzun Bir Görünen Ad Örneği Taşma Testi İçin Yazıldı',
-        email: 'cok-uzun-bir-eposta-adresi-ornegi@example.invalid',
-        emailVerified: false,
-        role: 'reader',
-      );
-
-      await tester.pumpWidget(
-        _wrap(
-          accountRepository: FakeAccountRepository(user: _fakeUser),
-          authRepository: _FakeAuthRepository(
-            initialState: const AuthSessionState.authenticated(
-              longNameUser,
-            ),
-          ),
-          textScale: 2.0,
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(watcher.errors, isEmpty, reason: watcher.describe());
-    },
-  );
+    expect(watcher.errors, isEmpty, reason: watcher.describe());
+  });
 
   /// Web tarafının açık yayın-koruma talimatı: `AUTH_ENABLED=true` (gerçek
   /// Auth0 girişi hazır) + `ACCOUNT_MANAGEMENT_ENABLED=false` (production
   /// varsayılanı) kombinasyonunda gerçek oturum bilgisi ve çıkış çalışmalı,
   /// sahte hesap yönetimi ekranları ise ERİŞİLEMEZ olmalı.
   group('hesap yönetimi kapalıyken (ACCOUNT_MANAGEMENT_ENABLED=false)', () {
-    testWidgets(
-      'gerçek kullanıcı bilgisi ve "Çıkış yap" gösterilir',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            accountRepository: FakeAccountRepository(user: _fakeUser),
-            managementEnabled: false,
-          ),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('gerçek kullanıcı bilgisi ve "Çıkış yap" gösterilir', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(user: _fakeUser),
+          managementEnabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Ece Yılmaz'), findsOneWidget);
-        expect(find.text('ece@example.invalid'), findsOneWidget);
-        expect(find.text('Çıkış yap'), findsOneWidget);
-      },
-    );
+      expect(find.text('Ece Yılmaz'), findsOneWidget);
+      expect(find.text('ece@example.invalid'), findsOneWidget);
+      expect(find.text('Çıkış yap'), findsOneWidget);
+    });
 
-    testWidgets(
-      'beş yönetim girişi HİÇ render edilmez — devre dışı buton veya '
-      '"yakında" placeholder olarak DA gösterilmez (ADR-010)',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            accountRepository: FakeAccountRepository(user: _fakeUser),
-            managementEnabled: false,
-          ),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('beş yönetim girişi HİÇ render edilmez — devre dışı buton veya '
+        '"yakında" placeholder olarak DA gösterilmez (ADR-010)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(user: _fakeUser),
+          managementEnabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Profil'), findsNothing);
-        expect(find.text('E-posta ve şifre'), findsNothing);
-        expect(find.text('Aktif oturumlar'), findsNothing);
-        expect(find.text('Engellenen hesaplar'), findsNothing);
-        expect(find.text('Hesabı sil'), findsNothing);
-        // "yakında"/devre dışı placeholder da yok:
-        expect(find.textContaining('yakında'), findsNothing);
-        expect(find.textContaining('Yakında'), findsNothing);
-      },
-    );
+      expect(find.text('Profil'), findsNothing);
+      expect(find.text('E-posta ve şifre'), findsNothing);
+      expect(find.text('Aktif oturumlar'), findsNothing);
+      expect(find.text('Engellenen hesaplar'), findsNothing);
+      expect(find.text('Hesabı sil'), findsNothing);
+      // "yakında"/devre dışı placeholder da yok:
+      expect(find.textContaining('yakında'), findsNothing);
+      expect(find.textContaining('Yakında'), findsNothing);
+    });
 
-    testWidgets(
-      'sahte sağlayıcı etiketi gösterilmez (o bilgi yalnız hesap '
-      'repository\'sinden gelirdi)',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            accountRepository: FakeAccountRepository(user: _fakeUser),
-            managementEnabled: false,
-          ),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('sahte sağlayıcı etiketi gösterilmez (o bilgi yalnız hesap '
+        'repository\'sinden gelirdi)', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(user: _fakeUser),
+          managementEnabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('E-posta ve şifre ile giriş yaptın.'), findsNothing);
-        expect(find.text('Google ile giriş yaptın.'), findsNothing);
-      },
-    );
+      expect(find.text('E-posta ve şifre ile giriş yaptın.'), findsNothing);
+      expect(find.text('Google ile giriş yaptın.'), findsNothing);
+    });
 
     testWidgets(
-      'accountRepositoryProvider HİÇ OKUNMAZ — bu yüzden gerçek runtime\'da '
-      'bağlanmamış olması (fırlatan provider) ekranı bozmaz',
+      'accountRepositoryProvider HİÇ OKUNMAZ — bayrak kapalıyken hesap '
+      'verisi istenmez',
       (tester) async {
         // `accountRepositoryProvider` KASITLI OLARAK override EDİLMEZ:
-        // gerçek runtime'daki gibi okunduğunda fırlatan hâliyle bırakılır.
-        // Ekran yine de sorunsuz render olmalı.
+        // okunsaydı test bir sağlayıcı bulamayıp patlardı. Ekranın
+        // sorunsuz render olması, o provider'a hiç dokunulmadığını
+        // kanıtlar.
         final authRepository = _FakeAuthRepository();
         final router = GoRouter(
           initialLocation: '/account',
