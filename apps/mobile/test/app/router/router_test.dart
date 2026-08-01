@@ -11,6 +11,8 @@ import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/account_management_feature_config.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
+import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
+import 'package:panelya_mobile/features/account/domain/account_repository.dart';
 import 'package:panelya_mobile/features/account/presentation/account_providers.dart';
 import 'package:panelya_mobile/features/account/presentation/profile_screen.dart';
 import 'package:panelya_mobile/features/account/presentation/security_screen.dart';
@@ -178,7 +180,14 @@ class _FakeNotificationPreferenceNotifier
 /// [managementEnabled] `false` verildiğinde production varsayılanı taklit
 /// edilir; router'ın `/account/*` alt rotalarını fail-closed biçimde
 /// `/account`a yönlendirdiği bu şekilde doğrulanır.
-List<Override> _accountOverrides({required bool managementEnabled}) => [
+List<Override> _accountOverrides({
+  required bool managementEnabled,
+  // Varsayilan hic cozulmeyen repository, rotalarin yalniz dogru EKRANA
+  // cozuldugunu dogrulamak icin yeterlidir. Capability kapisini test eden
+  // durumlarda gercek veri donen bir sahte gecilir — ayni provider IKI KEZ
+  // override EDILEMEZ (Riverpod assertion'i), bu yuzden parametre.
+  AccountRepository? accountRepository,
+}) => [
   authFeatureConfigProvider.overrideWithValue(
     const AuthFeatureConfig(enabled: true),
   ),
@@ -187,7 +196,7 @@ List<Override> _accountOverrides({required bool managementEnabled}) => [
   ),
   authRepositoryProvider.overrideWithValue(_AuthenticatedFakeAuthRepository()),
   accountRepositoryProvider.overrideWithValue(
-    NeverResolvingAccountRepository(),
+    accountRepository ?? NeverResolvingAccountRepository(),
   ),
 ];
 
@@ -248,37 +257,39 @@ void main() {
   }
 
   group('safe fallback (PLAN Görev 3: bilinmeyen/bozuk link -> keşif)', () {
-    testWidgets('an unmatched path falls back to the discover screen via errorBuilder', (
-      tester,
-    ) async {
-      final built = buildRouter();
-      await pumpRouter(tester, built.router, built.container);
+    testWidgets(
+      'an unmatched path falls back to the discover screen via errorBuilder',
+      (tester) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
 
-      built.router.go('/this/path/does/not/exist');
-      await tester.pump();
-      await tester.pump();
+        built.router.go('/this/path/does/not/exist');
+        await tester.pump();
+        await tester.pump();
 
-      // `go()` bir önceki (geçerli) konumu yığından tam olarak
-      // temizlemeyebilir (bkz. go_router'ın hata sayfası davranışı); önemli
-      // olan en az bir çalışan `DiscoverScreen`'in görünmesi ve crash
-      // olmamasıdır — boş/kırık bir "not found" sayfası değil.
-      expect(find.byType(DiscoverScreen), findsWidgets);
-      expect(tester.takeException(), isNull);
-    });
+        // `go()` bir önceki (geçerli) konumu yığından tam olarak
+        // temizlemeyebilir (bkz. go_router'ın hata sayfası davranışı); önemli
+        // olan en az bir çalışan `DiscoverScreen`'in görünmesi ve crash
+        // olmamasıdır — boş/kırık bir "not found" sayfası değil.
+        expect(find.byType(DiscoverScreen), findsWidgets);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-    testWidgets('a malformed custom-scheme link falls back to discover via redirect', (
-      tester,
-    ) async {
-      final built = buildRouter();
-      await pumpRouter(tester, built.router, built.container);
+    testWidgets(
+      'a malformed custom-scheme link falls back to discover via redirect',
+      (tester) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
 
-      built.router.go('panelya://series');
-      await tester.pump();
-      await tester.pump();
+        built.router.go('panelya://series');
+        await tester.pump();
+        await tester.pump();
 
-      expect(find.byType(DiscoverScreen), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+        expect(find.byType(DiscoverScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group('panelya:// custom scheme redirect', () {
@@ -331,21 +342,24 @@ void main() {
   group(
     'editorial keşif ayrımı — /catalog, /new-series, /new-episodes (PLAN Görev 2)',
     () {
-      testWidgets('"/catalog" resolves to CatalogScreen without a preselected genre', (
-        tester,
-      ) async {
-        final built = buildRouter();
-        await pumpRouter(tester, built.router, built.container);
+      testWidgets(
+        '"/catalog" resolves to CatalogScreen without a preselected genre',
+        (tester) async {
+          final built = buildRouter();
+          await pumpRouter(tester, built.router, built.container);
 
-        built.router.go('/catalog');
-        await tester.pump();
-        await tester.pump();
+          built.router.go('/catalog');
+          await tester.pump();
+          await tester.pump();
 
-        expect(find.byType(CatalogScreen), findsOneWidget);
-        final screen = tester.widget<CatalogScreen>(find.byType(CatalogScreen));
-        expect(screen.initialGenre, isNull);
-        expect(tester.takeException(), isNull);
-      });
+          expect(find.byType(CatalogScreen), findsOneWidget);
+          final screen = tester.widget<CatalogScreen>(
+            find.byType(CatalogScreen),
+          );
+          expect(screen.initialGenre, isNull);
+          expect(tester.takeException(), isNull);
+        },
+      );
 
       testWidgets(
         '"/catalog" with a CatalogRouteArgs extra carries the initial genre '
@@ -415,38 +429,32 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets(
-        '"/downloads" resolves to DownloadsScreen (mobile-only, bkz. '
-        'docs/local-gap-backlog.md P2 madde 3)',
-        (tester) async {
-          final built = buildRouter();
-          await pumpRouter(tester, built.router, built.container);
+      testWidgets('"/downloads" resolves to DownloadsScreen (mobile-only, bkz. '
+          'docs/local-gap-backlog.md P2 madde 3)', (tester) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
 
-          built.router.go('/downloads');
-          await tester.pump();
-          await tester.pump();
+        built.router.go('/downloads');
+        await tester.pump();
+        await tester.pump();
 
-          expect(find.byType(DownloadsScreen), findsOneWidget);
-          expect(tester.takeException(), isNull);
-        },
-      );
+        expect(find.byType(DownloadsScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
 
-      testWidgets(
-        '"/account" resolves to AccountScreen (mobile-only, yalnız '
-        'AuthFeatureConfig.enabled açıkken discover_screen.dart\'taki giriş '
-        'noktasından erişilir)',
-        (tester) async {
-          final built = buildRouter();
-          await pumpRouter(tester, built.router, built.container);
+      testWidgets('"/account" resolves to AccountScreen (mobile-only, yalnız '
+          'AuthFeatureConfig.enabled açıkken discover_screen.dart\'taki giriş '
+          'noktasından erişilir)', (tester) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
 
-          built.router.go('/account');
-          await tester.pump();
-          await tester.pump();
+        built.router.go('/account');
+        await tester.pump();
+        await tester.pump();
 
-          expect(find.byType(AccountScreen), findsOneWidget);
-          expect(tester.takeException(), isNull);
-        },
-      );
+        expect(find.byType(AccountScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
 
       testWidgets(
         '"/account/profile" resolves to ProfileScreen (mobile-only, bkz. '
@@ -485,6 +493,39 @@ void main() {
           expect(tester.takeException(), isNull);
         },
       );
+
+      testWidgets('sunucu emailChange yeteneğini "unavailable" döndüğünde '
+          '"/account/security" rotasında e-posta değiştirme aksiyonu widget '
+          'ağacında BULUNMAZ (ürün kararı, web 1 Ağustos 2026)', (
+        tester,
+      ) async {
+        final built = buildRouter(
+          extraOverrides: _accountOverrides(
+            managementEnabled: true,
+            // Gerçek veri dönen sahte: capability kapısının çalışması için
+            // ekranın `data` durumuna ulaşması gerekir. Ayrı bir override
+            // olarak EKLENEMEZ — Riverpod aynı provider'ı iki kez
+            // override etmeye izin vermez.
+            accountRepository: FakeAccountRepository(
+              provider: AccountProviderKind.database,
+              capabilities: testCapabilities(
+                emailChange: AccountActionCapability.unavailable,
+              ),
+            ),
+          ),
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('/account/security');
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SecurityScreen), findsOneWidget);
+        expect(find.text('E-postayı değiştir'), findsNothing);
+        expect(find.byType(TextField), findsNothing);
+        // Şifre aksiyonu bundan bağımsız çalışmaya devam eder.
+        expect(find.text('Sıfırlama e-postası gönder'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
 
       testWidgets(
         '"/account/sessions" resolves to SessionsScreen (mobile-only, bkz. '
@@ -543,21 +584,20 @@ void main() {
         },
       );
 
-      testWidgets(
-        '"/notifications" resolves to NotificationSettingsScreen '
-        '(mobile-only, hesap gerektirmez, her zaman erişilebilir)',
-        (tester) async {
-          final built = buildRouter();
-          await pumpRouter(tester, built.router, built.container);
+      testWidgets('"/notifications" resolves to NotificationSettingsScreen '
+          '(mobile-only, hesap gerektirmez, her zaman erişilebilir)', (
+        tester,
+      ) async {
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
 
-          built.router.go('/notifications');
-          await tester.pump();
-          await tester.pump();
+        built.router.go('/notifications');
+        await tester.pump();
+        await tester.pump();
 
-          expect(find.byType(NotificationSettingsScreen), findsOneWidget);
-          expect(tester.takeException(), isNull);
-        },
-      );
+        expect(find.byType(NotificationSettingsScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
     },
   );
 
@@ -568,79 +608,74 @@ void main() {
   /// çıkış) ÇALIŞMALI, `/account/*` yönetim rotalari ise FAIL-CLOSED
   /// biçimde `/account`a yönlendirilmeli — sahte hesap yönetimi ekranlarına
   /// doğrudan navigasyon/deep-link ile de ULAŞILAMAMALI.
-  group(
-    'yayın koruması — ACCOUNT_MANAGEMENT_ENABLED=false ile /account/* '
-    'fail-closed yönlendirilir',
-    () {
-      testWidgets(
-        '"/account" (gerçek oturum + çıkış) hâlâ erişilebilir',
-        (tester) async {
-          final built = buildRouter(
-            extraOverrides: _accountOverrides(managementEnabled: false),
-          );
-          await pumpRouter(tester, built.router, built.container);
-
-          built.router.go('/account');
-          await tester.pump();
-          await tester.pump();
-
-          expect(find.byType(AccountScreen), findsOneWidget);
-          expect(tester.takeException(), isNull);
-        },
+  group('yayın koruması — ACCOUNT_MANAGEMENT_ENABLED=false ile /account/* '
+      'fail-closed yönlendirilir', () {
+    testWidgets('"/account" (gerçek oturum + çıkış) hâlâ erişilebilir', (
+      tester,
+    ) async {
+      final built = buildRouter(
+        extraOverrides: _accountOverrides(managementEnabled: false),
       );
+      await pumpRouter(tester, built.router, built.container);
 
-      for (final path in const [
-        '/account/profile',
-        '/account/security',
-        '/account/sessions',
-        '/account/blocked',
-        '/account/delete',
-      ]) {
-        testWidgets('"$path" fail-closed olarak /account\'a düşer', (
-          tester,
-        ) async {
-          final built = buildRouter(
-            extraOverrides: _accountOverrides(managementEnabled: false),
-          );
-          await pumpRouter(tester, built.router, built.container);
+      built.router.go('/account');
+      await tester.pump();
+      await tester.pump();
 
-          built.router.go(path);
-          await tester.pump();
-          await tester.pump();
+      expect(find.byType(AccountScreen), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
 
-          // Güvenli Hesabım ekranına yönlendirildi; hedef yönetim ekranı
-          // HİÇ oluşturulmadı.
-          expect(find.byType(AccountScreen), findsOneWidget);
-          expect(find.byType(ProfileScreen), findsNothing);
-          expect(find.byType(SecurityScreen), findsNothing);
-          expect(find.byType(SessionsScreen), findsNothing);
-          expect(find.byType(BlockedAccountsScreen), findsNothing);
-          expect(find.byType(DeleteAccountScreen), findsNothing);
-          expect(tester.takeException(), isNull);
-        });
-      }
+    for (final path in const [
+      '/account/profile',
+      '/account/security',
+      '/account/sessions',
+      '/account/blocked',
+      '/account/delete',
+    ]) {
+      testWidgets('"$path" fail-closed olarak /account\'a düşer', (
+        tester,
+      ) async {
+        final built = buildRouter(
+          extraOverrides: _accountOverrides(managementEnabled: false),
+        );
+        await pumpRouter(tester, built.router, built.container);
 
-      testWidgets(
-        'yönlendirme sonrası Hesabım ekranında yönetim girişleri HİÇ '
-        'görünmez (ekran içi gizleme + router guard birlikte çalışır)',
-        (tester) async {
-          final built = buildRouter(
-            extraOverrides: _accountOverrides(managementEnabled: false),
-          );
-          await pumpRouter(tester, built.router, built.container);
+        built.router.go(path);
+        await tester.pump();
+        await tester.pump();
 
-          built.router.go('/account/delete');
-          await tester.pump();
-          await tester.pump();
+        // Güvenli Hesabım ekranına yönlendirildi; hedef yönetim ekranı
+        // HİÇ oluşturulmadı.
+        expect(find.byType(AccountScreen), findsOneWidget);
+        expect(find.byType(ProfileScreen), findsNothing);
+        expect(find.byType(SecurityScreen), findsNothing);
+        expect(find.byType(SessionsScreen), findsNothing);
+        expect(find.byType(BlockedAccountsScreen), findsNothing);
+        expect(find.byType(DeleteAccountScreen), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
 
-          expect(find.text('Profil'), findsNothing);
-          expect(find.text('E-posta ve şifre'), findsNothing);
-          expect(find.text('Aktif oturumlar'), findsNothing);
-          expect(find.text('Engellenen hesaplar'), findsNothing);
-          expect(find.text('Hesabı sil'), findsNothing);
-          expect(tester.takeException(), isNull);
-        },
+    testWidgets('yönlendirme sonrası Hesabım ekranında yönetim girişleri HİÇ '
+        'görünmez (ekran içi gizleme + router guard birlikte çalışır)', (
+      tester,
+    ) async {
+      final built = buildRouter(
+        extraOverrides: _accountOverrides(managementEnabled: false),
       );
-    },
-  );
+      await pumpRouter(tester, built.router, built.container);
+
+      built.router.go('/account/delete');
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Profil'), findsNothing);
+      expect(find.text('E-posta ve şifre'), findsNothing);
+      expect(find.text('Aktif oturumlar'), findsNothing);
+      expect(find.text('Engellenen hesaplar'), findsNothing);
+      expect(find.text('Hesabı sil'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -116,11 +116,11 @@ class _AccountHomeScreenState extends ConsumerState<AccountHomeScreen> {
       switch (provider) {
         AccountProviderKind.database => 'E-posta ve şifre ile giriş yaptın.',
         AccountProviderKind.google => 'Google ile giriş yaptın.',
-        AccountProviderKind.other_social =>
-          'Bir sosyal hesapla giriş yaptın.',
+        AccountProviderKind.other_social => 'Bir sosyal hesapla giriş yaptın.',
         // İleri-uyumluluk fallback'i: bu istemcinin bilmediği yeni bir
         // sağlayıcı geldiğinde yanlış bir etiket UYDURULMAZ.
-        AccountProviderKind.unknown => 'Bir kimlik sağlayıcısıyla giriş yaptın.',
+        AccountProviderKind.unknown =>
+          'Bir kimlik sağlayıcısıyla giriş yaptın.',
       };
 }
 
@@ -165,34 +165,44 @@ class _AccountHomeBody extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               SizedBox(height: tokens.spacing.xs),
+              // `container: true` + `ExcludeSemantics` OLMADAN bu etiket ekran
+              // okuyucuya HİÇ ULAŞMAZ: `Semantics(label:)` tek başına yeni bir
+              // düğüm oluşturmaz, çocukların (metin + ikon) kendi semantiği
+              // geçerli olur ve ikonun `semanticLabel`ı olmadığı için
+              // doğrulama durumu sessizce kaybolurdu. Bu ikisiyle e-posta ve
+              // rozet TEK bir düğüm olarak, durumu da söyleyerek okunur.
+              // GÖRSEL davranış değişmez (bkz. `SecurityScreen`'deki eşi).
               Semantics(
+                container: true,
                 label: user.emailVerified
                     ? '${user.email}, doğrulanmış'
                     : '${user.email}, doğrulanmamış',
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        user.email,
-                        style: tokens.typography.bodySmall.copyWith(
-                          color: tokens.colors.muted,
+                child: ExcludeSemantics(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          user.email,
+                          style: tokens.typography.bodySmall.copyWith(
+                            color: tokens.colors.muted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    SizedBox(width: tokens.spacing.xs),
-                    Icon(
-                      user.emailVerified
-                          ? Icons.verified_outlined
-                          : Icons.error_outline,
-                      size: 16,
-                      color: user.emailVerified
-                          ? tokens.colors.mint
-                          : tokens.colors.coral,
-                    ),
-                  ],
+                      SizedBox(width: tokens.spacing.xs),
+                      Icon(
+                        user.emailVerified
+                            ? Icons.verified_outlined
+                            : Icons.error_outline,
+                        size: 16,
+                        color: user.emailVerified
+                            ? tokens.colors.mint
+                            : tokens.colors.coral,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               if (providerLabel != null) ...[
