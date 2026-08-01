@@ -98,6 +98,16 @@ class DiscoverScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Panelya'),
         actions: [
+          // Kütüphane hesap gerektirir (bkz. ADR-048); bu yüzden giriş
+          // noktası da `AUTH_ENABLED` ile birlikte gösterilir — kapalıyken
+          // hiç render edilmez (ADR-010: ulaşılamayan bir aksiyon
+          // gösterilmez).
+          if (authEnabled)
+            IconButton(
+              icon: const Icon(Icons.bookmark_border_rounded),
+              tooltip: 'Kütüphanem',
+              onPressed: () => context.push('/library'),
+            ),
           if (authEnabled)
             IconButton(
               icon: const Icon(Icons.person_outline_rounded),
