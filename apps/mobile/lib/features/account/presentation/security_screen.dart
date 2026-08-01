@@ -21,7 +21,16 @@ import 'account_providers.dart';
 ///   `reauthenticationToken` mutation'a geçirilir.
 /// - `provider_managed` -> aksiyon YERİNE etkileşimsiz açıklama gösterilir
 ///   (devre dışı buton/form YOK, ADR-010).
-/// - `unavailable`/`unknown` -> hiç gösterilmez.
+/// - `unavailable`/`unknown` -> HİÇ gösterilmez: ne form, ne buton, ne
+///   devre dışı placeholder, ne de "yakında" satırı.
+///
+/// ÜRÜN KARARI (web, 1 Ağustos 2026): e-posta değiştirme şimdilik
+/// kullanıcıya açık "Hesabım" kapsamından çıkarıldı. Sunucu bu yeteneği
+/// `unavailable` döndürdüğünde bu ekran yalnız SALT OKUNUR e-postayı ve
+/// doğrulama durumunu gösterir; şifre aksiyonu bundan bağımsız çalışır.
+/// `requestEmailChange` repository metodu ve üretilen DTO'lar bilinçli
+/// olarak KORUNMUŞTUR — ortak sözleşme değişmedi, yalnız görünür ürün
+/// yeteneği kapatıldı; karar geri alınırsa ekran kodu hazırdır.
 ///
 /// Uygulama içinde eski/yeni şifre alanı HİÇBİR ZAMAN oluşturulmaz; şifre
 /// aksiyonu yalnız bir e-posta tetikler.
@@ -67,10 +76,12 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             .read(accountReauthenticatorProvider)
             .obtainToken(AccountReauthenticationPurpose.email_change);
       }
-      await ref.read(accountRepositoryProvider).requestEmailChange(
-        newEmail: _newEmailController.text.trim(),
-        reauthenticationToken: token,
-      );
+      await ref
+          .read(accountRepositoryProvider)
+          .requestEmailChange(
+            newEmail: _newEmailController.text.trim(),
+            reauthenticationToken: token,
+          );
       if (mounted) setState(() => _emailChangeSucceeded = true);
     } on AccountReauthenticationCancelledException {
       // Kullanıcı taze kimlik doğrulamasını iptal etti — hata gösterilmez.
@@ -115,14 +126,15 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           data: (overview) => _SecurityBody(
             capabilities: overview.capabilities,
             currentEmail: overview.user.email,
+            emailVerified: overview.user.emailVerified,
             newEmailController: _newEmailController,
             emailChangeBusy: _emailChangeBusy,
             emailChangeSucceeded: _emailChangeSucceeded,
             passwordResetBusy: _passwordResetBusy,
             passwordResetSucceeded: _passwordResetSucceeded,
             onRequestEmailChange: () => _requestEmailChange(
-              needsReauth: overview.capabilities.emailChange
-                  .needsReauthentication,
+              needsReauth:
+                  overview.capabilities.emailChange.needsReauthentication,
             ),
             onRequestPasswordReset: _requestPasswordReset,
           ),
@@ -136,6 +148,7 @@ class _SecurityBody extends StatelessWidget {
   const _SecurityBody({
     required this.capabilities,
     required this.currentEmail,
+    required this.emailVerified,
     required this.newEmailController,
     required this.emailChangeBusy,
     required this.emailChangeSucceeded,
@@ -148,6 +161,7 @@ class _SecurityBody extends StatelessWidget {
   final AccountCapabilities capabilities;
   final String currentEmail;
   final TextEditingController newEmailController;
+  final bool emailVerified;
   final bool emailChangeBusy;
   final bool emailChangeSucceeded;
   final bool passwordResetBusy;
@@ -166,10 +180,43 @@ class _SecurityBody extends StatelessWidget {
       children: [
         Text('E-posta', style: tokens.typography.titleMedium),
         SizedBox(height: tokens.spacing.xs),
-        Text(
-          currentEmail,
-          style: tokens.typography.bodySmall.copyWith(
-            color: tokens.colors.muted,
+        // Mevcut e-posta SALT OKUNUR + doğrulama durumu. Bu blok
+        // `emailChange` yeteneğinden BAĞIMSIZDIR: e-posta değiştirme
+        // kapalıyken de kullanıcının adresini ve doğrulanmış olup
+        // olmadığını görmesi anlamlıdır (bkz. `AccountHomeScreen`'deki
+        // aynı rozet kalıbı).
+        // `container: true` + `ExcludeSemantics` OLMADAN bu etiket ekran
+        // okuyucuya HİÇ ULAŞMAZ: `Semantics(label:)` tek başına yeni bir
+        // düğüm oluşturmaz, çocukların (metin + ikon) kendi semantiği
+        // geçerli olur ve ikonun `semanticLabel`ı olmadığı için doğrulama
+        // durumu sessizce kaybolurdu. Bu ikisiyle e-posta ve rozet TEK bir
+        // düğüm olarak, durumu da söyleyerek okunur.
+        Semantics(
+          container: true,
+          label: emailVerified
+              ? '$currentEmail, doğrulanmış'
+              : '$currentEmail, doğrulanmamış',
+          child: ExcludeSemantics(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    currentEmail,
+                    style: tokens.typography.bodySmall.copyWith(
+                      color: tokens.colors.muted,
+                    ),
+                  ),
+                ),
+                SizedBox(width: tokens.spacing.xs),
+                Icon(
+                  emailVerified ? Icons.verified_outlined : Icons.error_outline,
+                  size: 16,
+                  color: emailVerified
+                      ? tokens.colors.mint
+                      : tokens.colors.coral,
+                ),
+              ],
+            ),
           ),
         ),
         SizedBox(height: tokens.spacing.sm),
@@ -178,9 +225,7 @@ class _SecurityBody extends StatelessWidget {
             controller: newEmailController,
             enabled: !emailChangeBusy,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Yeni e-posta adresi',
-            ),
+            decoration: const InputDecoration(labelText: 'Yeni e-posta adresi'),
           ),
           if (emailChange.needsReauthentication) ...[
             SizedBox(height: tokens.spacing.xs),

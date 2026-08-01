@@ -112,110 +112,98 @@ void main() {
     expect(find.byType(AppLoadingView), findsOneWidget);
   });
 
-  testWidgets(
-    'hesap özeti getirilemezse AppErrorView + Tekrar dene gösterir',
-    (tester) async {
-      final repository = FakeAccountRepository()
-        ..fetchOverviewError = Exception('boom');
+  testWidgets('hesap özeti getirilemezse AppErrorView + Tekrar dene gösterir', (
+    tester,
+  ) async {
+    final repository = FakeAccountRepository()
+      ..fetchOverviewError = Exception('boom');
 
+    await tester.pumpWidget(_wrap(accountRepository: repository));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AppErrorView), findsOneWidget);
+    expect(find.text('Tekrar dene'), findsOneWidget);
+  });
+
+  group('database sağlayıcısı', () {
+    testWidgets('e-posta değiştirme ve şifre sıfırlama aksiyonlarının ikisi de '
+        'gösterilir', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          accountRepository: FakeAccountRepository(
+            provider: AccountProviderKind.database,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('E-postayı değiştir'), findsOneWidget);
+      expect(find.text('Sıfırlama e-postası gönder'), findsOneWidget);
+    });
+
+    testWidgets('emailChange yeteneği "enabled" iken taze kimlik doğrulaması '
+        'YAPILMADAN doğrudan requestEmailChange çağrılır', (tester) async {
+      final repository = FakeAccountRepository(
+        provider: AccountProviderKind.database,
+        capabilities: testCapabilities(
+          emailChange: AccountActionCapability.enabled,
+        ),
+      );
       await tester.pumpWidget(_wrap(accountRepository: repository));
       await tester.pumpAndSettle();
 
-      expect(find.byType(AppErrorView), findsOneWidget);
-      expect(find.text('Tekrar dene'), findsOneWidget);
-    },
-  );
+      await tester.enterText(
+        find.byType(TextField),
+        'yeni-eposta@example.invalid',
+      );
+      await tester.tap(find.text('E-postayı değiştir'));
+      await tester.pumpAndSettle();
 
-  group('database sağlayıcısı', () {
-    testWidgets(
-      'e-posta değiştirme ve şifre sıfırlama aksiyonlarının ikisi de '
-      'gösterilir',
-      (tester) async {
-        await tester.pumpWidget(
-          _wrap(
-            accountRepository: FakeAccountRepository(
-              provider: AccountProviderKind.database,
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
+      expect(repository.calls, contains('requestEmailChange'));
+      expect(repository.lastRequestedEmail, 'yeni-eposta@example.invalid');
+      expect(
+        repository.calls,
+        isNot(contains('startReauthentication:email_change')),
+      );
+      expect(
+        find.text('Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.'),
+        findsOneWidget,
+      );
+    });
 
-        expect(find.text('E-postayı değiştir'), findsOneWidget);
-        expect(find.text('Sıfırlama e-postası gönder'), findsOneWidget);
-      },
-    );
+    testWidgets('emailChange yeteneği "reauthentication_required" iken ÖNCE '
+        'start/complete reauth akışı çalışır ve mutation\'a dönen token '
+        'geçirilir (authorization code DEĞİL)', (tester) async {
+      final repository = FakeAccountRepository(
+        provider: AccountProviderKind.database,
+        capabilities: testCapabilities(
+          emailChange: AccountActionCapability.reauthentication_required,
+        ),
+      );
+      await tester.pumpWidget(_wrap(accountRepository: repository));
+      await tester.pumpAndSettle();
 
-    testWidgets(
-      'emailChange yeteneği "enabled" iken taze kimlik doğrulaması '
-      'YAPILMADAN doğrudan requestEmailChange çağrılır',
-      (tester) async {
-        final repository = FakeAccountRepository(
-          provider: AccountProviderKind.database,
-          capabilities: testCapabilities(
-            emailChange: AccountActionCapability.enabled,
-          ),
-        );
-        await tester.pumpWidget(_wrap(accountRepository: repository));
-        await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField),
+        'yeni-eposta@example.invalid',
+      );
+      await tester.tap(find.text('E-postayı değiştir'));
+      await tester.pumpAndSettle();
 
-        await tester.enterText(
-          find.byType(TextField),
-          'yeni-eposta@example.invalid',
-        );
-        await tester.tap(find.text('E-postayı değiştir'));
-        await tester.pumpAndSettle();
-
-        expect(repository.calls, contains('requestEmailChange'));
-        expect(repository.lastRequestedEmail, 'yeni-eposta@example.invalid');
-        expect(
-          repository.calls,
-          isNot(contains('startReauthentication:email_change')),
-        );
-        expect(
-          find.text(
-            'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
-          ),
-          findsOneWidget,
-        );
-      },
-    );
-
-    testWidgets(
-      'emailChange yeteneği "reauthentication_required" iken ÖNCE '
-      'start/complete reauth akışı çalışır ve mutation\'a dönen token '
-      'geçirilir (authorization code DEĞİL)',
-      (tester) async {
-        final repository = FakeAccountRepository(
-          provider: AccountProviderKind.database,
-          capabilities: testCapabilities(
-            emailChange: AccountActionCapability.reauthentication_required,
-          ),
-        );
-        await tester.pumpWidget(_wrap(accountRepository: repository));
-        await tester.pumpAndSettle();
-
-        await tester.enterText(
-          find.byType(TextField),
-          'yeni-eposta@example.invalid',
-        );
-        await tester.tap(find.text('E-postayı değiştir'));
-        await tester.pumpAndSettle();
-
-        expect(
-          repository.calls,
-          containsAllInOrder([
-            'startReauthentication:email_change',
-            'completeReauthentication',
-            'requestEmailChange',
-          ]),
-        );
-        expect(
-          repository.lastEmailChangeToken,
-          'fake-reauthentication-token-0000000000000000000000',
-        );
-        expect(repository.lastEmailChangeToken, isNot('fresh-code'));
-      },
-    );
+      expect(
+        repository.calls,
+        containsAllInOrder([
+          'startReauthentication:email_change',
+          'completeReauthentication',
+          'requestEmailChange',
+        ]),
+      );
+      expect(
+        repository.lastEmailChangeToken,
+        'fake-reauthentication-token-0000000000000000000000',
+      );
+      expect(repository.lastEmailChangeToken, isNot('fresh-code'));
+    });
 
     testWidgets(
       'reauth gerektiğinde kullanıcı sistem tarayıcısını iptal ederse '
@@ -240,9 +228,7 @@ void main() {
 
         expect(repository.calls, isNot(contains('requestEmailChange')));
         expect(
-          find.text(
-            'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
-          ),
+          find.text('Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.'),
           findsNothing,
         );
       },
@@ -252,14 +238,16 @@ void main() {
       'requestEmailChange başarısız olursa SnackBar ile hata gösterilir, '
       'onay paneli GÖRÜNMEZ',
       (tester) async {
-        final repository = FakeAccountRepository(
-          provider: AccountProviderKind.database,
-          capabilities: testCapabilities(
-            emailChange: AccountActionCapability.enabled,
-          ),
-        )..requestEmailChangeError = const AccountUnexpectedException(
-          'E-posta değiştirilemedi.',
-        );
+        final repository =
+            FakeAccountRepository(
+                provider: AccountProviderKind.database,
+                capabilities: testCapabilities(
+                  emailChange: AccountActionCapability.enabled,
+                ),
+              )
+              ..requestEmailChangeError = const AccountUnexpectedException(
+                'E-posta değiştirilemedi.',
+              );
         await tester.pumpWidget(_wrap(accountRepository: repository));
         await tester.pumpAndSettle();
 
@@ -268,9 +256,7 @@ void main() {
 
         expect(find.text('E-posta değiştirilemedi.'), findsOneWidget);
         expect(
-          find.text(
-            'Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.',
-          ),
+          find.text('Doğrulama e-postası gönderildi. Gelen kutunu kontrol et.'),
           findsNothing,
         );
       },
@@ -300,10 +286,104 @@ void main() {
     testWidgets(
       'requestPasswordReset başarısız olursa SnackBar ile hata gösterilir',
       (tester) async {
+        final repository =
+            FakeAccountRepository(provider: AccountProviderKind.database)
+              ..requestPasswordResetError = const AccountUnexpectedException(
+                'Sıfırlama e-postası gönderilemedi.',
+              );
+        await tester.pumpWidget(_wrap(accountRepository: repository));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Sıfırlama e-postası gönder'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Sıfırlama e-postası gönderilemedi.'), findsOneWidget);
+      },
+    );
+  });
+
+  // ÜRÜN KARARI (web, 1 Ağustos 2026): e-posta değiştirme kullanıcıya açık
+  // "Hesabım" kapsamından çıkarıldı ve sunucu bu yeteneği `unavailable`
+  // döndürecek. Aşağıdaki testler, o durumda ekranda e-posta değiştirmeye
+  // ait HİÇBİR widget'ın kalmadığını kilitler.
+  group('emailChange yeteneği "unavailable"', () {
+    testWidgets(
+      'e-posta değiştirme formu, butonu, placeholder\'ı veya "yakında" '
+      'satırı widget ağacında HİÇ BULUNMAZ',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: FakeAccountRepository(
+              provider: AccountProviderKind.database,
+              capabilities: testCapabilities(
+                emailChange: AccountActionCapability.unavailable,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Form alanı yok.
+        expect(find.byType(TextField), findsNothing);
+        // Aksiyon butonu yok — devre dışı hâli de dahil.
+        expect(find.text('E-postayı değiştir'), findsNothing);
+        expect(find.byType(FilledButton), findsOneWidget);
+        expect(
+          tester.widget<FilledButton>(find.byType(FilledButton)).child,
+          isA<Text>().having(
+            (t) => t.data,
+            'etiket',
+            'Sıfırlama e-postası gönder',
+          ),
+          reason: 'kalan tek buton şifre aksiyonu olmalı',
+        );
+        // "provider_managed" açıklaması da GÖSTERİLMEZ — bu yetenek
+        // sağlayıcıya devredilmiş değil, tamamen kapalı.
+        expect(
+          find.textContaining('E-posta adresin giriş sağlayıcın'),
+          findsNothing,
+        );
+        // "Yakında" türü placeholder yok (ADR-010).
+        expect(find.textContaining('akında'), findsNothing);
+        expect(find.textContaining('güvenli tarayıcı'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'mevcut e-posta SALT OKUNUR olarak ve doğrulama durumuyla gösterilir',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: FakeAccountRepository(
+              provider: AccountProviderKind.database,
+              user: _fakeUser,
+              capabilities: testCapabilities(
+                emailChange: AccountActionCapability.unavailable,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('E-posta'), findsOneWidget);
+        expect(find.text(_fakeUser.email), findsOneWidget);
+        // Doğrulanmış rozet (fixture kullanıcısı doğrulanmış).
+        expect(find.byIcon(Icons.verified_outlined), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('${_fakeUser.email}, doğrulanmış'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'database hesabında YALNIZ şifre yenileme aksiyonu kalır ve çalışır',
+      (tester) async {
         final repository = FakeAccountRepository(
           provider: AccountProviderKind.database,
-        )..requestPasswordResetError = const AccountUnexpectedException(
-          'Sıfırlama e-postası gönderilemedi.',
+          capabilities: testCapabilities(
+            emailChange: AccountActionCapability.unavailable,
+          ),
         );
         await tester.pumpWidget(_wrap(accountRepository: repository));
         await tester.pumpAndSettle();
@@ -311,9 +391,50 @@ void main() {
         await tester.tap(find.text('Sıfırlama e-postası gönder'));
         await tester.pumpAndSettle();
 
+        expect(repository.calls, contains('requestPasswordReset'));
+        // E-posta değiştirme mutation'ı HİÇ çağrılmadı.
         expect(
-          find.text('Sıfırlama e-postası gönderilemedi.'),
+          repository.calls.any((c) => c.startsWith('requestEmailChange')),
+          isFalse,
+        );
+        expect(
+          find.text('Şifre sıfırlama e-postası gönderildi.'),
           findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'sosyal sağlayıcıda yerel şifre formu YOKTUR, giriş bilgilerinin '
+      'sağlayıcı tarafından yönetildiği açıklanır',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            accountRepository: FakeAccountRepository(
+              provider: AccountProviderKind.google,
+              capabilities: testCapabilities(
+                emailChange: AccountActionCapability.unavailable,
+                passwordAction: AccountActionCapability.provider_managed,
+                avatarEditing: AccountActionCapability.provider_managed,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(TextField), findsNothing);
+        expect(find.byType(FilledButton), findsNothing);
+        expect(find.text('Sıfırlama e-postası gönder'), findsNothing);
+        expect(find.text('E-postayı değiştir'), findsNothing);
+        // Şifre için sağlayıcı açıklaması VAR; e-posta için YOK
+        // (o yetenek kapalı, devredilmiş değil).
+        expect(
+          find.textContaining('Şifren giriş sağlayıcın tarafından yönetiliyor'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('E-posta adresin giriş sağlayıcın'),
+          findsNothing,
         );
       },
     );
