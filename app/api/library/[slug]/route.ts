@@ -1,44 +1,112 @@
+import {
+  assertAccountMutationOrigin,
+  objectInput,
+  readLimitedAccountJson,
+  requireAccountActor,
+} from "../../../lib/account-runtime";
 import { getPublishedSeries } from "../../../lib/content-repository";
 import { assertSameOrigin, getCurrentUser, safeReturnTo } from "../../../lib/auth";
 import { redirectTo } from "../../../lib/auth-http";
-import { getDatabase, writeAudit } from "../../../lib/database";
+import { writeAudit } from "../../../lib/database";
+import {
+  getLibraryItem,
+  LIBRARY_JSON_HEADERS,
+  libraryErrorResponse,
+  parseLibraryFavorite,
+  parseLibrarySlug,
+  parseLibraryStatus,
+  removeLibraryItem,
+  upsertLibraryItem,
+} from "../../../lib/library-runtime";
 
-const statuses = new Set(["plan", "reading", "completed", "paused", "dropped"]);
+type RouteContext = { params: Promise<{ slug: string }> };
 
-export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  try { assertSameOrigin(request); } catch { return new Response("Geçersiz istek.", { status: 403 }); }
-  const { slug } = await params;
+function isJsonRequest(request: Request) {
+  return (request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json");
+}
+
+async function postJson(request: Request, slugValue: string) {
+  try {
+    const actor = await requireAccountActor(request, ["write:library"]);
+    assertAccountMutationOrigin(request, actor);
+    const slug = parseLibrarySlug(slugValue);
+    const input = objectInput(await readLimitedAccountJson(request), ["status", "favorite"]);
+    const item = await upsertLibraryItem(
+      actor.user.id,
+      slug,
+      parseLibraryStatus(input.status),
+      parseLibraryFavorite(input.favorite),
+    );
+    await writeAudit(actor.user.id, "library.set", {
+      seriesSlug: slug,
+      status: item.status,
+      favorite: item.favorite,
+      transport: actor.transport,
+    });
+    return Response.json({ schemaVersion: "1.0", item }, { headers: LIBRARY_JSON_HEADERS });
+  } catch (error) {
+    return libraryErrorResponse(error);
+  }
+}
+
+async function postWebForm(request: Request, slugValue: string) {
+  try {
+    assertSameOrigin(request);
+  } catch {
+    return new Response("Geçersiz istek.", { status: 403 });
+  }
+  const slug = parseLibrarySlug(slugValue);
   if (!(await getPublishedSeries(slug))) return new Response("Seri bulunamadı.", { status: 404 });
   const form = await request.formData();
   const returnTo = safeReturnTo(form.get("return_to"), `/${slug}`);
   const user = await getCurrentUser();
   if (!user) return redirectTo(request, `/login?return_to=${encodeURIComponent(returnTo)}`);
   const action = String(form.get("action") ?? "add");
-  const db = await getDatabase();
-  const now = Date.now();
 
   if (action === "remove") {
-    await db.prepare("DELETE FROM library_items WHERE user_id = ? AND series_slug = ?").bind(user.id, slug).run();
+    await removeLibraryItem(user.id, slug);
   } else if (action === "favorite") {
-    const current = await db.prepare("SELECT is_favorite FROM library_items WHERE user_id = ? AND series_slug = ?").bind(user.id, slug).first<{ is_favorite: number }>();
-    const favorite = current ? (current.is_favorite ? 0 : 1) : 1;
-    await db.prepare(`INSERT INTO library_items (user_id, series_slug, status, is_favorite, created_at, updated_at)
-      VALUES (?, ?, 'plan', ?, ?, ?)
-      ON CONFLICT(user_id, series_slug) DO UPDATE SET is_favorite = excluded.is_favorite, updated_at = excluded.updated_at`)
-      .bind(user.id, slug, favorite, now, now).run();
+    const current = await getLibraryItem(user.id, slug);
+    await upsertLibraryItem(user.id, slug, current?.status ?? "plan", !current?.favorite);
   } else if (action === "status") {
-    const status = String(form.get("status") ?? "plan");
-    if (!statuses.has(status)) return new Response("Geçersiz durum.", { status: 400 });
-    await db.prepare(`INSERT INTO library_items (user_id, series_slug, status, is_favorite, created_at, updated_at)
-      VALUES (?, ?, ?, 0, ?, ?)
-      ON CONFLICT(user_id, series_slug) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at`)
-      .bind(user.id, slug, status, now, now).run();
+    const current = await getLibraryItem(user.id, slug);
+    await upsertLibraryItem(
+      user.id,
+      slug,
+      parseLibraryStatus(form.get("status") ?? "plan"),
+      current?.favorite ?? false,
+    );
   } else {
-    await db.prepare(`INSERT INTO library_items (user_id, series_slug, status, is_favorite, created_at, updated_at)
-      VALUES (?, ?, 'plan', 0, ?, ?)
-      ON CONFLICT(user_id, series_slug) DO UPDATE SET updated_at = excluded.updated_at`)
-      .bind(user.id, slug, now, now).run();
+    const current = await getLibraryItem(user.id, slug);
+    await upsertLibraryItem(user.id, slug, current?.status ?? "plan", current?.favorite ?? false);
   }
-  await writeAudit(user.id, `library.${action}`, { seriesSlug: slug });
+  await writeAudit(user.id, `library.${action}`, { seriesSlug: slug, transport: "web" });
   return redirectTo(request, returnTo);
+}
+
+export async function POST(request: Request, { params }: RouteContext) {
+  const { slug } = await params;
+  if (isJsonRequest(request)) return postJson(request, slug);
+  try {
+    return await postWebForm(request, slug);
+  } catch (error) {
+    return libraryErrorResponse(error);
+  }
+}
+
+export async function DELETE(request: Request, { params }: RouteContext) {
+  try {
+    const actor = await requireAccountActor(request, ["write:library"]);
+    assertAccountMutationOrigin(request, actor);
+    const slug = parseLibrarySlug((await params).slug);
+    const removed = await removeLibraryItem(actor.user.id, slug);
+    await writeAudit(actor.user.id, "library.remove", {
+      seriesSlug: slug,
+      removed,
+      transport: actor.transport,
+    });
+    return Response.json({ schemaVersion: "1.0", removed }, { headers: LIBRARY_JSON_HEADERS });
+  } catch (error) {
+    return libraryErrorResponse(error);
+  }
 }

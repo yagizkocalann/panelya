@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Panelya Public API",
-    "version": "1.4.1",
-    "description": "Public reading, production authentication and account-lifecycle contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
+    "version": "1.5.0",
+    "description": "Public reading, production authentication, account-lifecycle and library contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
   },
   "servers": [
     { "url": "http://localhost:3000", "description": "Local web API" }
@@ -243,6 +243,160 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "./schema.json#/$defs/AuthErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library": {
+      "get": {
+        "operationId": "getLibrary",
+        "summary": "List the authenticated reader's saved series and favorites",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Library items in server-defined update order",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Bearer token lacks read:library",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/{slug}": {
+      "post": {
+        "operationId": "upsertLibraryItem",
+        "summary": "Set the complete library state for one published series",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,80}$" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/LibraryUpsertRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Library item created or replaced",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryMutationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Request body or series slug is invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Bearer token lacks write:library or web origin check failed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Published series not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeLibraryItem",
+        "summary": "Idempotently remove one series from the library",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[a-z0-9-]{1,80}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removal result; repeated removal returns removed=false",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryRemovalResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Series slug is invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Bearer token lacks write:library or web origin check failed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
               }
             }
           }

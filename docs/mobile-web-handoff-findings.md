@@ -96,20 +96,20 @@ Ayrıca `android/app/build.gradle.kts` release'i hâlâ **debug
 anahtarıyla** imzalıyor (dosyada `TODO` olarak duruyor); mağaza yayını
 öncesi gerçek imza yapılandırması gerekiyor.
 
-## 8. Kütüphane/favori — mobilde karşılığı yok, ortak sözleşmesi de yok
+## 8. Kütüphane/favori — ortak sözleşme web tarafından teslim edildi
 
 Web'de çalışan bir özellik mobilde hiç yok:
 
 | Yüzey | Web | Mobil |
 | --- | --- | --- |
 | Sayfa/ekran | `/library` ("Kütüphanem", `SiteFooter`'da) | **yok** |
-| API | `GET /api/library`, `POST /api/library/{slug}` | kullanılmıyor |
-| Ortak sözleşme | — | **tanımlı değil** |
+| API | `GET /api/library`, `POST/DELETE /api/library/{slug}` | mobil entegrasyonu bekliyor |
+| Ortak sözleşme | Schema/OpenAPI 1.5.0 + `library-*.v1.json` | codegen ve adapter bekliyor |
 
-`packages/contracts/schema.json` içinde `library` yalnız bir **hesap
-silme etkisi** enum değeri olarak geçiyor (`deleted` listesinde
-`auth_identity`, `profile`, `active_sessions` ile birlikte). Yani
-kütüphane için JSON Schema / OpenAPI / fixture **yok**.
+ADR-048 ile `LibraryStatus`, `LibraryItem`, liste/upsert/removal ve hata
+tanımları kanonik sözleşmeye eklendi. Liste yalnız public seri kart metadata'sı,
+`episodeCount`, durum, favori ve server sıralama zamanını taşır; panel veya
+internal medya metadata'sı taşımaz.
 
 Bunun somut bir yan etkisi vardı: mobil giriş ekranı *"kütüphaneni ve
 favorilerini senkronize et"* diyerek kullanıcıyı uygulamanın hiç
@@ -117,7 +117,8 @@ sunmadığı bir özellik için giriş yapmaya davet ediyordu. Metin, girişin
 bu sürümde gerçekten sağladığıyla değiştirildi (ADR-010, bkz.
 `account_screen.dart`). Kütüphane geldiğinde geri güncellenecek.
 
-**Web'den beklenen:** ADR-047 kalıbıyla bir contract teslimi —
-`GET /api/library`, `POST/DELETE /api/library/{slug}` için JSON Schema +
-OpenAPI + fixture. Mobil tarafta geçici DTO **uydurulmadı**; contract
-`main`e girdiğinde deterministik codegen ile bağlanacak.
+**Mobilde sıradaki:** Değişiklik `main`e girdikten sonra deterministik Dart
+codegen, `library-*.v1.json` parser testleri ve cookie taklit etmeyen Bearer
+`HttpLibraryRepository`. `GET` için `read:library`, `POST/DELETE` için
+`write:library` kullanılır. JSON `POST` toggle değil hedef `status` + `favorite`
+tam durumunu gönderir; `DELETE removed:false` başarılı idempotent sonuçtur.
