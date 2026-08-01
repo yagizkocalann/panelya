@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "item": {
+    "series": {
+      "slug": "gece-vardiyasi",
+      "title": "Gece Vardiyası",
+      "eyebrow": "Romantik gizem",
+      "creator": "Panelya Studio",
+      "description": "Gece teslimatında yolları kesişen iki yabancının hikayesi.",
+      "longDescription": "Şehir uyurken başlayan bir teslimat, geçmişle gelecek arasındaki çizgiyi değiştirir.",
+      "status": "Devam Ediyor",
+      "genres": ["Romantizm", "Gizem"],
+      "tone": "blue",
+      "updatedAt": "Yeni bölüm",
+      "rating": 4.7,
+      "followers": "12,4 bin",
+      "isNew": true,
+      "coverImage": "/media/fixture/gece-vardiyasi-cover.webp",
+      "episodeCount": 3
+    },
+    "episode": {
+      "slug": "bolum-2",
+      "number": 2,
+      "title": "Tersine Akan Saat",
+      "publishedAt": "2 gün önce",
+      "readTime": "7 dk",
+      "panelCount": 48
+    },
+    "percent": 64,
+    "updatedAt": "2026-08-02T11:45:00.000Z"
+  }
+}

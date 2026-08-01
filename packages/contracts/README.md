@@ -56,3 +56,14 @@ Bearer tokenini aynı `GET /api/library` ve `POST/DELETE
 kartı metadata'sı ve `episodeCount` içerir; panel, storage, Queue veya Studio
 metadata'sı taşımaz. `library-*.v1.json` dosyaları tamamen sentetik parser
 fixture'larıdır.
+
+Okuma ilerlemesi sözleşmesi ADR-049 uyarınca web session cookie'si ile mobil
+Bearer tokenini aynı `GET/POST /api/progress` yüzeyinde kabul eder. Mevcut Auth0
+izin setini bozmamak için Bearer okuma ve yazma işlemleri v1'de birlikte
+`write:progress` scope'unu ister. `POST`, istemcinin hedef `seriesSlug`,
+`episodeSlug` ve tam sayı `percent` değerini birlikte taşır; sunucu bölüm başlığı,
+sırası ve public kart metadata'sını yayınlanmış katalogdan türetir. `GET`, seri
+başına son kaydı sunucu zamanına göre sıralar. Yüzde `100`, ilgili bölümün
+tamamlandığını belirtir; istemci sonraki bölümü seri detayındaki yayın sırasından
+bulur. Anonim web okuyucusunda ilerleme cihazda kalır ve `POST` geriye uyumlu
+olarak `204` döner. `reading-progress-*.v1.json` fixture'ları sentetiktir.

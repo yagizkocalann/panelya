@@ -60,6 +60,31 @@ Mobil bu sözleşme main'e geldikten sonra deterministik codegen, fixture parser
 testleri ve gerçek `HttpLibraryRepository` ile bağlanır; geçici DTO veya web
 metni kopyalanmaz.
 
+## Ortak okuma ilerlemesi (ADR-049)
+
+Kanonik kaynak `packages/contracts/schema.json`, HTTP eşlemesi OpenAPI `1.6.0`
+ve örnekler `reading-progress-*.v1.json` fixture'larıdır:
+
+- `GET /api/progress`, giriş yapan okuyucunun seri başına son konumunu
+  `updatedAt DESC, series.slug ASC` sunucu sırasıyla verir.
+- `POST /api/progress`, toggle veya artış değil hedef `seriesSlug`,
+  `episodeSlug`, `percent` tam durumunu yazar. Bearer istemci iki işlemde de
+  mevcut `write:progress` scope'unu kullanır; yeni bir Auth0 izni tahmin edilmez.
+- `ReadingProgressItem`, `DiscoverySeriesSummary`, `EpisodeSummary`, 0-100 tam
+  sayı yüzde ve ISO sunucu zamanı taşır. Panel gövdesi veya dahili medya/Queue
+  metadata'sı taşımaz.
+- `percent: 100` okunan bölümün tamamlandığı anlamına gelir. Sonraki yayınlanmış
+  bölüm seçilecekse istemci bunu `SeriesDetailResponse.episodes` sırasından
+  belirler; API gizli bir sonraki-bölüm tahmini yapmaz.
+- Mobil yerel ilerleme deposu çevrimdışı UX için korunabilir; uzak kayıt için
+  kaynak sunucu zamanıdır ve v1 çakışma kuralı son sunucu yazımı kazanır.
+- Anonim web okuyucusu mevcut cihaz içi `localStorage` davranışını korur. Girişsiz
+  `POST` geçerli bir `204` no-op'tur; `GET` kimlik doğrulaması ister.
+
+Mobil bu sözleşme `main`e girdikten sonra generated DTO, fixture parser testi ve
+uzak repository adapter'ını ekler; web'in `localStorage` anahtarlarını veya
+yerelleştirilmiş bölüm metinlerini kopyalamaz.
+
 ## Kimlik doğrulama uyarısı
 
 Mevcut yerel auth akışı HttpOnly web cookie'sine dayanır ve production kimlik

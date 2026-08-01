@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Panelya Public API",
-    "version": "1.5.0",
-    "description": "Public reading, production authentication, account-lifecycle and library contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
+    "version": "1.6.0",
+    "description": "Public reading, production authentication, account-lifecycle, library and reading-progress contracts consumed by the Panelya web and Flutter clients. JSON shapes are defined in schema.json."
   },
   "servers": [
     { "url": "http://localhost:3000", "description": "Local web API" }
@@ -397,6 +397,96 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "./schema.json#/$defs/LibraryErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/progress": {
+      "get": {
+        "operationId": "getReadingProgress",
+        "summary": "List the authenticated reader's latest progress per published series",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progress items in server-defined update order",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Bearer token lacks write:progress",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "upsertReadingProgress",
+        "summary": "Set the complete latest reading position for one published series",
+        "security": [
+          { "PanelyaAccessToken": [] },
+          { "PanelyaWebSession": [] },
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "./schema.json#/$defs/ReadingProgressUpsertRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Progress item created or replaced",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressMutationResponse" }
+              }
+            }
+          },
+          "204": {
+            "description": "Anonymous web reader; progress remains device-local"
+          },
+          "400": {
+            "description": "Request body is invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressErrorResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Bearer token lacks write:progress or web origin check failed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Published series or episode not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "./schema.json#/$defs/ReadingProgressErrorResponse" }
               }
             }
           }
