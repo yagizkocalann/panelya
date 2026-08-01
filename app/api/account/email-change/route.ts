@@ -1,6 +1,7 @@
 import {
   ACCOUNT_JSON_HEADERS,
   AccountRuntimeError,
+  accountCapabilities,
   accountErrorResponse,
   assertAccountMutationOrigin,
   normalizeAccountEmail,
@@ -18,8 +19,8 @@ export async function POST(request: Request) {
   try {
     const actor = await requireAccountActor(request);
     assertAccountMutationOrigin(request, actor);
-    if (actor.provider !== "database") {
-      throw new AccountRuntimeError("unsupported_action", "E-posta sosyal kimlik sağlayıcısı tarafından yönetiliyor.", 409);
+    if (accountCapabilities(actor.provider).emailChange === "unavailable") {
+      throw new AccountRuntimeError("unsupported_action", "E-posta değiştirme şu anda kullanıma açık değil.", 409);
     }
     const input = objectInput(await readLimitedAccountJson(request), ["newEmail", "reauthenticationToken"]);
     const newEmail = normalizeAccountEmail(input.newEmail);

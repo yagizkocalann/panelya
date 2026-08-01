@@ -95,6 +95,7 @@ test("account actor cookie ve Bearer taşımalarını tek ortak sınıra dönü�
   assert.match(accountRuntime, /getCurrentUser/);
   assert.match(accountRuntime, /transport: "mobile"/);
   assert.match(accountRuntime, /transport: "web"/);
+  assert.match(accountRuntime, /emailChange: "unavailable"/);
   assert.match(auth0Runtime, /issuedAt < identity\.sessionsValidAfter/);
   assert.match(auth0Runtime, /identity\.status !== "active"/);
 });
@@ -124,10 +125,12 @@ test("yerel QA şifre yenilemesi Auth0 management yapılandırmasına yönelmez"
 });
 
 test("web Hesabım arayüzü ortak JSON yüzeyini ve tek kullanımlık reauthentication akışını tüketir", async () => {
-  const [manager, callback, page] = await Promise.all([
+  const [manager, callback, page, emailRoute, reauthentication] = await Promise.all([
     readFile(new URL("../app/account/ProductionAccountManager.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/account/reauthentication/callback/ReauthenticationCallbackClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/account/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/account/email-change/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/account-reauthentication.ts", import.meta.url), "utf8"),
   ]);
   for (const endpoint of [
     "/api/account/profile",
@@ -142,8 +145,11 @@ test("web Hesabım arayüzü ortak JSON yüzeyini ve tek kullanımlık reauthent
   assert.match(page, /providerAccount\s*\?\s*<ProductionAccountManager/);
   assert.match(manager, /codeChallengeMethod:\s*"S256"/);
   assert.match(manager, /sessionStorage\.setItem/);
-  assert.match(manager, /normalizedNewEmail === overview\.user\.email\.trim\(\)\.toLowerCase\(\)/);
-  assert.match(manager, /Yeni e-posta mevcut adresle aynı\./);
+  assert.match(manager, /overview\.user\.emailVerified \? "Doğrulanmış e-posta" : "Doğrulama bekliyor"/);
+  assert.doesNotMatch(manager, /E-postayı doğrulayarak değiştir|Yeni e-posta/);
+  assert.doesNotMatch(page, /<h2>E-posta değiştir<\/h2>/);
+  assert.match(emailRoute, /accountCapabilities\(actor\.provider\)\.emailChange === "unavailable"/);
+  assert.match(reauthentication, /input\.purpose === "email_change" && accountCapabilities\(actor\.provider\)\.emailChange === "unavailable"/);
   assert.doesNotMatch(manager, /localStorage/);
   assert.match(callback, /history\.replaceState/);
   assert.match(callback, /sessionStorage\.removeItem/);

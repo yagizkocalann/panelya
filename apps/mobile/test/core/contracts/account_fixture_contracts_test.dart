@@ -62,7 +62,7 @@ void main() {
         );
         expect(
           response.capabilities.emailChange,
-          AccountActionCapability.reauthentication_required,
+          AccountActionCapability.unavailable,
         );
         expect(
           response.capabilities.passwordAction,
@@ -85,8 +85,8 @@ void main() {
     );
 
     test(
-      'account-overview-google.v1.json: sosyal sağlayıcıda e-posta/şifre '
-      'yetenekleri provider_managed olarak gelir',
+      'account-overview-google.v1.json: e-posta değişikliği kapalı, şifre '
+      'provider_managed olarak gelir',
       () {
         final response = AccountOverviewResponse.fromJson(
           _readFixture('account-overview-google.v1.json'),
@@ -96,7 +96,7 @@ void main() {
         expect(response.user.avatarUrl, isNotNull);
         expect(
           response.capabilities.emailChange,
-          AccountActionCapability.provider_managed,
+          AccountActionCapability.unavailable,
         );
         expect(
           response.capabilities.passwordAction,

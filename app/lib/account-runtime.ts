@@ -199,7 +199,7 @@ export function accountCapabilities(provider: AccountProviderKind) {
   return {
     profileEditing: "enabled" as const,
     avatarEditing: providerManaged ?? "unavailable" as const,
-    emailChange: providerManaged ?? "reauthentication_required" as const,
+    emailChange: "unavailable" as const,
     passwordAction: providerManaged ?? "enabled" as const,
     sessionManagement: "enabled" as const,
     blockedAccounts: "enabled" as const,

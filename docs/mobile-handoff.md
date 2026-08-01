@@ -56,7 +56,7 @@ Web ve Flutter asagidaki urun yeteneklerinde parite saglar:
 1. hesap/profil ozeti,
 2. Auth0 database hesabinda e-posta ile sifre yenileme; sosyal hesapta
    provider-yonetimli aciklama,
-3. provider destekliyorsa taze Auth0 dogrulamali e-posta degisikligi,
+3. salt okunur e-posta ve dogrulama durumu; e-posta degistirme aksiyonu yoktur,
 4. web ve native aktif oturum listesi ile tekil/toplu iptal,
 5. engellenen hesaplar ve engeli kaldirma,
 6. uygulama icinden baslatilabilen, Auth0 kimligi ile Panelya verisini birlikte
@@ -80,11 +80,12 @@ Mobil sunum katmani ortak contract gelmeden su ekranlari tasarlayabilir:
 1. `Hesabim`: avatar/isim, e-posta ve dogrulama durumu, giris saglayicisi,
    profil duzenleme, guvenlik, oturumlar, engellenen hesaplar ve hesap silme
    girislerini tasir. Cikis aksiyonu bu ekranda kalir.
-2. `Profil`: gorunen ad ve destekleniyorsa avatar duzenleme. E-posta profil
-   formunun serbest metin alani degildir; guvenlik akisina gider.
-3. `E-posta ve sifre`: Auth0 database hesabinda e-posta degisikligi ile sifre
-   yenileme e-postasi; sosyal hesapta provider-yonetimli aciklama. Taze
-   dogrulama sistem tarayicisinda yapilir, uygulama ici parola formu yazilmaz.
+2. `Profil`: gorunen ad ve destekleniyorsa avatar duzenleme. E-posta salt okunur
+   hesap bilgisidir; duzenleme formu veya yonlendirme aksiyonu gosterilmez.
+3. `E-posta ve sifre`: e-posta ve dogrulama durumu salt okunur gosterilir.
+   Auth0 database hesabinda yalniz sifre yenileme e-postasi; sosyal hesapta
+   provider-yonetimli sifre aciklamasi bulunur. Uygulama ici parola veya e-posta
+   degistirme formu yazilmaz.
 4. `Aktif oturumlar`: current cihaz belirgin, diger web/Android/iOS
    oturumlari listeli; tekil iptal ve `Diger tum oturumlari kapat` aksiyonu.
 5. `Engellenen hesaplar`: bos durum, liste ve idempotent `Engeli kaldir`

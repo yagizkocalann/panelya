@@ -155,11 +155,14 @@ Geri alinabilir akislardan baslanir:
 1. `/login` database hesabi girisi ve `/account` acilisi.
 2. Profil adi degisikligi.
 3. Sifre yenileme e-postasi.
-4. Ayrilmis ikinci e-posta ile e-posta degisikligi; `max_age=0` yeniden giris.
-5. Web ve native oturum envanteri; once tekil, sonra `others` iptali.
-6. Engel listesi ve engel kaldirma.
-7. Google test hesabinda provider-managed satirlar; yerel sifre formu olmamali.
-8. Yalniz disposable database hesabinda hesap silme.
+4. Web ve native oturum envanteri; once tekil, sonra `others` iptali.
+5. Engel listesi ve engel kaldirma.
+6. Google test hesabinda salt okunur e-posta ve provider-managed sifre satiri;
+   yerel sifre veya e-posta degistirme formu olmamali.
+7. Yalniz disposable database hesabinda hesap silme.
+
+E-posta degistirme mevcut urun yuzeyinde kapali ve capability olarak
+`unavailable` oldugundan canli QA sirasina girmez.
 
 Her destructive denemeden once test hesabinin disposable oldugu tekrar
 dogrulanir. Hesap silme basarili oldugunda Auth0 kullanicisi, Panelya oturumlari
