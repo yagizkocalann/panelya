@@ -17,14 +17,15 @@ test("teknik gizlilik envanteri tum D1 tablolarini kapsar", async () => {
   }
 });
 
-test("envanter hukuki metin olmadigini ve acik saklama kararlarini dürüstçe ayirir", async () => {
+test("envanter uygulanmis teknik purge ile acik hukuki saklama kararlarini ayirir", async () => {
   const inventory = await readFile(
     new URL("../docs/privacy-data-inventory.md", import.meta.url),
     "utf8",
   );
   assert.match(inventory, /Hukuki aydinlatma metni/);
   assert.match(inventory, /Production oncesi acik kararlar/);
-  assert.match(inventory, /fiziksel periyodik purge karari aciktir/);
+  assert.match(inventory, /gunluk bakimda fiziksel silinir/);
+  assert.match(inventory, /kesin saklama suresi hukuk\/operasyon karari bekler/);
   assert.match(inventory, /provider tokenlarini kalici saklamaz/);
   assert.match(inventory, /backend'i cihaz tokeni saklamaz/);
 });

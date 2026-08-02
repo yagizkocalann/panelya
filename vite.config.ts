@@ -25,6 +25,10 @@ const localBindingConfig = {
       head_sampling_rate: 1,
     },
   },
+  // Daily at 03:17 UTC. The odd minute avoids the common top-of-hour burst.
+  triggers: {
+    crons: ["17 3 * * *"],
+  },
   d1_databases: d1
     ? [
         {

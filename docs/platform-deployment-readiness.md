@@ -11,6 +11,7 @@ Bu sozlesme production deployment'inin D1/R2, Images, Queue ve Rate Limiting bin
 5. Worker'a `IMAGES` binding'ini bagla.
 6. Hesaba ozgu pozitif tamsayi namespace ile `EDGE_RATE_LIMITER` binding'ini 120 istek / 60 saniye politikasinda bagla.
 7. Hosted runtime degerlerini `MEDIA_DERIVATIVE_DISPATCH_MODE=cloudflare_queue` ve `RATE_LIMIT_MODE=cloudflare_hybrid` yap.
+8. Worker'in `17 3 * * *` UTC Cron Trigger'ini ve `scheduled()` gecici veri bakim handler'ini deployment kaynaginda dogrula.
 
 Queue consumer veya dead-letter politikasi runtime binding nesnesinden okunamaz. Bu nedenle uygulama otomatik olarak binding ve modlari kontrol eder; consumer/DLQ ayari deployment kaynaginda veya Cloudflare panelinde ayrica elle dogrulanir. DLQ tanimlanmazsa retry sinirina ulasan mesaj kalici olarak silinebilir.
 
@@ -53,5 +54,6 @@ degilken yalniz D1/R2 ile "gecici production" deploy'u yapilmaz.
 3. Queue consumer ve DLQ politikasini deployment kaynaginda kontrol edip `QA-OPS-01` kaydina ortam/tarih notu ekle.
 4. `QA-MED-02` responsive varyant/idempotency testini ve `QA-SEC-01` edge + D1 fail-closed testini tamamla.
 5. Queue veya edge binding'ini test ortaminda gecici kaldir; readiness ucu 503 donmeli ve ilgili mutation sessiz fallback yapmamali.
+6. `docs/transient-data-maintenance.md` sirasiyla sentetik suresi dolmus/aktif kayit ciftini dene; Cron yalniz suresi dolani silmeli ve son calisma basarili gorunmelidir.
 
 Repository'deki `.openai/hosting.json` yalniz Sites tarafindan desteklenen mantiksal D1/R2 bildirimlerini tasir. Queue, Images, rate-limit namespace veya hesap kaynak kimligi bu dosyaya tahminle eklenmez.

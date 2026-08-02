@@ -333,6 +333,7 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS copyright_notices_access_expiry_idx ON copyright_notices(access_expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_user_idx ON account_tokens(user_id, purpose, created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS account_tokens_expiry_idx ON account_tokens(expires_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS rate_limit_buckets_reset_idx ON rate_limit_buckets(reset_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS outbox_created_idx ON notification_outbox(created_at DESC)"),
     db.prepare("CREATE INDEX IF NOT EXISTS series_subscriptions_series_idx ON series_subscriptions(series_slug, notify_new_episodes)"),
     db.prepare("CREATE INDEX IF NOT EXISTS admin_invitations_email_status_idx ON admin_invitations(email, status, created_at DESC)"),

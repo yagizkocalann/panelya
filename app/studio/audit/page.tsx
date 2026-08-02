@@ -16,6 +16,7 @@ const actionLabels: Record<string, string> = {
   "admin.invitation_accepted": "Yönetici daveti kabul edildi",
   "admin.bootstrap_completed": "İlk yönetici kurulumu tamamlandı",
   "admin.notification_outbox_purged": "Süresi dolan bildirimler temizlendi",
+  "admin.transient_data_purged": "Süresi dolan geçici veriler temizlendi",
   "account.logged_in": "Hesaba giriş yapıldı",
   "account.registered": "Hesap oluşturuldu",
   "content.series_created": "Seri oluşturuldu",
