@@ -40,3 +40,9 @@ export type PushDeliveryMode = "disabled" | "fcm";
 export async function pushDeliveryMode(): Promise<PushDeliveryMode | string> {
   return (await runtimeValue("PUSH_DELIVERY_MODE")).trim().toLowerCase() || "disabled";
 }
+
+export type QualityTelemetryMode = "disabled" | "cloudflare_logs";
+
+export async function qualityTelemetryMode(): Promise<QualityTelemetryMode | string> {
+  return (await runtimeValue("QUALITY_TELEMETRY_MODE")).trim().toLowerCase() || "disabled";
+}

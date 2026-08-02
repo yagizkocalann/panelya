@@ -49,7 +49,11 @@
 
 0. Tamamlandi: genel iletisimden ayrilan, dosya/kimlik belgesi istemeyen telif bildirimi; 90 gunluk hashli gizli durum baglantisi; Studio durum/public yanit yonetimi ve audit kaydi. Kalan dis is: karsi bildirim, resmi tebligat, SLA ve production saklama/silme politikasini hukuk incelemesiyle kesinlestirmek.
 1. Tamamlandi: cihaz-yerel reklam tercihi, onaydan once sifir Google istegi, footer/gizlilikten tercih degistirme ve localhosta kilitli test/canli ortam siniri. Kalan dis is: production reklam saglayicisi secilirse sertifikali CMP/provider, bolgesel onay sinyali, hukuki metin ve gercek publisher/slot yapilandirmasini ayri incelemeyle baglamak.
-2. Analitik, hata izleme, performans butcesi ve reklam gorunurluk olcumleri.
+2. Tamamlandi: kimliksiz Core Web Vitals/genel istemci hata allowlist'i, GPC/DNT
+   siniri, tokenli rotalari maskeleyen same-origin kalite endpoint'i, calisan
+   route/global hata kurtarma ekranlari ve CI build boyut butceleri. Kalan dis
+   is: urun analitigi olay sozlugu/dashboard/saklama politikasi, onayli hata
+   izleme adapteri ve consent'e bagli reklam gorunurluk olcumu.
 3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
 4. Tamamlandi: D1 Time Travel + uzun sureli SQL export, ayri immutable R2 yedek kovasi, surumlu kurtarma paketi verifier'i ve izole geri yukleme tatbikati runbook'u. Kalan dis is: production yedek kovasi/kimligi, retention lock ve zamanlanmis export-copy workflow'unu provision edip `QA-OPS-02` tatbikatini calistirmak.
 5. Tamamlandi: request-host uyumlu canonical URL'ler, public/Studio ayri robots politikasi, yalniz indexlenebilir yayin rotalarini iceren D1 tabanli sitemap ve guvenli ComicSeries/ComicIssue JSON-LD. Kalan dis is: production domainiyle `QA-SEO-01` arama motoru smoke ve Search Console kaydi.

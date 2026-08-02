@@ -66,7 +66,13 @@ P1 (yerel dikey dilim basladi):
 - Siradaki: Ayri/baglanmis Google test hesabiyla provider-managed sifre metni ve salt okunur e-posta gorunumunu tamamlamak; production HTTPS origininde consent ekraninin atlandigini smoke test etmek; native `current` device credential eslemesini gateway session kaydiyla kesinlestirmek; deployment ortaminda Queue producer/consumer, Images, rate-limit namespace ve dead-letter politikasini provision edip readiness + gercek servis smoke testlerini calistirmak; canli e-posta saglayicisini baglamak.
 - Mobil unblocker: responsive medya varyanti PR #20, production auth/session ortak sozlesmesi PR #21, editorial `GET /api/discovery` ve ADR-047 hesap contract teslimi `main` dalina merge edilip kalite kapilarindan gecmistir. OpenAPI `1.4.1`, boş şifre yenileme isteğini açık nesne olarak ve gerçek platform belirsizliğini `unspecified` olarak tanımlar; mobil codegen `unknown` adını yalnız ileri uyumluluk fallback'i için ayırır. Android canli Auth0 callback/token/refresh/revoke turu tamamlandi. ADR-047 ortak codegen, gercek `HttpAccountRepository`, capability tabanli 6 ekran ve `AUTH_ENABLED`/`ACCOUNT_MANAGEMENT_ENABLED` fail-closed yayin ayrimi `codex/mobile@2179d20` uzerindedir. Gercek tenant turunda profil, silme ozeti, engel bos durumu ve reauthentication iptal yolu dogrulandi; suresi dolan access tokeni tek refresh + retry ile yenilenir. `ACCOUNT_RUNTIME_SECRET`, Management M2M ve disposable hesap gerektiren mutation'lar tamamlanana kadar `ACCOUNT_MANAGEMENT_ENABLED` production'da `false` kalir.
 - D1 tablolarina gecis hesap ve katalog verisi icin tamamlandi. Medya yerelde R2 binding emulasyonu kullanir; production bucket yasam dongusu ile Queue kaynagi deployment oncesi platform ayarlarinda provision edilir.
-- Analitik ve hata izleme. Telif karsi bildirim, production saklama suresi ve resmi tebligat kanali hukuk incelemesiyle kesinlestirilecek.
+- Tamamlanan kalite temeli: kullanici/oturum/serbest metin toplamayan Core Web
+  Vitals ve genel istemci hata allowlist'i; GPC/DNT'de sifir istek; gizli tokenli
+  rotalari maskeleyen same-origin endpoint; teknik ayrinti sizdirmayan route/global
+  hata kurtarma ekranlari ve CI build boyut butcesi. Varsayilan telemetry modu
+  `disabled`; dis analitik/hata saglayicisi, dashboard, saklama/erisim politikasi
+  ve reklam gorunurluk olcumu ayri production kararidir.
+- Telif karsi bildirim, production saklama suresi ve resmi tebligat kanali hukuk incelemesiyle kesinlestirilecek.
 
 P2:
 

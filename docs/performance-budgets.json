@@ -1,0 +1,16 @@
+{
+  "clientJavaScript": {
+    "maxTotalGzipBytes": 150000,
+    "maxSingleRawBytes": 220000
+  },
+  "clientCss": {
+    "maxTotalGzipBytes": 22000,
+    "maxSingleRawBytes": 100000
+  },
+  "server": {
+    "maxEntryRawBytes": 1750000
+  },
+  "trackedPublicMedia": {
+    "maxSingleBytes": 300000
+  }
+}
