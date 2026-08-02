@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     return redirectWith(request, "invite", "created");
   } catch (error) {
     if (error instanceof AdminInvitationError) return invitationError(request, error);
-    console.error("admin_invitation_create_failed", { errorName: error instanceof Error ? error.name : "unknown" });
+    console.error("admin_invitation_create_failed", { errorType: error instanceof Error ? "exception" : "unknown" });
     return redirectWith(request, "error", "Davet oluşturulamadı. Yeniden dene.");
   }
 }

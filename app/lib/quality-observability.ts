@@ -47,8 +47,11 @@ export function prepareQualityEvent(
   };
 }
 
-export function qualityLogArguments(event: QualityEvent): readonly ["panelya.quality", string] {
-  return ["panelya.quality", JSON.stringify(event)] as const;
+export function qualityLogArguments(event: QualityEvent) {
+  // Cloudflare Workers Logs nesne alanlarini indeksler. Bu nesne ham request,
+  // exception veya serbest metin kabul etmez; parseQualityEvent allowlist'inin
+  // aynisini yapisal ve sorgulanabilir bicimde tasir.
+  return [{ eventType: "panelya.quality", ...event }] as const;
 }
 
 function exactKeys(value: Record<string, unknown>, allowed: readonly string[]) {

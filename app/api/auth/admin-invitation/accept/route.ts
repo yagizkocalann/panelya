@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     if (String(error).toLowerCase().includes("unique")) return errorRedirect(request, token, "Bu e-posta artık başka bir hesaba bağlı.");
-    console.error("admin_invitation_accept_failed", { errorName: error instanceof Error ? error.name : "unknown" });
+    console.error("admin_invitation_accept_failed", { errorType: error instanceof Error ? "exception" : "unknown" });
     return errorRedirect(request, token, "Davet kabul edilemedi. Yeniden dene.");
   }
 }
