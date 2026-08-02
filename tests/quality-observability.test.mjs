@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
 import { checkPerformanceBudgets } from "../scripts/check-performance-budget.mjs";
 
 const [contract, endpoint, client, routeError, globalError, layout, runtime] = await Promise.all([
@@ -13,6 +14,11 @@ const [contract, endpoint, client, routeError, globalError, layout, runtime] = a
   readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
 ]);
 
+const executableContract = ts.transpileModule(contract, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const contractModule = await import(`data:text/javascript;base64,${Buffer.from(executableContract).toString("base64")}`);
+
 test("kalite olayi hassas alanlari kabul etmez ve anahtarli rotalari maskeler", () => {
   assert.match(contract, /exactKeys\(value, \["schemaVersion", "kind", "name", "path", "value", "rating"\]\)/);
   assert.match(contract, /\/preview\/:token/);
@@ -20,12 +26,36 @@ test("kalite olayi hassas alanlari kabul etmez ve anahtarli rotalari maskeler", 
   assert.doesNotMatch(contract, /error\.message|error\.stack|referrer|userAgent|sessionId|userId/);
 });
 
+test("GPC ve DNT kalite govdesini olusmadan durdurur", () => {
+  const event = { kind: "client_error", name: "global_error" };
+  assert.equal(contractModule.prepareQualityEvent(event, "/catalog", { globalPrivacyControl: true }), null);
+  assert.equal(contractModule.prepareQualityEvent(event, "/catalog", { doNotTrack: "1" }), null);
+  assert.deepEqual(
+    contractModule.prepareQualityEvent(event, "/preview/secret-value?query=ignored", {}),
+    { schemaVersion: "1.0", kind: "client_error", name: "global_error", path: "/preview/:token" },
+  );
+});
+
+test("Cloudflare log satiri yalniz sanitize edilmis allowlist olayini tasir", () => {
+  const event = contractModule.prepareQualityEvent(
+    { kind: "client_error", name: "global_error" },
+    "/preview/qa-only-token?email=ignored@example.invalid#fragment",
+    {},
+  );
+  assert.deepEqual(contractModule.qualityLogArguments(event), [
+    "panelya.quality",
+    '{"schemaVersion":"1.0","path":"/preview/:token","kind":"client_error","name":"global_error"}',
+  ]);
+  const serialized = contractModule.qualityLogArguments(event).join(" ");
+  assert.doesNotMatch(serialized, /qa-only-token|ignored@example\.invalid|fragment|message|stack|session|userAgent|referrer/);
+});
+
 test("kalite endpointi same-origin, boyut ve fail-closed mod sinirini korur", () => {
   assert.match(endpoint, /assertSameOrigin\(request\)/);
   assert.match(endpoint, /MAX_BODY_BYTES = 2_048/);
   assert.match(endpoint, /mode === "disabled"/);
   assert.match(endpoint, /mode !== "cloudflare_logs"/);
-  assert.match(endpoint, /JSON\.stringify\(event\)/);
+  assert.match(endpoint, /qualityLogArguments\(event\)/);
   assert.doesNotMatch(endpoint, /JSON\.stringify\((?:request|decoded|text)\)/);
   assert.doesNotMatch(endpoint, /console\.(?:info|log|error)\([^\n]*(?:request|decoded|text)/);
   assert.match(runtime, /QUALITY_TELEMETRY_MODE/);
