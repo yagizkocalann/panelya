@@ -92,9 +92,15 @@ tek APK'ya koyuyor (55.9 MB); cihaz bunlardan yalnız birini kullanıyor
 
 Ayrıntı ve ölçümler: `apps/mobile/README.md` → "Release build".
 
-Ayrıca `android/app/build.gradle.kts` release'i hâlâ **debug
-anahtarıyla** imzalıyor (dosyada `TODO` olarak duruyor); mağaza yayını
-öncesi gerçek imza yapılandırması gerekiyor.
+Güncelleme: `android/app/build.gradle.kts` artık release'i debug
+anahtarıyla imzalamıyor. Release imzası yalnız `android/key.properties`
+(Git dışı) veya `PANELYA_ANDROID_*` ortam değişkenlerinden gelir; bu iki
+kaynaktan biri eksikse `flutter build appbundle --release` / `flutter
+build apk --release` hangi değerin eksik olduğunu söyleyen (değer
+yazdırmayan) açık bir hata ile durur — sessizce debug anahtarına
+düşmez. Ayrıntı: `apps/mobile/README.md` → "Release imzalama
+(fail-closed)"; statik doğrulama `tests/android-release-signing.test.mjs`
+içinde.
 
 ## 8. Kütüphane/favori — ortak sözleşme web tarafından teslim edildi
 

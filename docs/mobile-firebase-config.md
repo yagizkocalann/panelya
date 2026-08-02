@@ -51,6 +51,34 @@ encrypted secret olarak saklanır ve build adımının başında hedef yolların
 yazılır. Secret'lar yalnız build sırasında çözülür; iş akışı loglarına
 yazdırılmaz ve artifact olarak dışa aktarılmaz.
 
+### Enjeksiyon sınırı (netleştirme)
+
+Bugünkü `Mobile quality` GitHub Actions işi (`.github/workflows/quality.yml`)
+yalnız `flutter analyze` ve `flutter test` çalıştırır; bir release derlemesi
+(`assembleRelease`/`bundleRelease`) tetiklemez ve bu iki Firebase dosyasına
+ihtiyaç duymaz — bu yüzden bugün CI'da bu dosyaları enjekte eden bir adım
+yoktur. Bu sınır, bir release-build iş akışı eklendiğinde geçerli olacak
+kural şudur:
+
+- Enjeksiyon adımı, Android/iOS **release derleme görevinden hemen önce**
+  çalışır; dosyalar yalnız o iş çalışırken diskte durur, workflow bitince
+  runner ile birlikte silinir. Depoya veya paylaşılan bir cache'e yazılmaz.
+- Android tarafında `google-services.json`, Google Services Gradle
+  eklentisi *configuration* aşamasında dosyayı okuduğu için build
+  başlamadan önce, en geç `flutter pub get` sonrası ve gradle
+  invocation'ından önce yerinde olmalıdır.
+- iOS tarafında `GoogleService-Info.plist`, `Runner` hedefinin Resources
+  build phase'i tarafından paketlendiği için Xcode arşivleme adımından
+  önce yerinde olmalıdır.
+- Bu iki dosya, Android release **imzalama** materyalinden (`android/key.properties`
+  veya `PANELYA_ANDROID_*` ortam değişkenleri — bkz. `apps/mobile/README.md`
+  "Release imzalama (fail-closed)") **ayrı bir secret sınıfıdır**: Firebase
+  dosyaları istemci yapılandırmasıdır (API anahtarı taşır ama uygulamaya
+  gömülmesi zaten amaçlanır), keystore ise imzalama materyalidir (asla
+  istemciye gömülmez, yalnız build makinesinde kullanılır). İkisi aynı
+  secret deposunda tutulabilir ama aynı enjeksiyon adımıyla karıştırılmaz;
+  her biri kendi hedef yoluna/ortam değişkenine ayrı yazılır.
+
 ## Anahtar sızması durumunda
 
 Bu dosyalardaki API anahtarı bir yere sızarsa dosyayı Git takibinden

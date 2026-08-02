@@ -240,19 +240,54 @@ koyar. Ölçüldü:
 çalıştırır. `x86_64` hiçbir gerçek telefonda kullanılmaz. Tek APK
 dağıtmak arm64 kullanıcısına **36 MB fazladan indirtir (%64 israf)**.
 
-Bu yüzden:
+Bu yüzden **Play Store'a giden kanonik çıktı `appbundle`'dır**:
 
 ```sh
-# Play Store (onerilen): Play her cihaza yalniz kendi dilimini indirir
+# Play Store (kanonik): Play her cihaza yalniz kendi dilimini indirir
 flutter build appbundle --release --dart-define-from-file=env/local.json
 
-# Dogrudan APK dagitimi gerekiyorsa (Play disi)
+# Dogrudan APK dagitimi gerekiyorsa (Play disi, istisnai durum)
 flutter build apk --release --split-per-abi --dart-define-from-file=env/local.json
 ```
 
-`android/app/build.gradle.kts` şu an release'i **debug anahtarıyla**
-imzalıyor (dosyada `TODO` olarak duruyor). Mağaza yayını öncesinde
-gerçek bir release imza yapılandırması gerekir.
+#### Release imzalama (fail-closed)
+
+`android/app/build.gradle.kts` release build'i artık **yalnız Git dışı bir
+production keystore ile** imzalar; debug anahtarına düşen eski `TODO` kod
+yolu kaldırıldı. İmza değerleri iki kaynaktan biriyle sağlanır (bu sırayla
+denenir):
+
+1. **`android/key.properties`** (repoya commit edilmez, `.gitignore`'da) —
+   yerel/gelistirici makinesinde tek seferlik oluşturulan dosya:
+
+   ```properties
+   storeFile=/mutlak/yol/veya/android/koke/gore/relatif/keystore.jks
+   storePassword=...
+   keyAlias=...
+   keyPassword=...
+   ```
+
+2. **Ortam değişkenleri** (CI/release makinesi), `key.properties` yoksa
+   veya ilgili alan boşsa buraya düşülür:
+
+   - `PANELYA_ANDROID_KEYSTORE_PATH`
+   - `PANELYA_ANDROID_KEYSTORE_PASSWORD`
+   - `PANELYA_ANDROID_KEY_ALIAS`
+   - `PANELYA_ANDROID_KEY_PASSWORD`
+
+`flutter build apk --debug` bu değerlerden hiçbirini gerektirmez ve
+etkilenmez. Bir **release** görevi (`flutter build appbundle --release` /
+`flutter build apk --release`) tetiklendiğinde yukarıdaki dört değerden
+herhangi biri eksikse build, hangi property/env adının eksik olduğunu
+söyleyen (değerleri asla yazdırmayan) açık bir `GradleException` ile durur;
+hiçbir koşulda sessizce debug anahtarına düşmez. Statik doğrulama
+(gradle dosyasının debug fallback içermediği, fail-closed mantığının var
+olduğu, `.gitignore`'un keystore desenlerini kapsadığı) kök
+`tests/android-release-signing.test.mjs` içinde, `npm test` ile
+çalıştırılır — gerçek keystore gerektirmez.
+
+Gerçek production keystore üretimi ve saklanması bu deponun kapsamı
+dışındadır; keystore/parola hiçbir zaman Git'e commit edilmez.
 
 ## Mimari notlar
 
