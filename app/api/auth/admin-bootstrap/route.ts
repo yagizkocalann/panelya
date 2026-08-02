@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     if (String(error).toLowerCase().includes("unique")) return errorRedirect(request, "Bu e-posta zaten başka bir hesaba bağlı.");
-    console.error("admin_bootstrap_failed", { errorName: error instanceof Error ? error.name : "unknown" });
+    console.error("admin_bootstrap_failed", { errorType: error instanceof Error ? "exception" : "unknown" });
     return errorRedirect(request, "Yönetici oluşturulamadı. Yeniden dene.");
   }
 }

@@ -14,6 +14,17 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  // Cloudflare'in otomatik invocation loglari request/response metadata'si
+  // tasiyabilir. Panelya yalniz uygulamanin acik allowlist'li custom loglarini
+  // saklar; request metadata'si ve otomatik tracing production politikasina
+  // dahil degildir.
+  observability: {
+    enabled: true,
+    logs: {
+      invocation_logs: false,
+      head_sampling_rate: 1,
+    },
+  },
   d1_databases: d1
     ? [
         {

@@ -4,7 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import { checkPerformanceBudgets } from "../scripts/check-performance-budget.mjs";
 
-const [contract, endpoint, client, routeError, globalError, layout, runtime] = await Promise.all([
+const [contract, endpoint, client, routeError, globalError, layout, runtime, viteConfig, registerRoute] = await Promise.all([
   readFile(new URL("../app/lib/quality-observability.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/api/quality/route.ts", import.meta.url), "utf8"),
   readFile(new URL("../app/components/QualitySignals.tsx", import.meta.url), "utf8"),
@@ -12,6 +12,8 @@ const [contract, endpoint, client, routeError, globalError, layout, runtime] = a
   readFile(new URL("../app/global-error.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   readFile(new URL("../app/lib/runtime-config.ts", import.meta.url), "utf8"),
+  readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
+  readFile(new URL("../app/api/auth/register/route.ts", import.meta.url), "utf8"),
 ]);
 
 const executableContract = ts.transpileModule(contract, {
@@ -42,12 +44,24 @@ test("Cloudflare log satiri yalniz sanitize edilmis allowlist olayini tasir", ()
     "/preview/qa-only-token?email=ignored@example.invalid#fragment",
     {},
   );
-  assert.deepEqual(contractModule.qualityLogArguments(event), [
-    "panelya.quality",
-    '{"schemaVersion":"1.0","path":"/preview/:token","kind":"client_error","name":"global_error"}',
-  ]);
-  const serialized = contractModule.qualityLogArguments(event).join(" ");
+  assert.deepEqual(contractModule.qualityLogArguments(event), [{
+    eventType: "panelya.quality",
+    schemaVersion: "1.0",
+    path: "/preview/:token",
+    kind: "client_error",
+    name: "global_error",
+  }]);
+  const serialized = JSON.stringify(contractModule.qualityLogArguments(event));
   assert.doesNotMatch(serialized, /qa-only-token|ignored@example\.invalid|fragment|message|stack|session|userAgent|referrer/);
+});
+
+test("Cloudflare otomatik invocation metadata'sini ve ham auth exception'ini saklamaz", () => {
+  assert.match(viteConfig, /observability:\s*\{/);
+  assert.match(viteConfig, /invocation_logs:\s*false/);
+  assert.match(viteConfig, /head_sampling_rate:\s*1/);
+  assert.match(registerRoute, /errorType: error instanceof Error \? "exception" : "unknown"/);
+  assert.doesNotMatch(registerRoute, /error\.name/);
+  assert.doesNotMatch(registerRoute, /console\.error\("register_failed", error\)/);
 });
 
 test("kalite endpointi same-origin, boyut ve fail-closed mod sinirini korur", () => {

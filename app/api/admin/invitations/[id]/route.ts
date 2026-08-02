@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const message = error.code === "account_exists" ? "E-posta artık bir hesaba bağlı; davet kullanılamaz." : "Davet artık beklemede değil.";
       return redirectWith(request, "error", message);
     }
-    console.error("admin_invitation_update_failed", { errorName: error instanceof Error ? error.name : "unknown" });
+    console.error("admin_invitation_update_failed", { errorType: error instanceof Error ? "exception" : "unknown" });
     return redirectWith(request, "error", "Davet güncellenemedi. Yeniden dene.");
   }
 }

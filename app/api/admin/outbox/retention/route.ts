@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     await writeAudit(actor.id, "admin.notification_outbox_purged", { deletedCount, policyVersion: OUTBOX_RETENTION_POLICY_VERSION });
     return redirectWith(request, "retention", "purged", deletedCount);
   } catch (error) {
-    console.error("notification_outbox_purge_failed", { errorName: error instanceof Error ? error.name : "unknown" });
+    console.error("notification_outbox_purge_failed", { errorType: error instanceof Error ? "exception" : "unknown" });
     return redirectWith(request, "error", "Outbox bakımı tamamlanamadı. Yeniden dene.");
   }
 }
