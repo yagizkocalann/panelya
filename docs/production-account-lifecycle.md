@@ -252,6 +252,125 @@ production QA'da bu alan tamamlanmis sayilmaz. Envanter hem klasik
 `refresh_token` hem de ADR-039 ile zorunlu tutulan donen
 `rotating_refresh_token` credential tiplerini kapsar.
 
+## 2026-08-02 native `scope=others` kararı — sağlayıcı sınırı kanıtlandı (ADR-054)
+
+Yukarıdaki "Auth0 device credential API'si mevcut access tokeni belirli
+refresh credential id'sine bağlamadığı için ... `current` işareti tahmin
+edilmez" notu bu turda kod ve Auth0 resmi dokümantasyonu okunarak
+doğrulanmış, kapatılamayan bir sağlayıcı sınırı olarak kesinleştirilmiştir.
+Sahte/tahmini bir eşleme eklenmedi; mobilde `scope=others` 503
+`service_unavailable` fail-closed dönmeye devam eder.
+
+### Kod incelemesi — sunucu bugün ne biliyor, ne bilmiyor
+
+- `app/lib/auth0-runtime.ts` → `exchangeMobileToken`: mobil token gateway'i
+  Auth0'nun `/oauth/token` cevabındaki `access_token`/`refresh_token`
+  çiftini doğrulayıp (JWKS) olduğu gibi istemciye iletir. Hiçbir refresh
+  token veya cihaz kimliği D1'de kalıcı bir "bu oturum benim" kaydına
+  bağlanmaz; ADR-039 zaten bunu kasıtlı olarak istemiyor ("gateway ...
+  tokenlari kalici olarak saklamaz").
+- `app/lib/account-sessions.ts` → `listAccountSessions`/`nativeSessionContext`:
+  native oturum envanteri tamamen Auth0 Management API
+  `GET /api/v2/device-credentials` listesinden gelir. Kod içinde açık yorum:
+  *"Auth0 access tokens do not expose the originating device credential
+  id"* — bu yüzden native satırların `current` alanı **her zaman**
+  `false`'dur; sunucu hangi satırın "bu isteği yapan cihaz" olduğunu bilmez.
+- `app/lib/account-sessions.ts` → `revokeAccountSessions`: `scope === "others"
+  && actor.transport === "mobile"` kontrolü fonksiyonun İLK satırıdır — herhangi
+  bir `deleteAuth0DeviceCredential` çağrısından önce 503 döner. Bu, "hangi
+  cihazın benim olduğunu bilmediğim sürece TÜM native cihazları 'diğerleri'
+  sayıp silme" riskini baştan keser.
+- `app/lib/auth0-management.ts` → `listAuth0DeviceCredentials`: Management
+  API'den dönen alanlar yalnız `id`, `device_name`, `type`, `created_at`,
+  `last_used_at`'tır; bir access/refresh token örneğiyle eşleşen hiçbir alan
+  yoktur.
+- Mobil istemci zaten dürüst davranıyor: `apps/mobile/lib/features/account/
+  presentation/sessions_screen.dart` sınıf dokümantasyonu ve
+  `apps/mobile/test/features/account/presentation/sessions_screen_test.dart`
+  içindeki "BİLİNEN SINIR" testi, sunucunun 503 döndüğü durumda ekranın
+  sahte başarı üretmediğini, listenin değişmediğini ve yerel çıkışın
+  TETİKLENMEDİĞİNİ doğrular. Sunucu tarafı statik kanıt
+  `tests/account-runtime.test.mjs` → "oturum toplu iptali mevcut native cihaz
+  eşlenmeden başarılı görünmez" testinde korunur.
+
+### Auth0 resmi dokümantasyon bulguları (kaynak URL ile doğrulandı)
+
+- `GET /api/v2/device-credentials` yanıtı yalnız `id`, `device_name`,
+  `device_id`, `type`, `user_id`, `client_id` alanlarını taşır ve
+  `device_id` alanı `refresh_token`/`rotating_refresh_token` türleri için
+  **zaten doldurulmaz**; hiçbir alan bir access/refresh token örneğiyle
+  eşleşmez.
+  https://auth0.com/docs/api/management/v2/device-credentials/get-device-credentials
+- Refresh token rotasyonu dokümantasyonu, rotasyonun aynı device-credential
+  kaydını mı güncellediğini yoksa yeni bir kayıt mı oluşturduğunu
+  belgelemez; yalnız "reuse detection tüm aileyi iptal eder" kavramsal
+  ilişkisinden bahseder, teknik bir aile/oturum kimliği tanımlamaz.
+  https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation
+  https://auth0.com/docs/secure/tokens/refresh-tokens/configure-refresh-token-rotation
+- `sid` (session id) claim'i yalnız ID token / back-channel logout amacıyla
+  belgelenir ("the Auth0 tenant adds the `sid` to the ID token"); access
+  token'da bulunduğu belgelenmez. Mobil akış zaten ID token'ı API
+  yetkilendirmesinde KABUL ETMEZ (ADR-039), dolayısıyla bu claim mobil
+  bearer isteklerinde kullanılabilir bir sinyal değildir.
+  https://auth0.com/docs/authenticate/login/logout/back-channel-logout
+- Authorize (PKCE) ve refresh-token uç noktalarının resmi parametre
+  listelerinde, istemcinin ayarlayıp sonucun device-credential kaydına
+  yansıyacağı bir "device id/name" parametresi YOKTUR; `device_name`
+  Auth0 tarafından otomatik türetilir, istemci tarafından belirlenemez.
+  https://auth0.com/docs/api/authentication/authorization-code-flow-with-pkce/authorize-with-pkce
+  https://auth0.com/docs/api/authentication/refresh-token/refresh-token
+
+### Karar
+
+Mevcut mimaride (gateway Auth0 tokenlarını olduğu gibi ileten stateless bir
+proxy) `scope=others` için "hangi native oturum BENİM" sorusunun güvenli,
+sağlayıcı tarafından desteklenen ve yarışsız (race-free) bir cevabı
+**yoktur**. Diffing/heuristik bir eşleme (ör. Auth0 Management API'den
+oturum açılışında "yeni oluşan" device-credential'ı önce/sonra
+karşılaştırarak tahmin etmek) kasıtlı olarak EKLENMEDİ: bu, eşzamanlı
+girişlerde yarış durumuna açıktır, Auth0 tarafından belgelenmemiş/
+desteklenmemiştir ve görev talimatının yasakladığı türde bir "tahmin"dir.
+503 fail-closed davranışı KORUNUR; gizlenmez.
+
+### Desteklenebilir gelecek alternatifleri (karar kaydı, bu teslimde UYGULANMADI)
+
+1. **Gateway kendi opak refresh-token broker'lığını üstlenir**: mobil
+   istemciye Auth0'ın ham refresh token'ı hiç verilmez; gateway Auth0 ile
+   kendi refresh döngüsünü sunucu tarafında yürütüp istemciye yalnız kendi
+   ürettiği opak bir "Panelya mobil refresh credential" verir ve D1'de
+   `session_id ↔ mevcut Auth0 refresh token` eşlemesini (yalnız hash olarak
+   değil, gateway'in Auth0'a tekrar refresh atabilmesi için gerçek değeri de)
+   tutar. Bu durumda "hangi oturum benim" sorusu tamamen Panelya'nın kendi
+   kaydında, sağlayıcıya bağımlı olmadan cevaplanır. **Bu, ADR-039'un
+   "gateway tokenları kalıcı olarak saklamaz" ilkesini kasıtlı olarak
+   değiştirir** — ayrı bir ADR, tehdit modeli incelemesi (sunucuda saklanan
+   refresh token'ın sızması artık tüm oturumları etkiler) ve migration
+   gerektirir; bu göreve dahil değildir.
+2. **Auth0 Action ile access token'a custom claim eklemek**: Auth0
+   Actions'ın `post-login` tetikleyicisi refresh token exchange'lerinde de
+   çalışır ve `api.accessToken.setCustomClaim()` ile access token'a özel
+   alan eklenebildiği resmi olarak belgelenir
+   (https://auth0.com/docs/customize/actions/flows-and-triggers/login-flow).
+   Ancak Action'ın konteksti içinde Auth0'ın kendi iç `device_credential.id`
+   değerine erişim resmi olarak belgelenmemiştir; bu yüzden Action'ın
+   ekleyebileceği tek güvenilir claim, GİRİŞ ANINDA gateway'in ürettiği
+   KENDİ opak session id'si olurdu — ki bu yine (1) numaralı değişikliği
+   (gateway'in kendi oturum kaydını tutması) önkoşul yapar, tek başına
+   çözüm değildir.
+3. **Cihaz kaydı (device registration)**: istemci ilk girişte kendi
+   ürettiği rastgele bir kurulum kimliğini `/api/account/*` üzerinden ayrı
+   bir Panelya-yerel tabloya kaydeder ve sonraki her istekte bu kimliği bir
+   header olarak gönderir. Bu, istemcinin KENDİ beyanına dayanır (sunucu
+   tarafından kriptografik olarak doğrulanmaz); ele geçirilmiş bir cihaz
+   kendi kimliğini yanlış beyan ederek "diğerleri" temizliğinden kaçabilir.
+   Tehdit modeli (çalınan refresh token'ın devre dışı bırakılması) için
+   YETERSİZDİR, yalnız (1) numaralı çözümle birlikte (yani sunucu tarafı
+   session tablosu zaten varken) ek bir kullanıcı dostu etiket olarak
+   anlamlıdır.
+
+Üç alternatif de mimari kapsam ve güvenlik incelemesi gerektirdiği için bu
+teslimde uygulanmadı; 503 fail-closed doğru ve dürüst davranış olarak kalır.
+
 ## Resmi dayanaklar
 
 - Auth0 change-password endpoint:
@@ -272,3 +391,13 @@ production QA'da bu alan tamamlanmis sayilmaz. Envanter hem klasik
   https://auth0.com/docs/authenticate/login/max-age-reauthentication
 - Apple uygulama ici hesap silme:
   https://developer.apple.com/support/offering-account-deletion-in-your-app/
+- Auth0 refresh token rotasyonu (kavram):
+  https://auth0.com/docs/secure/tokens/refresh-tokens/refresh-token-rotation
+- Auth0 `sid` claim ve back-channel logout:
+  https://auth0.com/docs/authenticate/login/logout/back-channel-logout
+- Auth0 Actions `post-login`/refresh token exchange tetikleyicisi:
+  https://auth0.com/docs/customize/actions/flows-and-triggers/login-flow
+- Auth0 authorize (PKCE) parametreleri:
+  https://auth0.com/docs/api/authentication/authorization-code-flow-with-pkce/authorize-with-pkce
+- Auth0 refresh token grant parametreleri:
+  https://auth0.com/docs/api/authentication/refresh-token/refresh-token

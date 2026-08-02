@@ -47,12 +47,17 @@ String formatSessionLastActive(String isoTimestamp) {
 /// `currentSessionRevoked` SUNUCUDAN gelir — `true` ise uygulama yerel
 /// oturumu da güvenli şekilde kapatır.
 ///
-/// BİLİNEN SINIR (web tarafının bildirdiği): mobilde native refresh
-/// credential kimliği access token'dan kesin eşlenemediği için
-/// `scope: others` toplu kapatma şu an sunucuda **503 fail-closed**
-/// döner. Bu ekran bunu TAKLİT ETMEZ/başarılı göstermez — aksiyonu
-/// gösterir, sunucu 503 dönerse hatayı dürüstçe iletir. current-device
-/// gateway eşlemesi ayrı bir teslim.
+/// BİLİNEN SINIR (ADR-054, `docs/production-account-lifecycle.md`):
+/// native refresh credential kimliği access token'dan hiçbir resmi/
+/// desteklenen Auth0 mekanizmasıyla kesin eşlenemediği kod + Auth0
+/// dokümantasyonu okunarak KANITLANMIŞTIR — bu geçici bir eksik değil,
+/// mevcut mimarinin sağlayıcı sınırıdır. Bu yüzden `scope: others` toplu
+/// kapatma sunucuda **503 fail-closed** döner. Bu ekran bunu TAKLİT
+/// ETMEZ/başarılı göstermez — aksiyonu gösterir, sunucu 503 dönerse
+/// hatayı dürüstçe iletir. Desteklenebilir tek çözüm yolu (gateway'in
+/// kendi opak refresh-token broker'lığını üstlenmesi) ADR-039'un token
+/// saklamama ilkesini değiştiren ayrı bir mimari karar gerektirir ve
+/// henüz uygulanmamıştır.
 class SessionsScreen extends ConsumerStatefulWidget {
   const SessionsScreen({super.key});
 
