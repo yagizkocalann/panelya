@@ -3,11 +3,3 @@
 // verify-ios-push-readiness.mjs'nin CODE_SIGN_ENTITLEMENTS aramasini
 // test etmek icin yeterli miktarda metin icerir.
 CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
-DEVELOPMENT_TEAM = FIXTUREZZZZ;
-// Push Notifications capability kaydi (Xcode "+ Capability" akisinin
-// PBXProject -> attributes -> TargetAttributes altina yazdigi yapi).
-SystemCapabilities = {
-	com.apple.Push = {
-		enabled = 1;
-	};
-};

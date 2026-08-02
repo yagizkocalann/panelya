@@ -22,6 +22,15 @@
 	          düzenlemek Xcode'un/App Store Connect'in capability kaydını
 	          GÜNCELLEMEZ; provisioning profile bu capability'yi içermeden
 	          gerçek cihazda Universal Links doğrulaması çalışmaz. -->
+	<!-- Push Notifications capability (Xcode "Signing & Capabilities" ->
+	     "Push Notifications"). `development`, geliştirme/debug imzasıyla
+	     Xcode'un ürettiği değerdir; dağıtım profili ile arşivlenirken
+	     Xcode bunu `production`a yükseltir. Değer UYDURULMADI: Apple'ın
+	     `aps-environment` anahtarı yalnız bu iki değeri tanır ve
+	     otomatik imzalama sırasında provisioning profile ile eşleşmesi
+	     doğrulanır (bkz. ADR-052). -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:CONFIGURE_PRODUCTION_DOMAIN.invalid</string>

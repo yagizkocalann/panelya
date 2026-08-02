@@ -96,6 +96,13 @@ export async function validateIosPushReadiness({ mobileRoot }) {
       "project.pbxproj icinde CODE_SIGN_ENTITLEMENTS build ayari yok — entitlements dosyasi Xcode'da olusturulunca otomatik eklenir; elle duzenlenmemeli.",
     ),
     check(
+      "push-capability-registered",
+      /SystemCapabilities\s*=\s*\{[^}]*com\.apple\.Push\s*=\s*\{[^}]*enabled\s*=\s*1/su.test(
+        pbxproj,
+      ),
+      "project.pbxproj icinde Push Notifications capability KAYDI yok (PBXProject -> attributes -> TargetAttributes -> <Runner target> -> SystemCapabilities -> com.apple.Push.enabled = 1). Xcode 'Signing & Capabilities' -> '+ Capability' -> 'Push Notifications' akisi hem entitlements dosyasina 'aps-environment' anahtarini hem de bu proje kaydini yazar; YALNIZ entitlements'a metin eklemek capability'yi eklemis SAYILMAZ.",
+    ),
+    check(
       "google-service-plist-present",
       googleServiceExists,
       "ios/Runner/GoogleService-Info.plist bulunamadi (bkz. docs/mobile-firebase-config.md). Yalniz DOSYA VARLIGI kontrol edilir; icerik okunmaz/yazdirilmaz.",
@@ -121,8 +128,8 @@ export async function validateIosPushReadiness({ mobileRoot }) {
  * ETMEZ (edemez).
  */
 export const IOS_PUSH_EXTERNAL_DEPENDENCIES = [
-  "Apple Developer Program uyeligi (ucretli, aktif)",
-  "Xcode 'Signing & Capabilities' -> 'Push Notifications' capability (Runner.entitlements'i uretir)",
+  "Apple Developer Program uyeligi (UCRETLI, aktif) — bu depodaki Xcode hesabi bugun UCRETSIZ bir 'Personal Team'dir ve Apple'in kendi hatasiyla dogrulanmistir: \"Personal development teams ... do not support the Associated Domains and Push Notifications capabilities\" (xcodebuild -allowProvisioningUpdates, bkz. ADR-052). Bu, capability kaydi ve entitlements repoda DOGRU olsa bile imzali cihaz build'ini bloklar.",
+  "Xcode 'Signing & Capabilities' -> 'Push Notifications' capability (bu depoda ARTIK EKLI: entitlements'ta aps-environment + project.pbxproj'de SystemCapabilities/com.apple.Push; ucretli uyelik gelince Xcode bunu dogrulayip provisioning profile uretecek)",
   "Push Notifications destekleyen gecerli bir provisioning profile (Development veya Distribution, DEVELOPMENT_TEAM ile eslesen)",
   "APNs Auth Key (.p8) + Key ID + Team ID -> Firebase Console 'Cloud Messaging' -> 'Apple app configuration'a yuklu olmali",
   "Fiziksel iPhone (Simulator APNs token ALAMAZ, bkz. docs/mobile-web-handoff-findings.md #5)",

@@ -169,6 +169,29 @@ bölümündedir; eksiksiz dış bağımlılık listesi (yalnız adlar) o script'
   `scripts/verify-production-deployment-readiness.mjs` tarafından
   denetleniyor, burada tekrar edilmedi.
 
+### Capability durumu (2026-08-02, ikinci tur)
+
+Xcode Push Notifications capability'sinin ürettiği iki kayıt da repoda:
+`aps-environment` (entitlements) ve `SystemCapabilities -> com.apple.Push`
+(project.pbxproj). ADR-053'ün Associated Domains placeholder'ı bozulmadı.
+
+**Kanıtlanmış dış kapı — ücretsiz Apple hesabı.** `xcodebuild
+-allowProvisioningUpdates` ile gerçek provisioning denendi ve Apple şunu
+döndü:
+
+> Cannot create a iOS App Development provisioning profile for
+> "com.panelya.panelyaMobile". Personal development teams … do not support
+> the Associated Domains and Push Notifications capabilities.
+
+Yani **ücretli Apple Developer Program üyeliği** olmadan ne push ne de
+Universal Links için imzalı cihaz build'i mümkün değil.
+
+**Ayrıca:** bu kırılma ADR-053 ile gelmiştir — değişiklik öncesi de (yalnız
+associated-domains varken) aynı hata alınıyordu. **İmzalı cihaz build'i
+ADR-053 merge'inden beri kırık.** CI yalnız `analyze`/`test` çalıştırdığı ve
+`--no-codesign` imzalamayı atladığı için fark edilmemişti.
+`flutter build ios --debug --no-codesign` çalışıyor.
+
 ## 6. Hesap silme akışı — disposable hesap gerekiyor
 
 `POST /api/account/deletion` **hiçbir platformda çalıştırılmadı**. Elde

@@ -18,6 +18,10 @@ const entitlementsWithoutApsRoot = new URL(
   "./fixtures/ios-push-entitlements-without-aps/",
   import.meta.url,
 );
+const noCapabilityRoot = new URL(
+  "./fixtures/ios-push-no-capability/",
+  import.meta.url,
+);
 const realMobileRoot = new URL("../apps/mobile/", import.meta.url);
 
 test("tüm parçalar hazırsa (entitlements + wiring + Firebase dosyası + url scheme + background mode) ready true döner", async () => {
@@ -34,6 +38,7 @@ test("entitlements dosyası, wiring ve Firebase dosyası eksikken BLOKE EDİCİ 
     "entitlements-file",
     "entitlements-wired-to-target",
     "google-service-plist-present",
+    "push-capability-registered",
     "url-scheme",
   ]);
 });
@@ -102,9 +107,38 @@ test("CLI çıktısı hiçbir dosya içeriğini/secret değeri yazdırmaz (yaln�
 
 test("gerçek apps/mobile proje ağacına karşı çalışır ve atmaz (regex/parsing gerçek dosya biçimiyle uyumlu)", async () => {
   const result = await validateIosPushReadiness({ mobileRoot: realMobileRoot });
-  assert.equal(result.checks.length, 5);
+  assert.equal(result.checks.length, 6);
   // Gerçek Info.plist'te panelya:// şeması zaten kayıtlı (bkz.
   // apps/mobile/ios/Runner/Info.plist CFBundleURLSchemes).
   const urlSchemeCheck = result.checks.find((item) => item.id === "url-scheme");
   assert.equal(urlSchemeCheck.status, "ready");
+});
+
+test(
+  "entitlements'ta aps-environment OLSA BILE project.pbxproj'de Push " +
+    "capability KAYDI yoksa bloke edici eksik raporlanir " +
+    "(yalniz metin eklemek yetmez)",
+  async () => {
+    const result = await validateIosPushReadiness({
+      mobileRoot: noCapabilityRoot,
+    });
+
+    assert.equal(result.ready, false);
+    assert.ok(result.missingBlocking.includes("push-capability-registered"));
+    // Entitlements tarafi HAZIR olmasina ragmen sonuc "ready" DEGIL —
+    // capability kaydi ayri ve zorunlu bir sinyaldir.
+    const entitlements = result.checks.find(
+      (item) => item.id === "entitlements-file",
+    );
+    assert.equal(entitlements.status, "ready");
+  },
+);
+
+test("gercek Runner projesinde Push capability kaydi mevcuttur", async () => {
+  const result = await validateIosPushReadiness({ mobileRoot: realMobileRoot });
+  const capability = result.checks.find(
+    (item) => item.id === "push-capability-registered",
+  );
+
+  assert.equal(capability.status, "ready");
 });
