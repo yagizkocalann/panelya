@@ -10,6 +10,7 @@ import 'package:panelya_mobile/app/router/router.dart';
 import 'package:panelya_mobile/app/theme/theme.dart';
 import 'package:panelya_mobile/core/config/account_management_feature_config.dart';
 import 'package:panelya_mobile/core/config/auth_feature_config.dart';
+import 'package:panelya_mobile/core/config/universal_link_config.dart';
 import 'package:panelya_mobile/core/contracts/generated/generated.dart';
 import 'package:panelya_mobile/features/account/data/fake_account_repository.dart';
 import 'package:panelya_mobile/features/account/domain/account_repository.dart';
@@ -337,6 +338,166 @@ void main() {
       expect(screen.episodeSlug, 'bolum-1');
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+      'panelya://auth/callback (ADR-039 Auth0 sistem tarayıcı geri dönüşü) '
+      'HİÇBİR mobil ekrana çözülmez ve Universal Links eklenmesinden '
+      'ETKİLENMEDEN keşfe düşmeye devam eder (regresyon)',
+      (tester) async {
+        final built = buildRouter(
+          extraOverrides: [
+            universalLinkConfigProvider.overrideWithValue(
+              const UniversalLinkConfig(allowedHosts: {'panelya.app'}),
+            ),
+          ],
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('panelya://auth/callback?code=abc&state=xyz');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(DiscoverScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  });
+
+  group('Universal Links (iOS) / App Links (Android) — https/http host '
+      'allowlist (bkz. UniversalLinkConfig, mapWebPathToMobileRoute)', () {
+    testWidgets(
+      'izin verilen host + seri detay path -> SeriesScreen',
+      (tester) async {
+        final built = buildRouter(
+          extraOverrides: [
+            universalLinkConfigProvider.overrideWithValue(
+              const UniversalLinkConfig(allowedHosts: {'panelya.app'}),
+            ),
+          ],
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('https://panelya.app/gece-vardiyasi');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(SeriesScreen), findsOneWidget);
+        final screen = tester.widget<SeriesScreen>(find.byType(SeriesScreen));
+        expect(screen.slug, 'gece-vardiyasi');
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'izin verilen host + bölüm okuyucu path -> ReaderScreen',
+      (tester) async {
+        final built = buildRouter(
+          extraOverrides: [
+            universalLinkConfigProvider.overrideWithValue(
+              const UniversalLinkConfig(allowedHosts: {'panelya.app'}),
+            ),
+          ],
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('https://panelya.app/gece-vardiyasi/bolum-1');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(ReaderScreen), findsOneWidget);
+        final screen = tester.widget<ReaderScreen>(find.byType(ReaderScreen));
+        expect(screen.seriesSlug, 'gece-vardiyasi');
+        expect(screen.episodeSlug, 'bolum-1');
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'izin VERİLMEYEN host (allowlist doluyken bile listede olmayan bir '
+      'domain) keşfe düşer, SeriesScreen AÇILMAZ',
+      (tester) async {
+        final built = buildRouter(
+          extraOverrides: [
+            universalLinkConfigProvider.overrideWithValue(
+              const UniversalLinkConfig(allowedHosts: {'panelya.app'}),
+            ),
+          ],
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('https://evil.example/gece-vardiyasi');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(DiscoverScreen), findsOneWidget);
+        expect(find.byType(SeriesScreen), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'izin verilen host + desteklenmeyen (3+ segment) path keşfe düşer',
+      (tester) async {
+        final built = buildRouter(
+          extraOverrides: [
+            universalLinkConfigProvider.overrideWithValue(
+              const UniversalLinkConfig(allowedHosts: {'panelya.app'}),
+            ),
+          ],
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('https://panelya.app/a/b/c');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(DiscoverScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'host allowlist BOŞKEN (UNIVERSAL_LINK_HOSTS verilmemiş, varsayılan '
+      'fail-closed) hiçbir https link kabul edilmez — geçerli bir seri '
+      'path\'i bile keşfe düşer',
+      (tester) async {
+        // Bilinçli olarak universalLinkConfigProvider override EDİLMEDİ:
+        // varsayılan `UniversalLinkConfig.fromDartDefines()` çalışır ve
+        // testte hiçbir `UNIVERSAL_LINK_HOSTS` dart-define'ı verilmediği
+        // için allowlist boş kalır (fail-closed varsayılan).
+        final built = buildRouter();
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('https://panelya.app/gece-vardiyasi');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(DiscoverScreen), findsOneWidget);
+        expect(find.byType(SeriesScreen), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'plain http (https değil) şeması da aynı allowlist/eşlemeden geçer',
+      (tester) async {
+        final built = buildRouter(
+          extraOverrides: [
+            universalLinkConfigProvider.overrideWithValue(
+              const UniversalLinkConfig(allowedHosts: {'panelya.app'}),
+            ),
+          ],
+        );
+        await pumpRouter(tester, built.router, built.container);
+
+        built.router.go('http://panelya.app/gece-vardiyasi');
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byType(SeriesScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   group(

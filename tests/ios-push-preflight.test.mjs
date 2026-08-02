@@ -13,6 +13,10 @@ import {
 
 const readyRoot = new URL("./fixtures/ios-push-ready/", import.meta.url);
 const missingRoot = new URL("./fixtures/ios-push-missing/", import.meta.url);
+const entitlementsWithoutApsRoot = new URL(
+  "./fixtures/ios-push-entitlements-without-aps/",
+  import.meta.url,
+);
 const realMobileRoot = new URL("../apps/mobile/", import.meta.url);
 
 test("tüm parçalar hazırsa (entitlements + wiring + Firebase dosyası + url scheme + background mode) ready true döner", async () => {
@@ -31,6 +35,23 @@ test("entitlements dosyası, wiring ve Firebase dosyası eksikken BLOKE EDİCİ 
     "google-service-plist-present",
     "url-scheme",
   ]);
+});
+
+test("Runner.entitlements VAR ama içinde 'aps-environment' anahtarı YOKSA (örn. yalnız Universal Links "
+  + "associated-domains için oluşturulmuş bir dosya) 'entitlements-file' kontrolü yine de MISSING raporlar "
+  + "— dosyanın salt VARLIĞI push readiness'i için yeterli bir sinyal değildir", async () => {
+  const result = await validateIosPushReadiness({
+    mobileRoot: entitlementsWithoutApsRoot,
+  });
+  const entitlementsCheck = result.checks.find((item) => item.id === "entitlements-file");
+  assert.ok(entitlementsCheck);
+  assert.equal(entitlementsCheck.status, "missing");
+  assert.equal(result.ready, false);
+  assert.ok(result.missingBlocking.includes("entitlements-file"));
+  // Diğer bloke ediciler bu fixture'da HAZIR — yalnız aps-environment eksik.
+  assert.ok(!result.missingBlocking.includes("url-scheme"));
+  assert.ok(!result.missingBlocking.includes("entitlements-wired-to-target"));
+  assert.ok(!result.missingBlocking.includes("google-service-plist-present"));
 });
 
 test("UIBackgroundModes/remote-notification eksik olması TEK BAŞINA genel sonucu FAIL yapmaz (bilgilendirici, bloke edici değil)", async () => {

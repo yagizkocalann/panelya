@@ -78,6 +78,33 @@ if (isRunningReleaseTask && missingReleaseSigningKeys.isNotEmpty()) {
     )
 }
 
+// --- App Links host (Universal Links/Android tarafi) ---------------------
+//
+// AndroidManifest.xml'deki `https` intent-filter'i (bkz. asagida, ayni
+// `.MainActivity` icinde) gercek bir production domain'i BU DOSYAYA veya
+// manifeste GOMMEZ; `android:host` degeri asagidaki `appLinkHost`
+// manifestPlaceholder'indan gelir. Deger, `key.properties`/release imzalama
+// ile ayni oncelik deseniyle iki kaynaktan biriyle saglanir:
+//
+//   1) Gradle ozelligi: `-PpanelyaAndroidAppLinkHost=<domain>` (veya
+//      `android/gradle.properties` icinde `panelyaAndroidAppLinkHost=<domain>`,
+//      repo disi/commit edilmez).
+//   2) Ortam degiskeni: `PANELYA_ANDROID_APP_LINK_HOST` (CI/release makinesi).
+//
+// Production domain karari HENUZ verilmedi (bkz. production-bible.md ADR,
+// apps/mobile/README.md "Gelecek adim"); bu yuzden ikisi de saglanmazsa
+// `.invalid` TLD'li (RFC 2606 - asla gercek/kayitli bir domain OLAMAZ)
+// anlamsiz bir varsayilana dusulur. Boylece yapilandirilmamis bir build,
+// intent-filter'i GERCEK bir domain'e YANLISLIKLA baglamaz; filtre hicbir
+// gercek App Link'i eslemez. Bu, Android manifest/`autoVerify` katmanindaki
+// fail-closed davranistir - detayli host/path guvenligi (allowlist, path
+// esleme) zaten Flutter tarafinda `UniversalLinkConfig` +
+// `mapWebPathToMobileRoute` ile saglanir (bkz. apps/mobile/README.md).
+val appLinkHost = (project.findProperty("panelyaAndroidAppLinkHost") as String?)
+    ?.takeIf { it.isNotBlank() }
+    ?: System.getenv("PANELYA_ANDROID_APP_LINK_HOST")?.takeIf { it.isNotBlank() }
+    ?: "app-links-not-configured.invalid"
+
 android {
     namespace = "com.panelya.panelya_mobile"
     compileSdk = flutter.compileSdkVersion
@@ -97,6 +124,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Bkz. yukaridaki `appLinkHost` yorumu: AndroidManifest.xml'deki
+        // `${appLinkHost}` yer tutucusunu doldurur, gercek domain repo icinde
+        // hic gorunmez.
+        manifestPlaceholders["appLinkHost"] = appLinkHost
     }
 
     signingConfigs {

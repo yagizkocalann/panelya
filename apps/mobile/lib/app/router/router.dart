@@ -17,6 +17,7 @@ import '../../features/offline/presentation/downloads_screen.dart';
 import '../../features/push/presentation/notification_settings_screen.dart';
 import '../../features/reader/presentation/reader_screen.dart';
 import '../../features/series/presentation/series_screen.dart';
+import '../../core/config/universal_link_config.dart';
 import 'deep_link.dart';
 import 'route_args.dart';
 
@@ -92,6 +93,19 @@ import 'route_args.dart';
 /// ekranını (boş/hata ekranı değil, çalışan `DiscoverScreen`) gösterir.
 /// Böylece hem redirect hem errorBuilder aynı ilkeyi uygular: bilinmeyen/
 /// bozuk link asla crash veya boş ekrana değil, keşfe düşer.
+///
+/// Universal Links (iOS) / App Links (Android): `https`/`http` şemalı bir
+/// URI geldiğinde [redirect], [UniversalLinkConfig] (bkz.
+/// `core/config/universal_link_config.dart`, `UNIVERSAL_LINK_HOSTS`
+/// dart-define) allowlist'ine göre host'u denetler, ardından
+/// [mapWebPathToMobileRoute] ile path'i çevirir. Bu dal KOŞULSUZ bir sonuç
+/// döner (allowlist'te olmayan host veya eşlenemeyen path için de `/`) —
+/// asla `null` dönüp go_router'ın path'i normal rota ağacına karşı
+/// (host'tan bağımsız) eşleştirmesine İZİN VERMEZ; aksi halde `/catalog`
+/// gibi mobil rota path'iyle TESADÜFEN çakışan bir web path'i, host hiç
+/// kontrol edilmeden açılabilirdi. `UNIVERSAL_LINK_HOSTS` verilmezse
+/// allowlist boş kalır ve HİÇBİR `https`/`http` linki kabul edilmez
+/// (fail-closed) — hepsi keşfe düşer.
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
@@ -111,10 +125,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           !ref.read(accountManagementFeatureConfigProvider).enabled) {
         return '/account';
       }
-      // Web-benzeri path'ler (Universal Links/App Links, henüz yok):
-      // production domain kararı verilince burada
-      // `mapWebPathToMobileRoute` ile aynı çevrim uygulanacak (bkz.
-      // apps/mobile/README.md "Gelecek adım").
+      // Universal Links (iOS) / App Links (Android): host allowlist'i
+      // (bkz. yukarıdaki sınıf dokümanı ve `UniversalLinkConfig`)
+      // FAIL-CLOSED'dır — allowlist boşsa (define verilmediyse) veya host
+      // listede yoksa güvenli düşüşe (`/`) gider. Bu dal KOŞULSUZ bir
+      // sonuç döner (`null` DÖNMEZ): aksi halde host hiç kontrol
+      // edilmeden, yalnızca path'in TESADÜFEN mevcut bir GoRoute ile
+      // eşleşmesi (örn. `/catalog`) yeterli olurdu.
+      if (uri.scheme == 'https' || uri.scheme == 'http') {
+        final allowsHost = ref
+            .read(universalLinkConfigProvider)
+            .isAllowedHost(uri.host);
+        if (!allowsHost) return '/';
+        return mapWebPathToMobileRoute(uri.path) ?? '/';
+      }
       return null;
     },
     errorBuilder: (context, state) => const DiscoverScreen(),
