@@ -45,6 +45,28 @@ sonuc uretilmedi; asagidaki "Mobil hesap yonetimi canli QA adim adim
 yonergesi" bolumu bir sonraki turun ayni ortami sifirdan kurmasi icin
 eklendi.
 
+2026-08-02 (ikinci tur — iOS push capability): Xcode Push Notifications
+capability'sinin ürettiği **iki** kayıt da artık repoda: `Runner.entitlements`
+içinde `aps-environment` ve `project.pbxproj` içinde
+`SystemCapabilities -> com.apple.Push.enabled = 1`. Preflight'a
+`push-capability-registered` kontrolü eklendi ve tüm bloke edici kontroller
+artık **OK**.
+
+ANCAK canlı cihaz QA'sı **YİNE YAPILMADI** ve aşağıdaki QA maddeleri
+tamamlanmış SAYILMAZ. İki bağımsız kapı var:
+
+1. **Ücretsiz Apple hesabı.** `xcodebuild -allowProvisioningUpdates` ile
+   gerçek provisioning denendi; Apple şu hatayı döndü: *"Personal development
+   teams ... do not support the Associated Domains and Push Notifications
+   capabilities."* Ücretli Apple Developer Program üyeliği olmadan imzalı
+   cihaz build'i alınamaz.
+2. **Fiziksel iPhone hâlâ erişilemez** (`devicectl` → `unavailable`).
+
+Ayrıca tespit edildi: imzalı cihaz build'i **ADR-053'ten (Associated Domains)
+beri kırık** — değişiklik öncesi de aynı hata alınıyordu. CI yalnız
+`analyze`/`test` çalıştırdığı ve `--no-codesign` imzalamayı atladığı için fark
+edilmemişti. `flutter build ios --debug --no-codesign` çalışmaya devam ediyor.
+
 2026-08-02 iOS push canlı QA turunda `xcrun xctrace list devices` iki eşleşmiş
 fiziksel iPhone gösterdi ("Yağız iPhone'u", "kca") ama ikisi de "Devices
 Offline" altındaydı; `flutter devices` her ikisi için de "Ensure the device is
