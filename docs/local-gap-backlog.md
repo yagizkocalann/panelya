@@ -21,7 +21,7 @@
 
 1. Tamamlandi: Studio kullanici envanteri, guvenli admin/okuyucu rol degisikligi, kendi rolunu ve son admini koruma, rol degisikliginde oturum kapatma.
 2. Tamamlandi: 24 saatlik tek kullanimlik admin daveti, yenileme/iptal/kabul akisi; production public kaydinda otomatik admin yetkisinin kaldirilmasi ve sifir admin kosullu tek seferlik Studio bootstrap.
-3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk yerel saklama-purge politikasi. Production kimlik saglayicisi Auth0 ve mobil PKCE oturumu ADR-039 ile secildi; mobil runtime/canli Android turu ile web BFF callback, host-only cookie, exact logout ve acik hesap baglama kaynak siniri tamamlandi. Confidential web + Management M2M kurulumunun secretsiz on kontrol ve canli QA sirasi `docs/auth0-live-provisioning.md` runbook'unda hazirdir. Kalan dis is: Auth0 Dashboard/deployment secret provisioning, canli web turu, canli e-posta saglayicisi ve genel KVKK/GDPR veri envanteri.
+3. Tamamlandi: bildirim adapter fabrikasi, tanimsiz modda fail-closed davranis ve outbox ham baglanti/guvenlik verisi icin 24 saat/48 saat/30 gunluk saklama-purge politikasi. Kesin teknik TTL'i olan oturum/token/preview/kota/outbox kayitlari gunluk Worker Cron'u ve Studio admin yedek tetikleyicisiyle fiziksel temizlenir. Production kimlik saglayicisi Auth0 ve mobil PKCE oturumu ADR-039 ile secildi; mobil runtime/canli Android turu ile web BFF callback, host-only cookie, exact logout ve acik hesap baglama kaynak siniri tamamlandi. Confidential web + Management M2M kurulumunun secretsiz on kontrol ve canli QA sirasi `docs/auth0-live-provisioning.md` runbook'unda hazirdir. D1'deki 27 tablo, R2, Auth0, Workers Logs, FCM, cihaz-yerel veri ve mevcut silme/saklama davranisi `docs/privacy-data-inventory.md` icinde teknik envantere baglandi. Kalan dis is: canli e-posta saglayicisi, hukuk karari gerektiren kesin saklama/purge matrisi ve public KVKK/GDPR metinlerinin hukuk onayi.
 4. Tamamlandi: Auth0 bagli web `Hesabim` arayuzu ortak JSON hesap yuzeyine
    baglandi. Profil, salt okunur e-posta/dogrulama durumu, sifre yenileme, web/native
    oturumlar, engeller ve yapilandirilmis silme etkileri ekranda gercek
@@ -49,7 +49,11 @@
 
 0. Tamamlandi: genel iletisimden ayrilan, dosya/kimlik belgesi istemeyen telif bildirimi; 90 gunluk hashli gizli durum baglantisi; Studio durum/public yanit yonetimi ve audit kaydi. Kalan dis is: karsi bildirim, resmi tebligat, SLA ve production saklama/silme politikasini hukuk incelemesiyle kesinlestirmek.
 1. Tamamlandi: cihaz-yerel reklam tercihi, onaydan once sifir Google istegi, footer/gizlilikten tercih degistirme ve localhosta kilitli test/canli ortam siniri. Kalan dis is: production reklam saglayicisi secilirse sertifikali CMP/provider, bolgesel onay sinyali, hukuki metin ve gercek publisher/slot yapilandirmasini ayri incelemeyle baglamak.
-2. Analitik, hata izleme, performans butcesi ve reklam gorunurluk olcumleri.
+2. Tamamlandi: kimliksiz Core Web Vitals/genel istemci hata allowlist'i, GPC/DNT
+   siniri, tokenli rotalari maskeleyen same-origin kalite endpoint'i, calisan
+   route/global hata kurtarma ekranlari ve CI build boyut butceleri. Kalan dis
+   is: urun analitigi olay sozlugu/dashboard/saklama politikasi, onayli hata
+   izleme adapteri ve consent'e bagli reklam gorunurluk olcumu.
 3. Tamamlandi: filtrelenebilir, cursor tabanli ve guvenli metadata allowlist'i kullanan Studio audit ekrani.
 4. Tamamlandi: D1 Time Travel + uzun sureli SQL export, ayri immutable R2 yedek kovasi, surumlu kurtarma paketi verifier'i ve izole geri yukleme tatbikati runbook'u. Kalan dis is: production yedek kovasi/kimligi, retention lock ve zamanlanmis export-copy workflow'unu provision edip `QA-OPS-02` tatbikatini calistirmak.
 5. Tamamlandi: request-host uyumlu canonical URL'ler, public/Studio ayri robots politikasi, yalniz indexlenebilir yayin rotalarini iceren D1 tabanli sitemap ve guvenli ComicSeries/ComicIssue JSON-LD. Kalan dis is: production domainiyle `QA-SEO-01` arama motoru smoke ve Search Console kaydi.

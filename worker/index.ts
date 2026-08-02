@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import { consumeMediaDerivativeTask } from "./media-derivative-consumer";
+import { purgeExpiredTransientData } from "../app/lib/transient-data-maintenance";
 
 interface Env {
   ASSETS: Fetcher;
@@ -39,6 +40,12 @@ interface QueueBatch {
   messages: QueueMessage[];
 }
 
+interface ScheduledController {
+  scheduledTime: number;
+  cron: string;
+  noRetry(): void;
+}
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -72,6 +79,22 @@ const worker = {
         message.retry({ delaySeconds: 30 });
       }
     }
+  },
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil((async () => {
+      try {
+        const result = await purgeExpiredTransientData(controller.scheduledTime, env.DB);
+        console.info("transient_data_maintenance_completed", {
+          policyVersion: result.policyVersion,
+          deletedCount: result.total,
+        });
+      } catch (error) {
+        console.error("transient_data_maintenance_failed", {
+          errorType: error instanceof Error ? "exception" : "unknown",
+        });
+        throw error;
+      }
+    })());
   },
 };
 

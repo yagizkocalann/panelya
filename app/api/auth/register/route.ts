@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     if (String(error).toLowerCase().includes("unique")) return errorRedirect(request, "/register", "Bu e-posta zaten kayıtlı.", returnTo);
-    console.error("register_failed", error);
+    console.error("register_failed", { errorType: error instanceof Error ? "exception" : "unknown" });
     return errorRedirect(request, "/register", "Kayıt sırasında bir hata oluştu.", returnTo);
   }
 }

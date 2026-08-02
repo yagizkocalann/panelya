@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { RecentAuthenticationNotice, recentAuthenticationHref } from "../../components/RecentAuthenticationNotice";
 import { SiteHeader } from "../../components/SiteHeader";
-import { getCurrentUser } from "../../lib/auth";
+import { getCurrentUser, hasRecentAuthentication } from "../../lib/auth";
 import { getPlatformReadiness, type PlatformCheckStatus } from "../../lib/platform-readiness";
 import { publicSiteUrlForCurrentRequest } from "../../lib/server-site-origins";
+import { getTransientDataMaintenanceSummary } from "../../lib/transient-data-maintenance";
 
 export const dynamic = "force-dynamic";
 
@@ -33,11 +35,28 @@ const statusLabels: Record<PlatformCheckStatus, string> = {
   misconfigured: "UYUMSUZ",
 };
 
-export default async function StudioQaPage() {
+const maintenanceLabels = {
+  sessions: "Oturum",
+  accountTokens: "Hesap anahtarı",
+  reauthenticationRequests: "Yeniden doğrulama isteği",
+  reauthenticationTokens: "Yeniden doğrulama kanıtı",
+  previewTokens: "Önizleme anahtarı",
+  rateLimitBuckets: "Kota kovası",
+  notificationOutbox: "Outbox kaydı",
+} as const;
+
+export default async function StudioQaPage({ searchParams }: { searchParams: Promise<{ error?: string; maintenance?: string; count?: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?return_to=/qa");
   if (user.role !== "admin") redirect("/account?error=Studio%20yalnızca%20yönetici%20hesaplarına%20açık.");
-  const [publicHome, readiness] = await Promise.all([publicSiteUrlForCurrentRequest("/"), getPlatformReadiness()]);
+  const [publicHome, readiness, maintenance, recentlyAuthenticated, query] = await Promise.all([
+    publicSiteUrlForCurrentRequest("/"),
+    getPlatformReadiness(),
+    getTransientDataMaintenanceSummary(),
+    hasRecentAuthentication(),
+    searchParams,
+  ]);
+  const deletedCount = Math.max(0, Number.parseInt(query.count ?? "0", 10) || 0);
   const edgeCheck = readiness.checks.find((check) => check.id === "binding-rate-limit");
   const rateLimitLabel = readiness.modes.rateLimit === "invalid"
     ? "Rate-limit modu uyumsuz; korunan mutation’lar kapalı"
@@ -52,6 +71,15 @@ export default async function StudioQaPage() {
     <div className="studio-top"><div><p className="section-kicker">Kalıcı hatırlatma</p><h1>Manuel QA kuyruğu</h1><p>Otomatik testten geçse bile senin daha sonra elle görmen gereken feature’lar burada hatırlatılır.</p></div><Link className="button button--ghost" href="/">← Studio</Link></div>
     <aside className="studio-notice"><strong>Tek kayıt kaynağı:</strong> Ayrıntılı senaryolar repodaki <code>docs/manual-qa-checklist.md</code> dosyasında tutulur. Yeni feature bu listeye eklenmeden tamamlanmış sayılmaz.</aside>
     <aside className="studio-notice" role={!readiness.automatedReady ? "alert" : undefined}><strong>Kötüye kullanım koruması:</strong> {rateLimitLabel}.</aside>
+    {!recentlyAuthenticated && <RecentAuthenticationNotice returnTo="/qa" />}
+    {query.error && <p className="form-message form-message--error" role="alert">{query.error}</p>}
+    {query.maintenance === "purged" && <p className="form-message form-message--success" role="status">Geçici veri bakımı tamamlandı; {deletedCount} süresi dolan kayıt silindi.</p>}
+    <section className="studio-section outbox-retention" aria-labelledby="transient-maintenance-title"><div className="section-heading"><div><p className="section-kicker">Günlük bakım · Politika v{maintenance.policyVersion}</p><h2 id="transient-maintenance-title">Geçici veri minimizasyonu</h2><p>Yalnız teknik süresi dolmuş oturum, anahtar, yeniden doğrulama, önizleme, kota ve outbox kayıtları temizlenir.</p></div><span className="sort-note">{maintenance.total} temizlenebilir</span></div>
+      <div className="outbox-retention__layout"><div className="outbox-retention__metrics">{Object.entries(maintenance.counts).filter(([, count]) => count > 0).map(([category, count]) => <article key={category}><span>{maintenanceLabels[category as keyof typeof maintenanceLabels]}</span><strong>{count}</strong></article>)}</div>
+        <div className="outbox-retention__policy"><p>Production Worker her gün UTC 03:17 saatinde aynı sürümlü politikayı çalıştırır. Bu düğme yalnız operasyonel yedek ve QA içindir; audit kaydına kişi verisi yazılmaz.</p>
+          {maintenance.total > 0 ? recentlyAuthenticated ? <form action="/api/admin/maintenance/transient-data" method="post"><input type="hidden" name="action" value="purge_expired" /><button className="button button--danger" type="submit">Süresi dolan geçici kayıtları temizle</button></form> : <Link className="button button--ghost" href={recentAuthenticationHref("/qa")}>Bakım için şifreni doğrula</Link> : <p className="retention-current">Şu anda süresi dolmuş geçici kayıt yok.</p>}
+        </div></div>
+    </section>
     <section className="studio-section" aria-labelledby="platform-readiness-title"><div className="section-heading"><div><p className="section-kicker">Deployment güvenlik kapısı</p><h2 id="platform-readiness-title">Platform hazırlığı</h2><p>{profileLabel} profili · {readiness.automatedReady ? "otomatik kontroller hazır" : "otomatik kontroller tamamlanmadı"}{readiness.manualVerificationRequired ? " · dış Queue/DLQ doğrulaması gerekli" : ""}</p></div><span className="sort-note">{readiness.checks.length} kontrol</span></div>
       <div className="message-list">{readiness.checks.map((check) => <article className="message-card" key={check.id}><header><div><span className={`pill${check.status === "ready" ? " pill--accent" : ""}`}>{statusLabels[check.status]}</span><strong>{check.label}</strong><span>{check.required ? "Zorunlu" : "Bilgi"}</span></div></header><p>{check.detail}</p></article>)}</div>
     </section>
