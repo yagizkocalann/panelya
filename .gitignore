@@ -82,3 +82,12 @@ next-env.d.ts
 # üzerinden üretilir. Kurulum: docs/mobile-firebase-config.md
 /apps/mobile/android/app/google-services.json
 /apps/mobile/ios/Runner/GoogleService-Info.plist
+
+# Android release imza yapılandırması. Gerçek keystore ve key.properties
+# yalnız yerel diskte veya CI secret deposunda durur, asla commit edilmez;
+# release imzası key.properties veya PANELYA_ANDROID_* ortam değişkenlerinden
+# fail-closed olarak okunur. Kurulum: apps/mobile/android/app/build.gradle.kts
+# ve apps/mobile/README.md "Release build".
+/apps/mobile/android/key.properties
+/apps/mobile/android/**/*.keystore
+/apps/mobile/android/**/*.jks
