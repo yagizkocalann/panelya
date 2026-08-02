@@ -26,14 +26,14 @@ uygulanmis gibi yazilmaz.
 | --- | --- | --- | --- |
 | `users` | E-posta, gorunen ad, yerel parola ozeti, rol, dogrulama ve hesap durumu | Hesap silmede e-posta rastgele `deleted.invalid` adresine, ad `Silinmis hesap` degerine, parola kullanilamaz ozete doner; satir silinmis durumunda kalir | Hesap sahibi ozet ucu; yoneticiler Studio envanteri |
 | `provider_identities` | Auth0 issuer, hashlenmis subject, provider turu ve son giris zamani | Hesap silmede kayit silinir; ham provider subject saklanmaz | Server-only kimlik esleme |
-| `sessions` | Hashli oturum anahtari, public/Studio kapsami, zamanlar ve sinirli user-agent | Sure/idle dolumunda dogrulama sirasinda silinir; cikis, sifre yenileme, rol degisimi ve hesap silme de temizler | Hesap sahibi oturum listesi; yonetici sayim/guvenlik islemi |
-| `account_tokens` | Hashli e-posta dogrulama ve sifre sifirlama anahtari, hedef e-posta, son kullanim | E-posta dogrulama 24 saat, sifre sifirlama 30 dakika gecerli ve tek kullanimlidir; hesap silmede silinir. Sure dolan/kullanilan kaydin fiziksel periyodik purge karari aciktir | Server-only auth akisi |
-| `account_reauthentication_requests` | Amac, web/mobil tasima, callback, PKCE challenge ile hashli state/nonce | En cok 10 dakika, tek kullanim; hesap silmede silinir. Sure dolan kayit purge takvimi aciktir | Server-only hesap guvenligi |
-| `account_reauthentication_tokens` | Hashli, amaca bagli tek kullanimlik hesap kaniti | En cok 10 dakika, tek kullanim; hesap silmede silinir. Sure dolan kayit purge takvimi aciktir | Server-only hesap mutation'i |
+| `sessions` | Hashli oturum anahtari, public/Studio kapsami, zamanlar ve sinirli user-agent | Sure/idle dolumunda reddedilir; cikis, sifre yenileme, rol degisimi ve hesap silme de temizler. Gunluk gecici veri bakimi suresi dolan satirlari fiziksel siler | Hesap sahibi oturum listesi; yonetici sayim/guvenlik islemi |
+| `account_tokens` | Hashli e-posta dogrulama ve sifre sifirlama anahtari, hedef e-posta, son kullanim | E-posta dogrulama 24 saat, sifre sifirlama 30 dakika gecerli ve tek kullanimlidir; hesap silmede veya gunluk bakimda suresi dolunca silinir | Server-only auth akisi |
+| `account_reauthentication_requests` | Amac, web/mobil tasima, callback, PKCE challenge ile hashli state/nonce | En cok 10 dakika, tek kullanim; hesap silmede veya gunluk bakimda suresi dolunca silinir | Server-only hesap guvenligi |
+| `account_reauthentication_tokens` | Hashli, amaca bagli tek kullanimlik hesap kaniti | En cok 10 dakika, tek kullanim; hesap silmede veya gunluk bakimda suresi dolunca silinir | Server-only hesap mutation'i |
 | `account_deletion_requests` | Hashli idempotency anahtari, islem durumu, deneme ve sabit hata kodu | Tamamlanan/basarisiz saga kaydi operasyon ve denetim icin kalir; kesin saklama suresi hukuk/operasyon karari bekler | Hesap silme runtime'i ve yetkili incident incelemesi |
-| `notification_outbox` | Alici, konu/govde, opsiyonel action URL, durum ve dedupe anahtari | Acilan 1 gun; bekleyen sifre 1, dogrulama/davet 2, yeni bolum 7, diger guvenlik 30 gun sonra manuel purge edilebilir. Hesap silmede kullaniciya bagli kayitlar silinir | Studio outbox ve teslim adapteri |
+| `notification_outbox` | Alici, konu/govde, opsiyonel action URL, durum ve dedupe anahtari | Acilan 1 gun; bekleyen sifre 1, dogrulama/davet 2, yeni bolum 7, diger guvenlik 30 gun sonra gunluk veya admin yedek bakimiyla silinir. Hesap silmede kullaniciya bagli kayitlar silinir | Studio outbox ve teslim adapteri |
 | `admin_invitations` | Davet e-postasi, hashli anahtar, davet eden, durum ve zamanlar | Anahtar 24 saat gecerli ve tek kullanimlidir; kabul/iptal kaydi kalir. Fiziksel saklama suresi aciktir | Studio yoneticileri ve davet kabul ucu |
-| `rate_limit_buckets` | Turetilmis kota anahtari, sayac ve reset zamani | Reset sonrasi yeni pencereyle guncellenir; eski bucket fiziksel temizleme takvimi aciktir | Server-only guvenlik katmani |
+| `rate_limit_buckets` | Turetilmis kota anahtari, sayac ve reset zamani | Reset sonrasi yeni pencereyle guncellenir; reset zamani gecen satir gunluk bakimda fiziksel silinir | Server-only guvenlik katmani |
 | `library_items` | Kullanici-seri eslesmesi, okuma durumu ve favori | Kullanici kaldirinca veya hesap silmede fiziksel silinir | Hesap sahibi |
 | `series_subscriptions` | Seri takibi ve yeni bolum bildirim tercihi | Takip kapatilinca veya hesap silmede fiziksel silinir | Hesap sahibi; yayin fan-out sorgusu |
 | `reading_progress` | Seri/bolum konumu, baslik, numara, yuzde ve guncelleme zamani | Yeni konumla ezilir; hesap silmede fiziksel silinir | Hesap sahibi |
@@ -50,7 +50,7 @@ uygulanmis gibi yazilmaz.
 | `media_assets` | R2 anahtari, orijinal dosya adi, MIME/boyut/piksel, yukleyen admin | Icerik kaydi silinince metadata cascade olur; R2 kaynak nesnesinin yedek/lifecycle politikasi ayrica uygulanir. Dosya adinda kisi verisi kullanilmaz | Public yalniz yayina bagli medya; Studio medya ekibi |
 | `media_variants` | Responsive WebP R2 anahtari ve teknik boyutlar | Kaynak asset silinince metadata cascade olur; R2 lifecycle/yedek politikasi ayridir | Public yayina bagli varyant; Studio medya ekibi |
 | `media_derivative_jobs` | Turetme hedefi, durum, deneme ve serbest olmayan operasyonel hata alani | Asset silinince cascade olur; tamamlanan/basarisiz is saklama suresi aciktir | Studio medya/QA ve Queue consumer |
-| `preview_tokens` | Hashli onizleme anahtari, seri/bolum kapsami, olusturan ve zamanlar | 30 dakika gecerli, iptal edilebilir; ham anahtar saklanmaz. Sure dolan kayit purge takvimi aciktir | Studio ve no-store onizleme ucu |
+| `preview_tokens` | Hashli onizleme anahtari, seri/bolum kapsami, olusturan ve zamanlar | 30 dakika gecerli, iptal edilebilir; ham anahtar saklanmaz. Gunluk bakim suresi dolan satiri fiziksel siler | Studio ve no-store onizleme ucu |
 
 ## D1 disi veri ve teknik servis siniri
 

@@ -47,8 +47,8 @@ export type OutboxRetentionSummary = {
   policyVersion: number;
 };
 
-export async function getOutboxRetentionSummary(now = Date.now()): Promise<OutboxRetentionSummary> {
-  const db = await getDatabase();
+export async function getOutboxRetentionSummary(now = Date.now(), database?: D1Database): Promise<OutboxRetentionSummary> {
+  const db = database ?? await getDatabase();
   const cutoffs = retentionCutoffs(now);
   const [inventory, purgeable] = await db.batch([
     db.prepare(`SELECT COUNT(*) AS total,
@@ -67,8 +67,8 @@ export async function getOutboxRetentionSummary(now = Date.now()): Promise<Outbo
   };
 }
 
-export async function purgeExpiredOutbox(now = Date.now()) {
-  const db = await getDatabase();
+export async function purgeExpiredOutbox(now = Date.now(), database?: D1Database) {
+  const db = database ?? await getDatabase();
   const result = await bindCutoffs(db.prepare(`DELETE FROM notification_outbox WHERE ${RETENTION_WHERE}`), retentionCutoffs(now)).run();
   return Number(result.meta.changes ?? 0);
 }

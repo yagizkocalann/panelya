@@ -55,7 +55,10 @@ export const accountTokens = sqliteTable("account_tokens", {
   expiresAt: integer("expires_at").notNull(),
   usedAt: integer("used_at"),
   createdAt: integer("created_at").notNull(),
-}, (table) => [uniqueIndex("account_tokens_hash_unique").on(table.tokenHash)]);
+}, (table) => [
+  uniqueIndex("account_tokens_hash_unique").on(table.tokenHash),
+  index("account_tokens_expiry_idx").on(table.expiresAt),
+]);
 
 export const accountReauthenticationRequests = sqliteTable("account_reauthentication_requests", {
   id: text("id").primaryKey(),
@@ -135,7 +138,7 @@ export const rateLimitBuckets = sqliteTable("rate_limit_buckets", {
   key: text("key").primaryKey(),
   count: integer("count").notNull(),
   resetAt: integer("reset_at").notNull(),
-});
+}, (table) => [index("rate_limit_buckets_reset_idx").on(table.resetAt)]);
 
 export const libraryItems = sqliteTable("library_items", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
