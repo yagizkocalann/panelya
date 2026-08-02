@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -19,6 +20,8 @@ import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/home_button.dart';
 import '../../../shared/widgets/state_views.dart';
 import '../domain/reader_content.dart';
+import '../../progress/data/reading_progress_sync.dart';
+import '../../progress/presentation/remote_progress_providers.dart';
 import 'reader_providers.dart';
 
 /// Okuyucu ekranı (`/series/:slug/read/:episodeSlug`): kesintisiz dikey
@@ -158,6 +161,7 @@ class _ReaderSuccessScaffoldState
   @override
   void initState() {
     super.initState();
+    _sync = ref.read(readingProgressSyncProvider);
     _scrollController.addListener(_handleScroll);
     // Bölüm açıldığında cihaz-yerel ilerleme kaydı yazılır (bkz. PLAN
     // "kaldığın yerden devam et" madde 1). `ReaderScreen` bölüm
@@ -204,6 +208,10 @@ class _ReaderSuccessScaffoldState
         ? 0.0
         : (position.pixels / maxExtent).clamp(0.0, 1.0);
     _progress.value = value;
+    // Uzak senkron: her piksel istek üretmez — `ReadingProgressSync`
+    // anlamlı değişiklik eşiği + debounce uygular (bkz. o sınıf).
+    // Anonim kullanıcıda adapter sunucuya HİÇ istek göndermez.
+    _reportRemoteProgress((value * 100).round());
     _maybeRecordCompletion(maxExtent: maxExtent, pixels: position.pixels);
   }
 
@@ -232,6 +240,11 @@ class _ReaderSuccessScaffoldState
           nextEpisodeSlug: next?.slug,
           nextEpisodeNumber: next?.number,
         );
+    // Bölüm sonu uzak tarafa KESİN yazılır (eşiği/debounce'ı atlar).
+    // Sonraki bölüm sunucuya otomatik `0` diye YAZILMAZ — devam hedefi
+    // yalnız yayın sırasından (`navigation.next`) belirlenir ve bu
+    // cihaz-yerel kayıtta tutulur.
+    _reportRemoteProgress(100);
     _invalidateProgressProviders();
   }
 
@@ -247,11 +260,34 @@ class _ReaderSuccessScaffoldState
 
   @override
   void dispose() {
+    // GÜVENLİ KAPANIŞ: bekleyen (debounce'ta duran) bir uzak yazım varsa
+    // atılmaz, hemen gönderilir. `dispose` senkron olduğu için beklenmez;
+    // `flush` kendi içinde hatayı yutar ve okuma akışını engellemez.
+    unawaited(_sync.flush());
     _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     _progress.dispose();
     super.dispose();
   }
+
+  /// Okuyucudan uzak senkrona ilerleme bildirir.
+  ///
+  /// Koordinatör istek sınırlamayı kendisi yapar (eşik + debounce, bölüm
+  /// sonunda kesin `100`). Anonim kullanıcıda adapter sunucuya HİÇ istek
+  /// göndermez — cihaz-yerel kayıt bundan bağımsız çalışmaya devam eder.
+  void _reportRemoteProgress(int percent) {
+    _sync.report(
+      seriesSlug: widget.seriesSlug,
+      episodeSlug: widget.content.manifest.episode.slug,
+      percent: percent,
+    );
+  }
+
+  /// `initState`te EAGER okunur: `dispose` sırasında `ref` kullanmak
+  /// güvenli değildir (widget unmount ediliyor olabilir), bu yüzden
+  /// referans önceden tutulur. `late final` ile tembel bırakılsaydı ilk
+  /// erişim `dispose`a denk gelip aynı hatayı verirdi.
+  late final ReadingProgressSync _sync;
 
   @override
   Widget build(BuildContext context) {
@@ -416,6 +452,7 @@ class _ReaderPanelList extends ConsumerWidget {
   final Episode episode;
   final EpisodeNavigation navigation;
   final ScrollController scrollController;
+
   /// Bkz. `ReaderContent.offlinePanelImageFiles` doc yorumu: yalnız bölüm
   /// cihaza indirilmişse dolu, `episode.panels` ile paralel bir liste.
   /// `null` ise (çevrimiçi mod) her panel her zaman ağdan yüklenir.
@@ -465,6 +502,7 @@ class _PanelBlock extends StatelessWidget {
 
   final StoryPanel panel;
   final String apiOrigin;
+
   /// Bölüm cihaza indirilmişse bu panelin yerel görsel dosyası (bkz.
   /// `_ReaderPanelList.offlinePanelImageFiles`); doluysa ağ HİÇ
   /// çağrılmaz — `resolveMediaUrl`/varyant seçimi tamamen atlanır, aynı
@@ -641,7 +679,8 @@ class _TextLayer extends StatelessWidget {
 /// fade davranışını PAYLAŞIR — yalnız hangi [ImageProvider]'ın çözüleceği
 /// değişir.
 class _PanelImage extends StatelessWidget {
-  const _PanelImage({this.url, this.file}) : assert(url != null || file != null);
+  const _PanelImage({this.url, this.file})
+    : assert(url != null || file != null);
 
   final String? url;
   final File? file;

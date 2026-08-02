@@ -24,10 +24,11 @@ final readingProgressRepositoryProvider =
 /// [mostRecentReadingProgressProvider]'ı) açıkça `ref.invalidate` eder
 /// (bkz. `reader_screen.dart`) — aksi halde seri sayfasına geri dönüldüğünde
 /// eski değer önbellekte kalırdı.
-final readingProgressForSeriesProvider = Provider.family<ReadingProgress?, String>(
-  (ref, seriesSlug) =>
-      ref.watch(readingProgressRepositoryProvider).findBySeries(seriesSlug),
-);
+final readingProgressForSeriesProvider =
+    Provider.family<ReadingProgress?, String>(
+      (ref, seriesSlug) =>
+          ref.watch(readingProgressRepositoryProvider).findBySeries(seriesSlug),
+    );
 
 /// Tüm serilerdeki en son güncellenen kayıt (keşif ekranındaki "Okumaya
 /// devam et" şeridi için). Hiç kayıt yoksa `null` — bu durumda şerit hiç

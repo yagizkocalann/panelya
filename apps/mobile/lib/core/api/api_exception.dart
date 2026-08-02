@@ -114,6 +114,22 @@ class AccountApiException implements Exception {
 /// `reauthenticate` tasimaz, buna karsilik `retryAfterSeconds` tasir.
 /// Ayni sinifi kullanmak, birinin govdesini digerinin DTO'suyla parse
 /// etmeye calismak demek olurdu.
+/// `/api/progress` uclarinin dondugu yapilandirilmis hata govdesi (bkz.
+/// `packages/contracts/fixtures/reading-progress-error.v1.json`).
+///
+/// Hesap ve kutuphane hata tiplerinden AYRIDIR: her sozlesmenin kendi
+/// hata sekli vardir, birinin govdesini digerinin DTO'suyla ayristirmak
+/// yanlis olurdu.
+class ReadingProgressApiException implements Exception {
+  const ReadingProgressApiException(this.error);
+
+  final ReadingProgressErrorResponse error;
+
+  @override
+  String toString() =>
+      'ReadingProgressApiException: ${error.errorDescription ?? error.error}';
+}
+
 class LibraryApiException implements Exception {
   const LibraryApiException(this.error);
 

@@ -7,6 +7,7 @@ import '../../../core/api/api_error_presenter.dart';
 import '../../../core/api/api_exception.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/contracts/generated/generated.dart';
+import '../../../features/library/presentation/library_add_action.dart';
 import '../../../features/offline/presentation/episode_download_button.dart';
 import '../../../features/offline/presentation/offline_providers.dart';
 import '../../../features/progress/domain/reading_progress.dart';
@@ -261,10 +262,17 @@ class _StartReadingActions extends StatelessWidget {
       // 44 px alt sınırı sağlar; büyük yazı tipinde (`textScaler`) buton
       // gerektiğinde 44 px'in ÜZERİNE büyüyebilir — aksi halde etiket
       // kırpılır/taşardı (bkz. PLAN Görev B.2 — "buton etiketi kırpılmaz").
-      return FilledButton(
-        onPressed: () =>
-            context.push('/series/$seriesSlug/read/${firstEpisode.slug}'),
-        child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FilledButton(
+            onPressed: () =>
+                context.push('/series/$seriesSlug/read/${firstEpisode.slug}'),
+            child: Text('Okumaya başla · Bölüm ${firstEpisode.number}'),
+          ),
+          SizedBox(height: tokens.spacing.sm),
+          LibraryAddAction(seriesSlug: seriesSlug),
+        ],
       );
     }
 
@@ -291,6 +299,8 @@ class _StartReadingActions extends StatelessWidget {
               context.push('/series/$seriesSlug/read/${firstEpisode.slug}'),
           child: const Text('Baştan başla'),
         ),
+        SizedBox(height: tokens.spacing.sm),
+        LibraryAddAction(seriesSlug: seriesSlug),
       ],
     );
   }
