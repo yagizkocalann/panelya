@@ -48,6 +48,33 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="panelya"/>
             </intent-filter>
+            <!-- App Links (Görev 3, bkz. apps/mobile/README.md "Gelecek adım" ->
+                 gerçekleşen durum): ayrı bir `https` intent-filter,
+                 `android:autoVerify="true"` ile. Bu, Android'e uygulamanın kurulumu
+                 sırasında `https://<host>/.well-known/assetlinks.json`'ı çekip
+                 imza SHA-256 parmak izini doğrulamasını (Digital Asset Links)
+                 söyler; doğrulama geçerse bu linkler tarayıcıya değil doğrudan
+                 uygulamaya gider (kullanıcıya seçici diyaloğu ÇIKMAZ).
+                 `android:host` DEĞERİ BU DOSYADA YOK — `${appLinkHost}`
+                 `android/app/build.gradle.kts`'teki `manifestPlaceholders`'tan
+                 gelir (bkz. o dosyadaki ayrıntılı yorum); production domain
+                 kararı verilene kadar gerçek bir değer sağlanmazsa `.invalid`
+                 TLD'li anlamsız bir varsayılana düşer, filtre hiçbir gerçek
+                 App Link'i eşlemez. `pathPrefix="/"` ile tüm path'ler bu
+                 filtreye düşer; ASIL host/path güvenliği (allowlist + web
+                 path -> mobil rota eşlemesi) Flutter tarafında
+                 `UniversalLinkConfig` + `mapWebPathToMobileRoute` ile sağlanır
+                 (bkz. `app/router/router.dart`) — bilinmeyen host veya
+                 desteklenmeyen path orada güvenli biçimde keşfe düşer. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="${appLinkHost}"
+                    android:pathPrefix="/"/>
+            </intent-filter>
         </activity>
         <!-- Auth0 sistem tarayıcı Authorization Code + PKCE geri dönüşü
              (bkz. ADR-039, `flutter_web_auth_2` paket kurulumu). Bu ayrı

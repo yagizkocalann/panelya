@@ -46,41 +46,89 @@ içindedir:
   girdi keşfe düşer).
 - `mapWebPathToMobileRoute` — web URL yapısını (`/<slug>`,
   `/<slug>/<episodeSlug>`, bkz. `app/[slug]/[episode]`) mobil rota yapısına
-  çevirir. Bugün router'da kullanılmıyor; Universal Links/App Links
-  eklendiğinde kullanılacak (bkz. aşağıdaki "Gelecek adım").
+  çevirir. Universal Links/App Links (bkz. aşağıki bölüm) tarafından, izin
+  verilen bir host için `redirect` içinden çağrılır.
 
 Güvenli düşüş: `lib/app/router/router.dart`'taki `redirect` custom scheme
 çevrimini uygular, `errorBuilder` ise (bozuk path, eksik segment, bilinmeyen
 scheme gibi) go_router'ın hiçbir rotayla eşleştiremediği her durumda çalışan
 `DiscoverScreen`'i gösterir — boş "not found" sayfası veya crash yoktur.
 
-### Gelecek adım: Universal Links (iOS) / App Links (Android)
+### Universal Links (iOS) / App Links (Android)
 
-Production domain kararı henüz verilmedi; bu yüzden http(s) tabanlı
-Universal Links/App Links bu fazda uygulanmadı. Domain kararı verildiğinde
-şunlar gerekir:
+`panelya://` custom scheme (yukarıdaki bölüm, ADR-039 auth callback'i dahil)
+KORUNUR — Universal/App Links bunun **yerine geçmez**, ayrı bir `https`/`http`
+girişidir; auth akışı her zaman custom scheme'de kalır.
 
-- **iOS**: Apple App Site Association (AASA) dosyası — web deployment'ında
-  `/.well-known/apple-app-site-association` altında sunulmalı (imzasız JSON,
-  `Content-Type: application/json`); `appID` (Team ID + Bundle ID) ve izin
-  verilen path'ler (`/*` veya belirli desenler) belirtir. Xcode tarafında
-  `com.apple.developer.associated-domains` entitlement'ına
-  `applinks:<domain>` eklenir (yeni bir `Runner.entitlements` dosyası veya
-  mevcut birine ekleme gerekir — bugün proje bir entitlements dosyası
-  içermiyor).
-- **Android**: Digital Asset Links dosyası — web deployment'ında
-  `/.well-known/assetlinks.json` altında sunulmalı; uygulamanın SHA-256
-  imza parmak izi ve `package_name`'i içerir. `AndroidManifest.xml`'e
-  `android:autoVerify="true"` ile ayrı bir `https` intent-filter eklenir
-  (bkz. bu dosyadaki custom scheme intent-filter'ının hemen yanı — aynı
-  `.MainActivity` içinde, `android:host="<domain>"` ile).
-- **Flutter tarafı**: `lib/app/router/router.dart`'taki `redirect`
-  içine, gelen `uri.scheme` `https`/`http` olduğunda `path` (+ gerekirse
-  `query`) üzerinde `mapWebPathToMobileRoute` çağıran bir dal eklenir; bu
-  fonksiyon zaten yazılı ve test edilmiş durumda (yalnız henüz
-  çağrılmıyor).
-- Bu üç değişikliğin hiçbiri mobil rota şemasını (`/`, `/series/:slug`,
-  `/series/:slug/read/:episodeSlug`) etkilemez.
+**Flutter tarafı (canlı):** `router.dart`'taki `redirect`, `uri.scheme`
+`https`/`http` olduğunda `core/config/universal_link_config.dart`'taki
+`UniversalLinkConfig` ile host'u denetler. Host allowlist'i derleme zamanı
+`UNIVERSAL_LINK_HOSTS` dart-define'ından gelir (virgülle ayrılmış, örn.
+`--dart-define=UNIVERSAL_LINK_HOSTS=panelya.app,staging.panelya.app`);
+**define verilmezse allowlist BOŞ kalır ve hiçbir `https`/`http` linki kabul
+edilmez (fail-closed)**. İzin verilen host için `mapWebPathToMobileRoute`
+çağrılır; izin verilmeyen host veya eşlenemeyen path her zaman güvenli
+düşüşe (`/`, keşif) gider — bu dal koşulsuz bir sonuç döner, `null` dönüp
+go_router'ın path'i host'tan bağımsız biçimde normal rota ağacına karşı
+eşlemesine asla izin vermez (bkz. testler:
+`test/app/router/router_test.dart` "Universal Links" grubu).
+
+**Android tarafı (altyapı hazır, gerçek domain eksik):**
+`AndroidManifest.xml`'de `android:autoVerify="true"` ile ayrı bir `https`
+intent-filter var; `android:host` değeri commit edilmez, derleme zamanı
+`manifestPlaceholders["appLinkHost"]`'tan gelir
+(`android/app/build.gradle.kts`; Gradle özelliği
+`-PpanelyaAndroidAppLinkHost=<domain>` veya `PANELYA_ANDROID_APP_LINK_HOST`
+ortam değişkeni). İkisi de verilmezse `.invalid` TLD'li (RFC 2606) anlamsız
+bir varsayılana düşülür; filtre hiçbir gerçek App Link'i eşlemez.
+
+**iOS tarafı (altyapı hazır, gerçek domain eksik):** `ios/Runner/Runner.entitlements`
+(daha önce hiç yoktu, bu vesileyle oluşturuldu)
+`com.apple.developer.associated-domains` içinde bilerek çözülemeyen bir
+placeholder taşır (`applinks:CONFIGURE_PRODUCTION_DOMAIN.invalid`) ve
+`Runner.xcodeproj/project.pbxproj`deki Runner app target'ının Debug/Release/
+Profile build config'lerine `CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;`
+ile bağlandı. **Gerçek domain kararlaştırıldığında** bu placeholder gerçek
+domain ile değiştirilmeli VE Xcode'da "Signing & Capabilities" ->
+"Associated Domains" capability'si (mevcut Apple Developer takımı +
+provisioning profile ile) eklenmeli/onaylanmalıdır — yalnız dosyayı elle
+düzenlemek bunun yerine geçmez.
+
+**Web tarafı (canlı, fail-closed):** `/.well-known/apple-app-site-association`
+ve `/.well-known/assetlinks.json`, kök repodaki
+`app/well-known/apple-app-site-association/route.ts` ve
+`app/well-known/assetlinks.json/route.ts` Next.js route handler'larından
+sunulur (`app/lib/associated-domains.ts`); gerçek `/.well-known/*` isteği
+`next.config.ts`teki bir `rewrites()` kuralıyla bu (nokta içermeyen)
+dizinlere yeniden yazılır — derleme aracı (`vinext`) nokta ile başlayan
+dizinleri rota taramasından dıştaladığı için gerçek route dosyaları nokta
+içermeyen bir yolda durmak zorunda; rewrite bunu istemciye görünmez kılar.
+Gerekli değerler (`APPLE_TEAM_ID`, `APPLE_BUNDLE_ID`, `ANDROID_PACKAGE_NAME`,
+`ANDROID_SHA256_FINGERPRINTS`) ortamdan gelir; biri eksikse **SAHTE appID/
+paket adı/parmak izi asla üretilmez**, uç `503` fail-closed döner.
+
+**Deploy preflight:** kök `scripts/verify-associated-domains-readiness.mjs`
+(`npm run associated-domains:preflight`,
+`tests/associated-domains-preflight.test.mjs` ile `npm test` içinden
+kapsanır) yukarıdaki dört değişkenin varlığını VE biçimsel geçerliliğini
+(Apple Team ID 10 alfanumerik, bundle id/paket adı ters-DNS, SHA-256 parmak
+izi 32 çift onaltılık basamak) secret yazdırmadan raporlar.
+
+**Kalan dış bağımlılıklar (bu depoda YOK, uydurulmadı):**
+
+- **Production domain kararı** — henüz verilmedi.
+- **Apple Developer Team ID** (AASA `appID` için) — `APPLE_TEAM_ID`.
+- **Android release imza SHA-256 parmak izi** (Play App Signing yükleme
+  anahtarı ve/veya uygulama imzalama anahtarı) — `ANDROID_SHA256_FINGERPRINTS`.
+
+Bu üç değer netleşmeden `UNIVERSAL_LINK_HOSTS` dart-define'ı, web
+`APPLE_TEAM_ID`/`APPLE_BUNDLE_ID`/`ANDROID_PACKAGE_NAME`/
+`ANDROID_SHA256_FINGERPRINTS` ortam değişkenleri, Android
+`PANELYA_ANDROID_APP_LINK_HOST` ve iOS `Runner.entitlements`'teki
+`applinks:` girişi gerçek değerlerle doldurulamaz; tüm sistem o zamana kadar
+bilinçli olarak fail-closed kalır (hiçbir `https`/`http` deep-link kabul
+edilmez, ilgili web uçları 503 döner). Hiçbiri mobil rota şemasını (`/`,
+`/series/:slug`, `/series/:slug/read/:episodeSlug`) etkilemez.
 
 ## Ortam yapılandırması (API origin)
 

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links altyapısı (bkz. apps/mobile/README.md "Gelecek adım"
+	     -> gerçekleşen durum, production-bible.md yeni ADR). Bu dosya bugüne
+	     kadar hiç YOKTU (bkz. scripts/verify-ios-push-readiness.mjs
+	     "entitlements-file" kontrolü — push capability için de gerekliydi);
+	     Universal Links altyapısı vesilesiyle burada oluşturuldu ve
+	     `Runner.xcodeproj/project.pbxproj`teki Runner app target'ının Debug/
+	     Release/Profile build config'lerine `CODE_SIGN_ENTITLEMENTS` ile
+	     bağlandı.
+
+	     Production domain kararı HENÜZ verilmedi; bu yüzden aşağıdaki değer
+	     GERÇEK bir domain DEĞİLDİR — bilerek çözülemeyen bir PLACEHOLDER'dır
+	     (`.invalid` TLD, RFC 2606 — asla gerçek/kayıtlı bir domain OLAMAZ).
+	     Production domain kararlaştırıldığında:
+	       1) Aşağıdaki `applinks:` girişi gerçek domain ile değiştirilmeli.
+	       2) Xcode'da "Signing & Capabilities" -> "Associated Domains"
+	          capability'si (mevcut Apple Developer takımı + provisioning
+	          profile ile) eklenmeli/onaylanmalı — yalnız bu dosyayı elle
+	          düzenlemek Xcode'un/App Store Connect'in capability kaydını
+	          GÜNCELLEMEZ; provisioning profile bu capability'yi içermeden
+	          gerçek cihazda Universal Links doğrulaması çalışmaz. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:CONFIGURE_PRODUCTION_DOMAIN.invalid</string>
+	</array>
+</dict>
+</plist>

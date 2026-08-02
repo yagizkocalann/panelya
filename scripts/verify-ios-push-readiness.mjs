@@ -55,13 +55,23 @@ export async function validateIosPushReadiness({ mobileRoot }) {
     mobileRoot,
   );
 
-  const [infoPlistXml, pbxproj, entitlementsExists, googleServiceExists] =
+  const [infoPlistXml, pbxproj, entitlementsXml, googleServiceExists] =
     await Promise.all([
       readFile(infoPlistPath, "utf8"),
       readFile(pbxprojPath, "utf8"),
-      fileExists(entitlementsPath),
+      readFile(entitlementsPath, "utf8").catch(() => null),
       fileExists(googleServicePlistPath),
     ]);
+
+  // `Runner.entitlements` artik Universal Links (associated-domains) icin de
+  // olusturulabiliyor (bkz. Runner/Runner.entitlements yorumu); bu yuzden
+  // SADECE DOSYA VARLIGI push icin yeterli bir sinyal DEGIL — bir onceki
+  // surumde dosya hic yoktu, artik varsa bile icinde 'aps-environment'
+  // anahtari OLMAYABILIR (orn. yalniz associated-domains icin olusturulmus
+  // bir dosya). Push readiness'i yanlislikla "ready" GOSTERMEMEK icin
+  // gercek anahtarin VARLIGI da denetlenir.
+  const hasApsEnvironmentKey =
+    entitlementsXml !== null && /<key>aps-environment<\/key>/u.test(entitlementsXml);
 
   const checks = [
     check(
@@ -77,8 +87,8 @@ export async function validateIosPushReadiness({ mobileRoot }) {
     ),
     check(
       "entitlements-file",
-      entitlementsExists,
-      "ios/Runner/Runner.entitlements bulunamadi. Push Notifications capability (aps-environment girdisi) icin gerekli; Xcode'da 'Signing & Capabilities' -> 'Push Notifications' eklenip GECERLI bir Apple Developer takimi + provisioning profile ile olusturulur. Bu depo/script tarafindan OTOMATIK olusturulamaz.",
+      hasApsEnvironmentKey,
+      "ios/Runner/Runner.entitlements bulunamadi VEYA icinde 'aps-environment' anahtari yok (dosya var olsa bile — orn. yalniz Universal Links associated-domains icin olusturulmus bir entitlements dosyasi bu anahtari icermez). Push Notifications capability icin Xcode'da 'Signing & Capabilities' -> 'Push Notifications' eklenip/onaylanip GECERLI bir Apple Developer takimi + provisioning profile ile guncellenmelidir. Bu depo/script tarafindan OTOMATIK olusturulamaz.",
     ),
     check(
       "entitlements-wired-to-target",
