@@ -100,6 +100,57 @@ Mobil tarafta ilgili kod sertleştirildi: APNs token'ı hazır değilken
 abonelik artık sessizce kaybolmuyor (bkz. `codex/mobile`,
 `apns_token_wait.dart`).
 
+**2026-08-02 güncellemesi — cihaz erişilebilirlik denemesi + yeni somut
+bulgu.** `xcrun xctrace list devices` iki eşleşmiş fiziksel iPhone gösterdi
+("Yağız iPhone'u", "kca") ama ikisi de "Devices Offline" altındaydı;
+`flutter devices` her ikisi için de "Ensure the device is unlocked and
+attached with a cable or associated with the same local area network as
+this Mac. The device must be opted into Developer Mode to connect
+wirelessly. (code -27)" hatası verdi. Yani bu oturumda da HİÇBİR fiziksel
+cihaz erişilebilir değildi; APNs teslimi/deep-link açılışı yine canlı
+doğrulanamadı. Sahte sonuç üretilmedi.
+
+Bunun yerine `scripts/verify-ios-push-readiness.mjs`
+(`npm run ios-push:preflight`, `tests/ios-push-preflight.test.mjs` ile
+`npm test` içinden kapsanır) eklendi — Info.plist, `project.pbxproj` ve
+`GoogleService-Info.plist`/`Runner.entitlements` VARLIĞINI secret
+göstermeden statik olarak denetler. Bu turda çalıştırıldığında **gerçek
+projede `ios/Runner/Runner.entitlements` dosyası hiç yok ve
+`project.pbxproj`de `CODE_SIGN_ENTITLEMENTS` build ayarı hiç kayıtlı
+değil** bulundu — yani Xcode'da Push Notifications capability henüz hiç
+eklenmemiş. Bu, önceki turlarda "yalnız gerçek cihazda doğrulanabilir"
+olarak genel geçtirilmiş ama daha önce hiç bu şekilde isimlendirilmemiş
+somut bir dış bağımlılıktı: gerçek cihaz erişilebilir olsa BİLE bu
+capability Xcode'da eklenip geçerli bir provisioning profile ile
+eşleştirilmeden APNs kaydı muhtemelen başarısız olur.
+
+Ayrıca `FirebasePushNotificationRepository`'nin önceden HİÇ otomatik testi
+olmayan üç davranışı (token geç gelirse abonelik yine tamamlanır mı, token
+hiç gelmezse durum dürüstçe raporlanır mı, soğuk başlangıç/arka planda
+bekleyen bildirim kaybolur mu) Firebase eklenti sınırının dışına çıkarılıp
+(`withApnsRetry`, `notificationTapStream`, `resolveDeepLink`,
+`isAuthorizedStatus` — `apps/mobile/lib/features/push/data/`) saf Dart
+fonksiyonları olarak test edildi (bkz.
+`apps/mobile/test/features/push/data/apns_retry_test.dart`,
+`notification_tap_stream_test.dart`, `push_deep_link_test.dart`,
+`push_authorization_test.dart`). Adım adım canlı QA yönergesi
+`docs/manual-qa-checklist.md` → "iOS push canlı QA adım adım yönergesi"
+bölümündedir; eksiksiz dış bağımlılık listesi (yalnız adlar) o script'in
+`IOS_PUSH_EXTERNAL_DEPENDENCIES` sabitinde ve aşağıda tekrarlanır:
+
+- Apple Developer Program üyeliği (ücretli, aktif).
+- Xcode "Signing & Capabilities" → "Push Notifications" capability
+  (`Runner.entitlements`'ı üretir).
+- Push Notifications destekleyen geçerli bir provisioning profile
+  (Development veya Distribution, projenin `DEVELOPMENT_TEAM`'iyle eşleşen).
+- APNs Auth Key (.p8) + Key ID + Team ID → Firebase Console → Cloud
+  Messaging → Apple app configuration'a yüklü olmalı.
+- Fiziksel bir iPhone (Simulator APNs token ALAMAZ).
+- Sunucu tarafı gönderim değişkenleri `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL`
+  / `FCM_PRIVATE_KEY` — bunlar zaten
+  `scripts/verify-production-deployment-readiness.mjs` tarafından
+  denetleniyor, burada tekrar edilmedi.
+
 ## 6. Hesap silme akışı — disposable hesap gerekiyor
 
 `POST /api/account/deletion` **hiçbir platformda çalıştırılmadı**. Elde
