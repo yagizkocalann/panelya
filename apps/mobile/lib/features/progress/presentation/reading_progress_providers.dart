@@ -1,16 +1,31 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/storage/shared_preferences_provider.dart';
+import '../../auth/domain/auth_session_state.dart';
+import '../../auth/presentation/auth_providers.dart';
 import '../data/shared_preferences_reading_progress_repository.dart';
 import '../domain/reading_progress.dart';
 import '../domain/reading_progress_repository.dart';
 
 /// Aktif [LocalReadingProgressRepository]. Ekranlar `SharedPreferences`'ı
 /// değil bu provider'ı (veya aşağıdaki türetilmiş provider'ları) kullanır.
+/// Aktif cihaz-yerel ilerleme deposu.
+///
+/// NAMESPACE: oturuma göre seçilir (bkz. ADR-049). Giriş yapılmışsa
+/// KULLANICIYA ÖZEL anahtar, aksi hâlde anonim cihaz anahtarı kullanılır.
+/// `authSessionProvider` izlendiği için çıkış yapınca veya başka hesaba
+/// geçince depo otomatik olarak o hesabın namespace'ine döner — önceki
+/// kullanıcının ilerlemesi GÖRÜNMEZ.
 final readingProgressRepositoryProvider =
     Provider<LocalReadingProgressRepository>((ref) {
+      final session = ref.watch(authSessionProvider);
+      final userId = switch (session) {
+        AuthAuthenticated(:final user) => user.id,
+        AuthAnonymous() => null,
+      };
       return SharedPreferencesReadingProgressRepository(
         ref.watch(sharedPreferencesProvider),
+        userId: userId,
       );
     });
 
