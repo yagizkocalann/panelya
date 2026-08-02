@@ -18,13 +18,22 @@ import '../domain/reading_progress_repository.dart';
 /// çözüm bu basit anahtar-değer kaydı için gerekli değil.
 class SharedPreferencesReadingProgressRepository
     implements LocalReadingProgressRepository {
-  SharedPreferencesReadingProgressRepository(this._prefs);
+  /// [userId] `null` ise ANONIM cihaz namespace'i kullanılır.
+  ///
+  /// NAMESPACE AYRIMI (bkz. ADR-049): her kullanıcının ilerlemesi kendi
+  /// anahtarında tutulur; anonim cihaz kaydı ayrı bir anahtardadır. Böylece
+  /// çıkış yapınca veya BAŞKA bir hesaba geçince önceki kullanıcının
+  /// ilerlemesi GÖRÜNMEZ — tek anahtar kullanılsaydı veri hesaplar arasında
+  /// sızardı.
+  SharedPreferencesReadingProgressRepository(this._prefs, {String? userId})
+    : _storageKey = userId == null ? _anonymousKey : '$_userKeyPrefix$userId';
 
-  /// Tek depolama anahtarı. Sürüm son eki (`.v1`), ileride kayıt şekli
-  /// değişirse eski/uyumsuz veriyi göz ardı edip sıfırdan başlamayı
-  /// kolaylaştırır.
-  static const _storageKey = 'panelya.reading_progress.v1';
+  /// Anonim/cihaz-yerel namespace. Kullanıcı giriş yapsa bile bu kayıtlar
+  /// hesaba SESSIZCE YÜKLENMEZ; burada korunur.
+  static const _anonymousKey = 'panelya.reading_progress.v1';
+  static const _userKeyPrefix = 'panelya.reading_progress.v1.user.';
 
+  final String _storageKey;
   final SharedPreferences _prefs;
 
   Map<String, dynamic> _readAll() {

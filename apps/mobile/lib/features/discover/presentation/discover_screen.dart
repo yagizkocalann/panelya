@@ -11,6 +11,7 @@ import '../../../features/discovery/presentation/discovery_providers.dart';
 import '../../../features/discovery/presentation/genre_disclosure.dart';
 import '../../../features/progress/domain/reading_progress.dart';
 import '../../../features/progress/presentation/reading_progress_providers.dart';
+import '../../../features/progress/presentation/remote_progress_providers.dart';
 import '../../../shared/layout/content_max_width.dart';
 import '../../../shared/widgets/cover_image.dart';
 import '../../../shared/widgets/episode_update_card.dart';
@@ -176,6 +177,13 @@ class _DiscoverContent extends ConsumerWidget {
     // Cihaz-yerel "kaldığın yerden devam et" kaydı (bkz. PLAN, hesapsız
     // özellik). Kayıt yoksa şerit hiç render edilmez — boş durum/placeholder
     // yok (ADR-010).
+    // Giriş yapılmışsa sunucudaki ilerleme KANONİKTİR: hidrasyon bir kez
+    // çalışır ve yerel cache'i besler (bkz. ADR-049,
+    // `readingProgressHydrationResultProvider`). Anonimde hiç istek
+    // yapılmaz. Burada yalnız İZLENİR — sonucu beklemeyiz; hidrasyon
+    // tamamlanınca yerel depo güncellendiği için aşağıdaki provider
+    // yeniden okunur.
+    ref.watch(readingProgressHydrationResultProvider);
     final continueReading = ref.watch(mostRecentReadingProgressProvider);
 
     return RefreshIndicator(

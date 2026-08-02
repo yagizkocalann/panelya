@@ -321,6 +321,111 @@ class PanelyaApiClient {
     );
   }
 
+  /// `GET /api/progress` — kullanicinin okuma ilerlemesi.
+  ///
+  /// Sunucunun SIRASI korunur; istemci yeniden siralama URETMEZ.
+  Future<ReadingProgressResponse> fetchReadingProgress({
+    required String accessToken,
+  }) {
+    return _progressJson(
+      'GET',
+      '/api/progress',
+      accessToken,
+      ReadingProgressResponse.fromJson,
+    );
+  }
+
+  /// `POST /api/progress` — ilerleme yazimi.
+  ///
+  /// TOGGLE veya DELTA DEGILDIR: hedef durumun tamami (`seriesSlug`,
+  /// `episodeSlug`, tam sayi `percent`) gonderilir.
+  Future<ReadingProgressMutationResponse> upsertReadingProgress({
+    required String accessToken,
+    required ReadingProgressUpsertRequest request,
+  }) {
+    return _progressJson(
+      'POST',
+      '/api/progress',
+      accessToken,
+      ReadingProgressMutationResponse.fromJson,
+      body: request.toJson(),
+    );
+  }
+
+  /// [_libraryJson]in ilerleme esdegeri; hata govdesi
+  /// [ReadingProgressErrorResponse] olarak ayristirilir.
+  Future<T> _progressJson<T>(
+    String method,
+    String path,
+    String accessToken,
+    T Function(Map<String, dynamic> json) fromJson, {
+    Map<String, dynamic>? body,
+  }) async {
+    final uri = Uri.parse('$apiOrigin$path');
+    final headers = <String, String>{
+      'Authorization': 'Bearer $accessToken',
+      'Accept': 'application/json',
+      if (body != null) 'Content-Type': 'application/json',
+    };
+
+    http.Response response;
+    try {
+      final request = http.Request(method, uri)..headers.addAll(headers);
+      if (body != null) request.body = jsonEncode(body);
+      final streamed = await _httpClient.send(request).timeout(timeout);
+      response = await http.Response.fromStream(streamed);
+    } on TimeoutException catch (cause) {
+      throw NetworkException('Istek zaman asimina ugradi: $path', cause: cause);
+    } on SocketException catch (cause) {
+      throw NetworkException('Sunucuya baglanilamadi: $path', cause: cause);
+    } on http.ClientException catch (cause) {
+      throw NetworkException('Ag hatasi: $path', cause: cause);
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException catch (cause) {
+      throw ParseException('Gecersiz JSON govdesi: $path', cause: cause);
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw ParseException('Beklenmeyen JSON sekli: $path');
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      try {
+        throw ReadingProgressApiException(
+          ReadingProgressErrorResponse.fromJson(decoded),
+        );
+      } on TypeError {
+        throw HttpStatusException(statusCode: response.statusCode, path: path);
+      } on FormatException {
+        throw HttpStatusException(statusCode: response.statusCode, path: path);
+      }
+    }
+
+    final schemaVersion = decoded['schemaVersion'];
+    if (schemaVersion != null && schemaVersion != kSchemaVersion) {
+      throw SchemaMismatchException(
+        '$path su surumu dondurdu: $schemaVersion, beklenen: $kSchemaVersion',
+      );
+    }
+
+    try {
+      return fromJson(decoded);
+    } on TypeError catch (cause) {
+      throw ParseException(
+        'JSON sekli sozlesmeyle eslesmiyor: $path',
+        cause: cause,
+      );
+    } on FormatException catch (cause) {
+      throw ParseException(
+        'JSON sekli sozlesmeyle eslesmiyor: $path',
+        cause: cause,
+      );
+    }
+  }
+
   /// `GET /api/library` — kullanicinin kutuphanesi.
   ///
   /// Sunucunun verdigi SIRALAMA korunur; istemci `updatedAt` veya Turkce
