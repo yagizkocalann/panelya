@@ -11,9 +11,10 @@ import test from "node:test";
 // garanti altına almak. Bkz. docs/mobile-web-handoff-findings.md #7 ve
 // apps/mobile/README.md "Release build".
 
-const [gradleFile, rootGitignore, androidGitignore] = await Promise.all([
+const [gradleFile, rootGitignore, mobileGitignore, androidGitignore] = await Promise.all([
   readFile(new URL("../apps/mobile/android/app/build.gradle.kts", import.meta.url), "utf8"),
   readFile(new URL("../.gitignore", import.meta.url), "utf8"),
+  readFile(new URL("../apps/mobile/.gitignore", import.meta.url), "utf8"),
   readFile(new URL("../apps/mobile/android/.gitignore", import.meta.url), "utf8"),
 ]);
 
@@ -76,4 +77,8 @@ test("key.properties ve keystore dosya desenleri .gitignore'da", () => {
   assert.match(androidGitignore, /^key\.properties$/mu);
   assert.match(androidGitignore, /\*\*\/\*\.keystore/u);
   assert.match(androidGitignore, /\*\*\/\*\.jks/u);
+});
+
+test("Android Gradle build raporlari Git disinda kalir", () => {
+  assert.match(mobileGitignore, /^\/android\/build\/$/mu);
 });
