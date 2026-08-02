@@ -26,6 +26,25 @@ yerel kayit `deleted`, silme istegi `completed`, bagli provider kimligi ve aktif
 oturum sayisi sifir olarak dogrulandi. Ayni e-postali Google girisi yerel hesaba
 sessizce birlestirilmeden guvenli baglama uyarisi ile reddedildi.
 
+2026-08-02 mobil canli QA turunda repo kokunde Git disi `.dev.vars` hic
+bulunmadi (bir onceki turun kurulumu, kural geregi tur sonunda silinmisti) ve
+bu oturumda hicbir emulator/simulator/dev sunucusu calisir durumda degildi.
+Talimat "yoksa olusturma" oldugu icin dosya OLUSTURULMADI; bunun yerine
+`scripts/verify-mobile-account-live-readiness.mjs` (`npm run
+mobile-account:preflight`) eklendi. Bu script secret DEGER yazdirmadan yalniz
+hangi degisken ADLARININ eksik oldugunu raporlar ve `tests/mobile-account-preflight.test.mjs`
+ile `npm test` icinden kapsanir. Bu oturumda script'in kendisi (bos yapilandirmayla)
+calistirilip AUTH0_GATEWAY_ENABLED, AUTH0_ISSUER, AUTH0_MOBILE_CLIENT_ID,
+AUTH0_AUDIENCE, AUTH0_MOBILE_REDIRECT_URIS, ACCOUNT_RUNTIME_SECRET,
+AUTH0_MANAGEMENT_CLIENT_ID, AUTH0_MANAGEMENT_CLIENT_SECRET,
+AUTH0_MANAGEMENT_AUDIENCE ve AUTH0_DATABASE_CONNECTION adlarinin hepsinin eksik
+oldugunu dogruladi; bu, canli mobil hesap yonetimi QA'sinin bu oturumda HIC
+yapilamadigi anlamina gelir (onceki turlarda dogrulanmis 6 akis dahil,
+cunku gateway'in kendisi bile `AUTH0_GATEWAY_ENABLED` olmadan acilmiyor). Sahte
+sonuc uretilmedi; asagidaki "Mobil hesap yonetimi canli QA adim adim
+yonergesi" bolumu bir sonraki turun ayni ortami sifirdan kurmasi icin
+eklendi.
+
 Kullanici `nerede kalmistik` dediginde kalan canli kontroller su sirayla devam
 eder:
 
@@ -33,6 +52,10 @@ eder:
    gorunumu, salt okunur e-posta ve provider-managed sifre metni. Development localhost
    consent ekrani uygulama-ozel Auth0 ayariyla kaldirildi ve canli gecti;
    production HTTPS consent kontrolu ayri tutulur.
+2. Mobil `ACCOUNT_MANAGEMENT_ENABLED=true` turu icin Git disi `.dev.vars`
+   yeniden kurulmali (bkz. asagidaki adim adim yonerge) ve oturum envanteri,
+   sifre yenileme, `scope=others`, yeniden dogrulama basari/iptal yollari ve
+   disposable hesapla silme mobil istemciden canli calistirilmali.
 
 ## Oncelikli hatirlatma kuyrugu
 
@@ -44,7 +67,7 @@ eder:
 | QA-AUTH-02 | BEKLIYOR | E-posta dogrulama ve sifre sifirlama | Public auth ekranlari + Studio `/outbox` | Tek kullanim, suresi dolmus baglanti ve sifre sonrasi eski oturumlarin kapanmasi dogrulanmali. |
 | QA-AUTH-05 | BEKLIYOR | Production Auth0 web + Flutter oturumu | Auth0 development tenant ve mobil gateway hazir; web BFF icin confidential Regular Web Application callback/logout allowlist'i ve Git disi runtime degerleri gerekir. Public `/login`, `/register`, `/api/auth/web/callback`, `/api/auth/config`, `/api/auth/me`, Flutter `panelya://auth/callback` | Sistem tarayicisinda PKCE girisi tamamlanmali; allowlist disindaki redirect URI token ucunda reddedilmeli; secret istemciye acilmamali; access token 15 dakikayi asmamali; refresh sirasinda token donmeli; eski refresh reuse butun aileyi kapatip yeniden giris istemeli; revoke sonrasi secure storage temizlenmeli; web host-only cookie mobilde taklit edilmemeli; ID token API tarafinda 401 olmali; provider subject ham bicimde D1/audit/loglarda gorunmemeli; ayni e-postali yerel hesap sessizce birlesmemeli; yeniden dogrulanmis yerel oturum + ayni dogrulanmis Auth0 e-postasiyla acik baglama calismali; web cikisi hem Panelya cookie'sini hem Auth0 SSO oturumunu kapatmali; admin claim'i D1 rolu olmadan Studio erisimi vermemeli. 2026-07-29 Auth0 development tenantinda database connection uzerinden yeni hesap kaydi, mevcut hesapla giris, sifre sifirlama e-postasi, yeni sifre belirleme ve yeni sifreyle tekrar giris urun sahibi tarafindan dogrulandi. Ayni tarihte Android sistem tarayicisi callback, token exchange, refresh, revoke ve secure storage turu mobil ekip tarafindan canli dogrulandi. 2026-07-30 web BFF state/nonce/PKCE, encrypted path-scoped cookie, callback fail-closed, exact SSO logout ve acik provider baglama kaynak/otomatik test sinirinda tamamlandi; gercek confidential web istemcisiyle canli tarayici turu bekliyor. |
 | QA-AUTH-06 | BEKLIYOR | Production Auth0 consent ekrani atlama | Ayri production `Panelya Web` first-party uygulamasi + `Panelya API` Access Settings; on kosul: callback/logout listelerinde yalniz gercek HTTPS public origin bulunur, `localhost` bulunmaz ve `Allow Skipping User Consent` aciktir | Yeni bir son kullanici ilk giriste `Authorize App` consent ekrani gormeden Universal Login'den Panelya callback'ine donmeli. 2026-07-30 development `Panelya Web` uygulamasinda `Override tenant setting` acilip `Non-Verifiable Callback URI End-User Confirmation` yalniz localhost QA icin kapatildi; yeni login islemi consent ekrani gostermeden `/account` rotasina dondu. Production uygulamasinda bu localhost istisnasi kullanilmayacak; HTTPS smoke testi tamamlanana kadar madde bekliyor. |
-| QA-ACC-05 | BEKLIYOR | Ortak production Hesabim (ADR-047) | Contract-first schema/OpenAPI/fixture ve web runtime main'e girdikten sonra; web `/account`, ortak `/api/account/*`, Android/iOS `Hesabim`; on kosul: bir Auth0 database ve bir Google test hesabi, Auth0 Management M2M izinleri, `ACCOUNT_RUNTIME_SECRET`; confidential web uygulamasinda `/api/auth/web/callback` ile `/account/reauthentication/callback` exact redirect allowlist'i | Iki platform ayni hesap yeteneklerini gostermeli. E-posta salt okunur olmali; e-posta degistirme formu/aksiyonu gorunmemeli ve `emailChange` capability'si `unavailable` olmali. Database kullanicisi sifre yenileme e-postasi isteyebilmeli; sosyal hesapta yerel sifre formu olmamali. Hesap silme taze Auth0 dogrulamasi olmadan reddedilmeli; PKCE/state/nonce/verifier tekrar kullanimi fail-closed olmali. Oturum listesi web/native kayitlarini birlestirmeli; tekil/toplu iptal calismali, native mevcut cihaz dogru isaretlenmeli ve ham provider credential/token acilmamali. Engellenen hesaplar iki platformda ayni olmali. Silme uygulama icinden baslatilmali, Auth0 kimligi ile Panelya verisini birlikte kapatmali ve yarim kalan temizleme idempotent tekrar edilebilmeli. 2026-07-30 mobil `codex/mobile@e596c6b` presentation turunda 6 ekran ve yayin korumasi dogrulandi. Ayni tarihte web `codex/account-runtime` dalinda ortak AccountActor, tum contract route'lari, PKCE/JWE tek kullanimli reauthentication, Management API adapteri, session/block ve silme saga'si kaynak/test seviyesinde tamamlandi; lint temiz, 56/56 web testi yesil. Yerel gercek tarayici turunda sentetik hesap kaydi, `/account` acilisi, profil guncelleme bildirimi, `/account/sessions` mevcut cihaz gorunumu ve uygulama ici hesap silme dogrulandi. Ayrica bellek ici cookie ile ortak hesap ozeti, JSON profil guncelleme ve bos engel listesi cevaplari 200/contract sekliyle; `ACCOUNT_RUNTIME_SECRET` eksikken production session ucunun 503 `service_unavailable` ile fail-closed kalmasi dogrulandi. 2026-07-30 web production arayuzu profil, sifre yenileme, birlesik oturum, engel ve yapilandirilmis silme endpointlerine baglandi; callback code adres cubugundan temizlenir, verifier/session action yalniz `sessionStorage` kullanir ve silme ikinci acik onay ile idempotency anahtari ister. Sentetik hesap ve QA kalintisi birakilmadi. Canli turdan once Git disi runtime dosyasini secret degeri yazdirmadan denetleyen `npm run auth0:preflight` kapisi eklendi; eksik ikinci web callback'i, native callback, M2M alani veya kisa hesap anahtari fail-closed reddedilir. 2026-07-30 Android canli turunda `codex/mobile@2179d20` ile hesap ozeti, profil mutation'i, silme etkileri, bos engel listesi, reauthentication start ve kullanici iptal yolu dogrulandi; auth code/tokene ait hassas deger kaydedilmedi. Sure dolmus access tokeni `not_authenticated + reauthenticate` yanitinda bir kez refresh edilip istek tekrarlandi; yukleme hatalari server `errorDescription` metnini korudu. 2026-08-01 devam turunda eski bir oturum tekil kapatildi ve mevcut web/iOS oturumlari korundu. Ayni e-postali Google girisi sessiz birlestirme yerine guvenli baglama uyarisi verdi. Disposable database hesabinin taze PKCE yeniden dogrulamali silme akisi tamamlandi; D1'de kullanici `deleted`, istek `completed`, bagli provider kimligi ve oturum sayisi sifirlandi. Canli e-posta degistirme denemesi sonrasi urun karariyla aksiyon tamamen kaldirildi; ayri/baglanmis Google hesapta salt okunur e-posta ve provider-managed sifre gorunumu bekliyor. |
+| QA-ACC-05 | BEKLIYOR | Ortak production Hesabim (ADR-047) | Contract-first schema/OpenAPI/fixture ve web runtime main'e girdikten sonra; web `/account`, ortak `/api/account/*`, Android/iOS `Hesabim`; on kosul: bir Auth0 database ve bir Google test hesabi, Auth0 Management M2M izinleri, `ACCOUNT_RUNTIME_SECRET`; confidential web uygulamasinda `/api/auth/web/callback` ile `/account/reauthentication/callback` exact redirect allowlist'i | Iki platform ayni hesap yeteneklerini gostermeli. E-posta salt okunur olmali; e-posta degistirme formu/aksiyonu gorunmemeli ve `emailChange` capability'si `unavailable` olmali. Database kullanicisi sifre yenileme e-postasi isteyebilmeli; sosyal hesapta yerel sifre formu olmamali. Hesap silme taze Auth0 dogrulamasi olmadan reddedilmeli; PKCE/state/nonce/verifier tekrar kullanimi fail-closed olmali. Oturum listesi web/native kayitlarini birlestirmeli; tekil/toplu iptal calismali, native mevcut cihaz dogru isaretlenmeli ve ham provider credential/token acilmamali. Engellenen hesaplar iki platformda ayni olmali. Silme uygulama icinden baslatilmali, Auth0 kimligi ile Panelya verisini birlikte kapatmali ve yarim kalan temizleme idempotent tekrar edilebilmeli. 2026-07-30 mobil `codex/mobile@e596c6b` presentation turunda 6 ekran ve yayin korumasi dogrulandi. Ayni tarihte web `codex/account-runtime` dalinda ortak AccountActor, tum contract route'lari, PKCE/JWE tek kullanimli reauthentication, Management API adapteri, session/block ve silme saga'si kaynak/test seviyesinde tamamlandi; lint temiz, 56/56 web testi yesil. Yerel gercek tarayici turunda sentetik hesap kaydi, `/account` acilisi, profil guncelleme bildirimi, `/account/sessions` mevcut cihaz gorunumu ve uygulama ici hesap silme dogrulandi. Ayrica bellek ici cookie ile ortak hesap ozeti, JSON profil guncelleme ve bos engel listesi cevaplari 200/contract sekliyle; `ACCOUNT_RUNTIME_SECRET` eksikken production session ucunun 503 `service_unavailable` ile fail-closed kalmasi dogrulandi. 2026-07-30 web production arayuzu profil, sifre yenileme, birlesik oturum, engel ve yapilandirilmis silme endpointlerine baglandi; callback code adres cubugundan temizlenir, verifier/session action yalniz `sessionStorage` kullanir ve silme ikinci acik onay ile idempotency anahtari ister. Sentetik hesap ve QA kalintisi birakilmadi. Canli turdan once Git disi runtime dosyasini secret degeri yazdirmadan denetleyen `npm run auth0:preflight` kapisi eklendi; eksik ikinci web callback'i, native callback, M2M alani veya kisa hesap anahtari fail-closed reddedilir. 2026-07-30 Android canli turunda `codex/mobile@2179d20` ile hesap ozeti, profil mutation'i, silme etkileri, bos engel listesi, reauthentication start ve kullanici iptal yolu dogrulandi; auth code/tokene ait hassas deger kaydedilmedi. Sure dolmus access tokeni `not_authenticated + reauthenticate` yanitinda bir kez refresh edilip istek tekrarlandi; yukleme hatalari server `errorDescription` metnini korudu. 2026-08-01 devam turunda eski bir oturum tekil kapatildi ve mevcut web/iOS oturumlari korundu. Ayni e-postali Google girisi sessiz birlestirme yerine guvenli baglama uyarisi verdi. Disposable database hesabinin taze PKCE yeniden dogrulamali silme akisi tamamlandi; D1'de kullanici `deleted`, istek `completed`, bagli provider kimligi ve oturum sayisi sifirlandi. Canli e-posta degistirme denemesi sonrasi urun karariyla aksiyon tamamen kaldirildi; ayri/baglanmis Google hesapta salt okunur e-posta ve provider-managed sifre gorunumu bekliyor. 2026-08-02 mobil canli QA turunda Git disi `.dev.vars` bu oturumda hic kurulu degildi ve calisir emulator/dev sunucu yoktu; talimat geregi dosya olusturulmadi, bu yuzden oturum envanteri, sifre yenileme, `scope=others`, reauthentication basari/iptal yollari ve disposable hesapla silme bu oturumda YENIDEN dogrulanamadi (sahte sonuc uretilmedi). Bunun yerine secret deger yazdirmadan yalniz eksik degisken ADLARINI raporlayan `npm run mobile-account:preflight` (`scripts/verify-mobile-account-live-readiness.mjs`, `tests/mobile-account-preflight.test.mjs` ile `npm test` icinde kapsanir) eklendi ve calistirildiginda AUTH0_GATEWAY_ENABLED, AUTH0_ISSUER, AUTH0_MOBILE_CLIENT_ID, AUTH0_AUDIENCE, AUTH0_MOBILE_REDIRECT_URIS, ACCOUNT_RUNTIME_SECRET, AUTH0_MANAGEMENT_CLIENT_ID, AUTH0_MANAGEMENT_CLIENT_SECRET, AUTH0_MANAGEMENT_AUDIENCE ve AUTH0_DATABASE_CONNECTION adlarinin hepsinin eksik oldugunu dogruladi. Adim adim yeniden kurulum yonergesi asagida "Mobil hesap yonetimi canli QA adim adim yonergesi" basligi altindadir. |
 | QA-CONT-01 | BEKLIYOR | Seri ve bolum yayin akisi | Studio `/content` | Taslak seri/bolum publicte gorunmemeli; yayinlandiginda katalog, seri ve okuyucuya gelmeli; arsivde tekrar kalkmali. |
 | QA-NEW-01 | BEKLIYOR | Otomatik yeni seri penceresi | Studio `/content` + public `/` ve `/new-series`; on kosul: izole test serisi ve D1 zamanini guvenle degistirebilen yerel ortam | Studio formunda manuel `Yeni seri` secimi olmamali. Seri ilk kez yayinlaninca ana sayfada ve `/new-series` rotasinda `Yeni seri` rozetiyle gorunmeli; `published_at` 29 gun onceye alindiginda kalmali, tam 30 gun onceye alindiginda iki ekrandan da kaybolmali. Arsivleyip yeniden yayinlamak ilk yayin zamanini yenilememeli. Iki sayfa 1440/1024/768/390/360 px'te tasmamali; yeni seri kalmadiginda ana sayfadaki bolum gizlenmeli ve ayri route acik bos durum gostermeli. |
 | QA-MED-01 | BEKLIYOR | Kapak/panel yukleme ve responsive turetme | Studio `/media` ve bolum editoru | Gecersiz dosya reddedilmeli; gecerli gorsel yuklenmeli; 480/768/1200 kuyrugu tamamlanmali ve okuyucu uygun `srcset` varligini kullanmali. |
@@ -82,6 +105,70 @@ eder:
 | QA-RESP-01 | BEKLIYOR | Responsive genel tur | Public ana/seri/okuyucu, auth ve Studio; on kosul: public okuyucu ve ayri Studio admin oturumu | 2026-07-19 gercek tarayici/ajan turunda public ana, katalog, seri, okuyucu, auth, hesap ve kutuphane akislarinda yatay tasma veya 44 px alti hedef bulunmadi; mobilde kaybolan `Kutuphane` ust menu aksiyonu bulundu, duzeltildi ve 390/360 px'te 44x44 hedefle tiklanarak dogrulandi. Yetkili Studio `/`, `/content`, `/media`, `/messages`, `/ads`, `/outbox`, `/moderation`, `/users`, `/audit` ve `/qa` ekranlari 1440/1024/768/390/360 px'te toplam 50 gorunumde tarandi; yatay tasma, 44 px alti gorunur hedef veya console warning/error bulunmadi. Chrome kontrol katmaninda tam Tab/focus sirasi guvenilir bicimde surulemedigi icin klavye turu kullanici testinde kaldi. |
 | QA-READ-01 | BEKLIYOR | Uzun bolum performansi ve devam konumu | Public uzun okuyucu route'u; on kosul: en az 15 gorselli bolum ve tarayici ag yavaslatma profili | Ilk panel oncelikli, ekran disi paneller lazy kalmali; ayrilan oran nedeniyle gorsel geldikce sayfa sicrama yapmamali. Orta konumdan seri sayfasina donup mobil `Devam et` ile acinca ayni yuzdeye gelmeli. Yavas agda iskelet, eksik/404 panelde alt metin ve `Tekrar dene` gorunmeli; console hatasi ve yatay tasma olmamali. 2026-07-19 yerel 390 px turunda 18 panelin ilk ikisi yuklu, 16'si ertelenmis basladi; %33 konumu geri yuklendi ve 7 panel ekran disinda lazy kaldi. Gercek ag throttling ve 404 yaniti kullanici testinde tamamlanacak. |
 | QA-READ-02 | BEKLIYOR | Seri kapagi ve bolum baslangici ayrimi | Public katalog/seri sayfasi ve ayni serinin okuyucu route'u; Flutter seri/okuyucu ekranlari | Seri kapagi katalog karti ile seri detayinda gorunmeli. Bolume girildiginde otomatik baslik karti veya seri kapagi tekrar etmemeli; okuyucu govdesi dogrudan manifestteki ilk panelle baslamali. Editorial acilis kapagi gerekiyorsa Studio'da gercek ilk panel olarak yuklenmeli. Web ve Flutter ayni ayrimi korumali. 2026-07-28 ajan turunda yerel Lookism kapagi seri detayinda 3:4 poster alaninda, okuyucu ise otomatik giris karti olmadan ilk panelle 1440/1024/768/390/360 px'te ve bos console ile dogrulandi; urun sahibi gorunur akisi ayrica onaylayacak. |
+
+## Mobil hesap yonetimi canli QA adim adim yonergesi (ACCOUNT_MANAGEMENT_ENABLED)
+
+Bu yonerge, `ACCOUNT_MANAGEMENT_ENABLED=true` ile derlenmis Flutter
+istemcisinde `Hesabim` yonetim ekranlarinin (ADR-047) canli QA turunu bir
+sonraki ajan/kullanicinin sifirdan tekrar kurabilmesi icin adim adim
+tanimlar. Hicbir adim gercek parola veya secret degeri istemez/yazdirmaz.
+
+### 0. On kosul: ortam kurulumu
+
+1. Repo kokunde Git disi (`\.gitignore` kapsaminda) `.dev.vars` dosyasini
+   olustur; en az su adlari doldur (degerler bu dosyaya, hicbir loga veya
+   commit'e YAZILMAZ): `AUTH0_GATEWAY_ENABLED=true`, `AUTH0_ISSUER`,
+   `AUTH0_MOBILE_CLIENT_ID`, `AUTH0_AUDIENCE`, `AUTH0_MOBILE_REDIRECT_URIS`
+   (icinde `panelya://auth/callback` olmali), `ACCOUNT_RUNTIME_SECRET` (en az
+   32 karakter), `AUTH0_MANAGEMENT_CLIENT_ID`, `AUTH0_MANAGEMENT_CLIENT_SECRET`,
+   `AUTH0_MANAGEMENT_AUDIENCE` (`https://<tenant>/api/v2/`),
+   `AUTH0_DATABASE_CONNECTION`.
+2. Dogrula: `PATH=/opt/homebrew/opt/node@22/bin:$PATH npm run
+   mobile-account:preflight`. Sifir cikis kodu ve "SONUÇ: Mobil hesap
+   yönetimi canlı QA turuna hazır." beklenir; script hicbir secret DEGERINI
+   yazdirmaz, yalniz eksik alan adlarini raporlar.
+3. `npm run dev` ile web/API sunucusunu baslat.
+4. Android emulator/gercek cihazda mobil uygulamayi
+   `--dart-define=AUTH_ENABLED=true --dart-define=ACCOUNT_MANAGEMENT_ENABLED=true`
+   ile calistir; API base URL'inin adim 3'teki sunucuyu gosterdigini dogrula.
+
+### 1. Giris
+
+Sistem tarayicisinda Auth0 login'i tamamla. Parola formu cikarsa (mevcut
+tarayici oturumu yoksa) TUR BURADA DURUR ve "parola gerekiyor, dis kapi"
+olarak kaydedilir — parola girilmez, kullaniciya sorulmaz. Yalniz zaten acik
+bir tarayici oturumunun gosterdigi "Authorize App" onay ekranina basilabilir.
+
+### 2. Akis sirasi ve beklenen endpoint/status
+
+| # | Akis | Beklenen endpoint | Beklenen status | Kontrol |
+| --- | --- | --- | --- | --- |
+| 1 | Hesap ozeti | `GET /api/account` | 200 | Profil/e-posta/yetenekler dogru gorunur |
+| 2 | Profil guncelleme | `PATCH /api/account/profile` | 200 | Yeni ad ekranda ve `GET /api/account` tekrarinda kalici |
+| 3 | Aktif oturumlar | `GET /api/account/sessions` | 200 (ACCOUNT_RUNTIME_SECRET kuruluysa), eksikse 503 `service_unavailable` | Mevcut cihaz `current:true`; web/native kayitlar birlesik |
+| 4 | Tek oturum kapatma | `DELETE /api/account/sessions/:id` | 200/204 | Hedef DISI bir eski oturumla dene; liste yenilenince satir kaybolur |
+| 5 | Diger tum oturumlari kapatma | `POST /api/account/sessions/revoke` (`scope=others`) | 200 beklenir; bilinen sinir geregi 503 donebilir (bkz. `docs/mobile-web-handoff-findings.md` #2) | 503 donerse istemci sunucu mesajini oldugu gibi gostermeli, sahte basari YOK |
+| 6 | Sifre yenileme e-postasi | `POST /api/account/password-reset` | 202 | Yalniz Auth0 database hesabinda gorunur; sosyal hesapta aksiyon hic gorunmemeli (`provider_managed`) |
+| 7 | Engellenen hesaplar | `GET /api/account/blocks` | 200 | Bos liste kabul edilir |
+| 8 | Yeniden dogrulama IPTAL yolu | `POST /api/account/reauthentication/start` sonrasi Auth0 ekraninda geri/iptal | `complete` hic cagrilmaz | Istemci hatasiz iptal gosterir, mutation tetiklenmez |
+| 9 | Yeniden dogrulama BASARI yolu | `POST /api/account/reauthentication/start` -> Auth0 `max_age=0` tamamlanir -> `POST /api/account/reauthentication/complete` | 200 | Donen token ekranda/logda gorunmez, en cok 10 dakika ve tek kullanimlik |
+| 10 | Hesap silme | `POST /api/account/deletion` | 202 (pending) veya 200 (completed) | YALNIZ disposable/test Auth0 hesabiyla; gercek kisisel hesapla ASLA calistirilmaz. D1'de kullanici `deleted`, bagli provider kimligi ve oturum sayisi sifir olmali |
+
+### 3. 401 + refresh kaniti
+
+Access token suresi dolduğunda (15 dakika) sunucu logunda (ANSI escape
+oldugu icin MUTLAKA `grep -a` ile) ayni istek zinciri icin `401` -> `POST
+/api/auth/mobile/token` -> `200` sirasinin goruldugunu dogrula. Sayimlari
+"oncesi/sonrasi farki" olarak yap, mutlak sayi varsayma. Istemci ikinci
+401'de kullaniciyi yeniden girise yonlendirmeli.
+
+### 4. Temizlik
+
+Tur bitince: `.dev.vars` dosyasini SEN olusturduysan sil (onceki bir turdan
+kalmissa SILME). Sen baslattiysan emulator/simulator/dev sunucu/logcat
+yakalamayi kapat. Disposable hesap silindiyse ekstra temizlik gerekmez;
+silinemediyse Auth0 dashboard'undan manuel temizle. Gercek kisisel hesap
+ASLA silinmez.
 
 ## 2026-07-19 gercek tarayici ajan turu
 

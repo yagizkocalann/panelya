@@ -34,6 +34,34 @@ olmadığı için sunucu 503 döndü ve istemci bunu doğru ele aldı —
 yapılandırılmamış.` mesajını olduğu gibi gösterdi, sahte başarı
 üretmedi.
 
+**2026-08-02 güncellemesi.** Bu turda repo kökünde `.dev.vars` **hiç**
+bulunmadı (bir önceki turun kurulumu, kural gereği tur sonunda silinmişti)
+ve çalışır durumda emulator/simulator/dev sunucusu da yoktu. Talimat "yoksa
+oluşturma" olduğu için dosya oluşturulmadı; bu yalnız yukarıdaki iki akışı
+değil, `AUTH0_GATEWAY_ENABLED` eksik olduğu için **mobil token gateway'inin
+tamamını** (dolayısıyla tüm `/api/account/*` ve `/api/auth/mobile/*`
+uçlarını) etkiler — bu oturumda hiçbir mobil hesap yönetimi akışı canlı
+çalıştırılamadı. Secret değer açmadan hangi adların eksik olduğunu
+raporlayan `scripts/verify-mobile-account-live-readiness.mjs`
+(`npm run mobile-account:preflight`) eklendi; `tests/mobile-account-preflight.test.mjs`
+ile `npm test` içinden kapsanır. Bir sonraki mobil canlı QA turu
+`.dev.vars` dosyasını yukarıdaki tam listeyle yeniden kurup bu script
+sıfır çıkış koduyla "hazır" diyene kadar devam etmemelidir; adım adım
+yönerge `docs/manual-qa-checklist.md` → "Mobil hesap yönetimi canlı QA
+adım adım yönergesi" bölümündedir.
+
+Ayrı bir gözlem: mevcut `scripts/verify-auth0-live-readiness.mjs` ve
+`scripts/verify-production-deployment-readiness.mjs` kendi `--env-file`
+CLI bayrağını kullanıyor; bu isim Node.js 20.6+'ın yerleşik `--env-file`
+bayrağıyla çakışır. Hedef dosya yoksa Node, script'in kendi dostane
+"okunamadı" hatasını hiç basmadan, kendi opak "not found" mesajıyla (exit
+9) çöker. Sonuç yine fail-closed kaldığı için üretim davranışını
+bozmaz, ama script'in kendi hata mesajı görünmez. Yeni eklenen
+`verify-mobile-account-live-readiness.mjs` bu çakışmayı önlemek için
+kasıtlı olarak `--dev-vars` bayrağını kullanır; mevcut iki script'in
+düzeltilmesi bu turun kapsamı dışında bırakıldı çünkü onlar hesap
+yönetimine özgü değil ve değişiklik diğer dokümü/testleri etkileyebilir.
+
 ## 2. `scope=others` — current-device gateway eşlemesi
 
 Web tarafının bildirdiği bilinen sınır: native refresh credential kimliği
