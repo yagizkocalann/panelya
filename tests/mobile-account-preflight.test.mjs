@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { validateMobileAccountLiveReadiness } from "../scripts/verify-mobile-account-live-readiness.mjs";
 
@@ -65,9 +66,13 @@ test("mobil hesap ön kontrolü .dev.vars eksikken tüm alanları dış kapı ol
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const run = promisify(execFile);
-  const missingEnvFile = new URL("./fixtures/does-not-exist.dev.vars", import.meta.url).pathname;
-  const { stdout } = await run("node", [
-    new URL("../scripts/verify-mobile-account-live-readiness.mjs", import.meta.url).pathname,
+  const missingEnvFile = fileURLToPath(
+    new URL("./fixtures/does-not-exist.dev.vars", import.meta.url),
+  );
+  const { stdout } = await run(process.execPath, [
+    fileURLToPath(
+      new URL("../scripts/verify-mobile-account-live-readiness.mjs", import.meta.url),
+    ),
     "--dev-vars",
     missingEnvFile,
   ]).catch((error) => ({ stdout: error.stdout }));
