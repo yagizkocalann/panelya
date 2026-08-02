@@ -1,0 +1,6 @@
+// !$*UTF8*$!
+// Bu bir fixture'dir, gercek bir Xcode proje dosyasi degildir. Yalniz
+// verify-ios-push-readiness.mjs'nin CODE_SIGN_ENTITLEMENTS aramasini
+// test etmek icin yeterli miktarda metin icerir.
+CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
+DEVELOPMENT_TEAM = FIXTUREZZZZ;

@@ -45,6 +45,30 @@ sonuc uretilmedi; asagidaki "Mobil hesap yonetimi canli QA adim adim
 yonergesi" bolumu bir sonraki turun ayni ortami sifirdan kurmasi icin
 eklendi.
 
+2026-08-02 iOS push canlı QA turunda `xcrun xctrace list devices` iki eşleşmiş
+fiziksel iPhone gösterdi ("Yağız iPhone'u", "kca") ama ikisi de "Devices
+Offline" altındaydı; `flutter devices` her ikisi için de "Ensure the device is
+unlocked and attached with a cable or associated with the same local area
+network as this Mac." hatası verdi (code -27, Developer Mode kablosuz için
+kapalı). Yani hiçbir fiziksel cihaz bu oturumda ERİŞİLEBİLİR değildi — APNs
+teslimi/deep-link açılışı yine canlı doğrulanamadı (bkz.
+`docs/mobile-web-handoff-findings.md` #5). Sahte sonuç üretilmedi; bunun
+yerine `scripts/verify-ios-push-readiness.mjs`
+(`npm run ios-push:preflight`) eklendi — statik proje dosyalarını (Info.plist,
+project.pbxproj, `Runner.entitlements`, `GoogleService-Info.plist` varlığı)
+secret göstermeden denetler. Bu turda çalıştırıldığında **`Runner.entitlements`
+hiç yok ve `project.pbxproj`de `CODE_SIGN_ENTITLEMENTS` build ayarı hiç
+kayıtlı değil** bulundu — yani Push Notifications capability Xcode tarafında
+hiç eklenmemiş; bu, gerçek cihazda APNs kaydının bugün büyük olasılıkla
+başarısız olacağı anlamına gelir ve önceki turlarda hiç yazılı olarak
+belirtilmemiş somut bir eksikti. Ayrıca `waitForApnsToken`/abonelik retry
+mantığının (token geç gelirse, hiç gelmezse, çift başarısızlıkta) ve
+`notificationTaps` soğuk-başlangıç/arka-plan birleştirmesinin o zamana kadar
+HİÇ otomatik testi yoktu; bu turda `withApnsRetry`/`notificationTapStream`/
+`resolveDeepLink`/`isAuthorizedStatus` olarak Firebase eklenti sınırının
+dışına çıkarılıp `apps/mobile/test/features/push/data/` altına eklendi (bkz.
+aşağıdaki "iOS push canlı QA adım adım yönergesi").
+
 Kullanici `nerede kalmistik` dediginde kalan canli kontroller su sirayla devam
 eder:
 
@@ -56,6 +80,11 @@ eder:
    yeniden kurulmali (bkz. asagidaki adim adim yonerge) ve oturum envanteri,
    sifre yenileme, `scope=others`, yeniden dogrulama basari/iptal yollari ve
    disposable hesapla silme mobil istemciden canli calistirilmali.
+3. iOS push canlı QA turu: gerçek bir iPhone kablo/Wi-Fi üzerinden erişilebilir
+   hale geldiğinde aşağıdaki "iOS push canlı QA adım adım yönergesi" bölümü
+   baştan sona uygulanmalı (bildirim izni, APNs token bekleme, topic
+   aboneliği, gerçek teslimat, deep-link açılışı; ön planda/arka planda/kapalı
+   üç durumda).
 
 ## Oncelikli hatirlatma kuyrugu
 
@@ -169,6 +198,88 @@ kalmissa SILME). Sen baslattiysan emulator/simulator/dev sunucu/logcat
 yakalamayi kapat. Disposable hesap silindiyse ekstra temizlik gerekmez;
 silinemediyse Auth0 dashboard'undan manuel temizle. Gercek kisisel hesap
 ASLA silinmez.
+
+## iOS push canlı QA adım adım yönergesi
+
+Bu yönerge, iOS push bildirimlerinin (yeni bölüm duyuruları,
+`panelya-new-episodes` FCM konusu) bir sonraki ajan/kullanıcı tarafından
+GERÇEK bir iPhone erişilebilir olduğunda baştan sona canlı doğrulanabilmesi
+içindir. APNs Simulator'da HİÇ çalışmaz (bkz.
+`docs/mobile-web-handoff-findings.md` #5); bu yüzden bu bölümdeki hiçbir adım
+Simulator'da "geçti" sayılamaz — Simulator sonucu fiziksel APNs başarısı
+olarak RAPORLANMAZ.
+
+### 0. Ön koşullar (hepsi eksiksiz olmalı)
+
+1. **Apple Developer Program üyeliği** (ücretli, aktif) — proje takımı için.
+2. Xcode'da `Runner` hedefi → **Signing & Capabilities** → **Push
+   Notifications** capability eklenmiş olmalı (bu, `Runner.entitlements`
+   dosyasını ve `project.pbxproj`de `CODE_SIGN_ENTITLEMENTS` build ayarını
+   OTOMATİK üretir — depo bunu elle içermez).
+3. Bu capability ile eşleşen, Push Notifications destekleyen GEÇERLİ bir
+   provisioning profile (Development veya Distribution, projenin
+   `DEVELOPMENT_TEAM`'iyle eşleşen).
+4. **APNs Auth Key (.p8) + Key ID + Team ID** Firebase Console → proje →
+   Project settings → **Cloud Messaging** → **Apple app configuration**
+   altına yüklenmiş olmalı. Bu olmadan Firebase, APNs'e teslim edemez (FCM
+   konuya abone olsa bile bildirim cihaza ULAŞMAZ).
+5. `apps/mobile/ios/Runner/GoogleService-Info.plist` yerinde (bkz.
+   `docs/mobile-firebase-config.md`).
+6. Fiziksel bir iPhone, kilidi AÇIK, kabloyla (veya Developer Mode açık
+   kablosuz) bağlı. Doğrula:
+   `xcrun xctrace list devices` çıktısında cihaz "Devices Offline" DEĞİL,
+   üst "Devices" bölümünde görünmeli; `cd apps/mobile && flutter devices`
+   cihazı gerçek bir satır olarak listelemeli ("Ensure the device is
+   unlocked and attached with a cable" hatası ERİŞİLEMEZ demektir, bu turu
+   BAŞLATMA).
+7. Statik ön kontrol: `PATH=/opt/homebrew/opt/node@22/bin:$PATH npm run
+   ios-push:preflight`. Sıfır çıkış kodu beklenir; script yalnız depodaki
+   dosyaların VAR/YOK durumunu raporlar (adım 1-4'ü DOĞRULAYAMAZ — bunlar
+   Apple/Firebase Console'da elle kontrol edilmeli), hiçbir secret/API
+   anahtarı yazdırmaz.
+
+### 1. Kurulum ve izin
+
+1. `cd apps/mobile && flutter run --release -d <cihaz-id>` (push kaydı
+   genelde debug modda da çalışır ama gerçek APNs environment'ı release'e
+   daha yakındır; ikisi de denenebilir, hangisiyle test edildiği kayda
+   geçirilir).
+2. İlk açılışta sistem bildirim izni diyaloğu çıkmalı ("Panelya İldirim
+   Göndermek İstiyor" — Türkçe sistem metni cihaz diline göre değişir).
+   İzin VER.
+3. **Beklenen:** `bootstrap()` izin verildikten hemen sonra
+   `subscribeToNewEpisodes()`'i dener; APNs token henüz gelmemişse
+   (`waitForApnsToken`, en fazla 8×250ms) sessizce bekler, token gelince
+   abonelik TAMAMLANIR. Bunu doğrulamak için Xcode/Console.app cihaz
+   loglarında `apns-token-not-set` hatasının (varsa) ardından başarılı bir
+   `subscribeToTopic` çağrısı görülmeli — konsol logu secret İÇERMEZ, yalnız
+   hata kodları/mesajları görünür.
+4. **Bildirimler ekranından el ile kontrol:** `/notifications` ekranını aç,
+   anahtarın AÇIK (izin verildi + tercih açık) göründüğünü doğrula. Anahtarı
+   kapatıp tekrar aç — her iki yönde de `PushSubscriptionUnavailableException`
+   fırlamadığını (fırlarsa SnackBar'da dürüst mesaj göründüğünü) doğrula.
+
+### 2. Gerçek bildirim teslimatı ve deep-link açılışı — üç uygulama durumu
+
+Her durumda backend'den (veya Firebase Console → Cloud Messaging → "Konuya
+gönder" → `panelya-new-episodes`) gerçek bir test mesajı GÖNDER; mesajın
+`data.deepLink` alanı `panelya://series/<slug>/read/<episodeSlug>` biçiminde
+GERÇEK bir seri/bölüme işaret etmeli (bkz.
+`lib/features/push/domain/push_notification_repository.dart` →
+`deepLinkDataKey`).
+
+| # | Uygulama durumu | Adım | Beklenen sonuç |
+| --- | --- | --- | --- |
+| 1 | **Ön planda** | Uygulama açıkken bildirim gönder | v1 kapsamı ön plan bildirimlerini sistem bandında GÖSTERMEZ (bkz. `push_notification_repository.dart` doc yorumu — `flutter_local_notifications` gerektirir, ayrı iş); bu davranış BEKLENEN'dir, hata değildir. Uygulamanın çökmediğini/donmadığını doğrula. |
+| 2 | **Arka planda** (Home tuşuna basılmış, uygulama süreci hâlâ canlı) | Bildirim gönder, sistem bildirim bandına dokun | Uygulama ön plana gelir, `FirebaseMessaging.onMessageOpenedApp` üzerinden `notificationTapStream` deep-link'i çözer, go_router doğru seri/bölüm okuyucusuna GİDER (yanlış bölüm değil, TAM eşleşen slug). |
+| 3 | **Kapalı** (uygulama tamamen sonlandırılmış — task switcher'dan kaydırılmış) | Bildirim gönder, sistem bildirimine dokun | Soğuk başlangıç: `getInitialMessage()` bekleyen bildirimi döner, `notificationTapStream` bunu İLK ÖNCE yayınlar (KAYBOLMAZ), uygulama açılışında doğrudan ilgili okuyucuya gider. |
+
+### 3. Temizlik
+
+Test amaçlı gönderilen bildirimlerin gerçek kullanıcı segmentine gitmediğini
+doğrula (yalnız test cihazı/geliştirici Firebase projesi). Cihazda bildirim
+izni testin sonunda isteğe bağlı geri alınabilir; bu depoya/commit'e hiçbir
+cihaz token'ı veya Firebase kimlik bilgisi yazılmaz.
 
 ## 2026-07-19 gercek tarayici ajan turu
 

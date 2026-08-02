@@ -1,0 +1,5 @@
+// !$*UTF8*$!
+// Bu bir fixture'dir, gercek bir Xcode proje dosyasi degildir.
+// Push Notifications capability'si HENUZ eklenmemis bir proje durumunu
+// temsil eder: entitlements build ayari bilinçli olarak YOK.
+DEVELOPMENT_TEAM = FIXTUREZZZZ;
