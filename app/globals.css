@@ -13,6 +13,13 @@
   --reader-progress: 0%;
 }
 
+.error-recovery { min-height: 100svh; display: grid; place-items: center; padding: 24px; background: #07100e; }
+.error-recovery__card { width: min(100%, 640px); padding: clamp(24px, 5vw, 48px); border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: 0 24px 80px rgba(0, 0, 0, .24); }
+.error-recovery__card h1 { margin: 8px 0 12px; font-size: clamp(2rem, 7vw, 4.5rem); line-height: .98; }
+.error-recovery__card p:not(.section-kicker) { color: var(--muted); line-height: 1.6; }
+.error-recovery__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.error-recovery__actions .button { min-height: 44px; }
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: #07100e; color: var(--ink); font-family: var(--font-geist-sans), Arial, sans-serif; }
