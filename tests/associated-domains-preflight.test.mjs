@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { validateAssociatedDomainsReadiness } from "../scripts/verify-associated-domains-readiness.mjs";
 
@@ -78,9 +79,13 @@ test(".dev.vars eksikken tüm alanları dış kapı olarak işaretler ve secret/
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const run = promisify(execFile);
-  const missingEnvFile = new URL("./fixtures/does-not-exist.dev.vars", import.meta.url).pathname;
-  const { stdout } = await run("node", [
-    new URL("../scripts/verify-associated-domains-readiness.mjs", import.meta.url).pathname,
+  const missingEnvFile = fileURLToPath(
+    new URL("./fixtures/does-not-exist.dev.vars", import.meta.url),
+  );
+  const { stdout } = await run(process.execPath, [
+    fileURLToPath(
+      new URL("../scripts/verify-associated-domains-readiness.mjs", import.meta.url),
+    ),
     "--dev-vars",
     missingEnvFile,
   ]).catch((error) => ({ stdout: error.stdout }));

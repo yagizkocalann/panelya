@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   IOS_PUSH_EXTERNAL_DEPENDENCIES,
@@ -86,8 +87,10 @@ test("CLI çıktısı hiçbir dosya içeriğini/secret değeri yazdırmaz (yaln�
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const run = promisify(execFile);
-  const scriptPath = new URL("../scripts/verify-ios-push-readiness.mjs", import.meta.url);
-  const { stdout } = await run("node", [scriptPath.pathname]).catch((error) => ({
+  const scriptPath = fileURLToPath(
+    new URL("../scripts/verify-ios-push-readiness.mjs", import.meta.url),
+  );
+  const { stdout } = await run(process.execPath, [scriptPath]).catch((error) => ({
     stdout: error.stdout,
   }));
   assert.match(stdout, /iOS push canlı ön kontrolü/);
