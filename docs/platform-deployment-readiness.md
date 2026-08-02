@@ -26,6 +26,26 @@ Queue consumer veya dead-letter politikasi runtime binding nesnesinden okunamaz.
 
 JSON yalniz profil, mod adlari, bilinen binding adlari ve boolean/durum bilgisi tasir. Binding nesnesi, hesap kimligi, queue adi, URL, token, secret veya ortam degeri donmez.
 
+## Deploy oncesi runtime kapisi
+
+Git disindaki hosted runtime dosyasini veya CI secret enjeksiyonunu degerleri
+ekrana yazdirmadan denetle:
+
+```text
+npm run deploy:preflight -- --env-file <git-disindaki-dosya>
+```
+
+Bu kontrol production public/Studio HTTPS origin ciftini, dummy katalog
+kapanisini, production medya/rate-limit/kalite modlarini, reklam ve push
+sinirini, Studio bootstrap sirrinin yalniz uzunlugunu ve Auth0 exact callback
+sinirini denetler. Secret, client kimligi, domain veya token degerini ciktisina
+tasimaz. Komutun yesil olmasi Queue/Images/rate-limit kaynaklarinin gercekten
+provision edildigini kanitlamaz; asagidaki smoke testi yine zorunludur.
+
+Sites tarafinda kaydedilen her version/deployment production artefakti sayilir.
+Bu nedenle gercek HTTPS originler ve hesap-ozel Cloudflare kaynaklari hazir
+degilken yalniz D1/R2 ile "gecici production" deploy'u yapilmaz.
+
 ## Smoke testi
 
 1. Test deployment'inda Studio `/qa` ekraninda profilin `Production` ve otomatik kontrollerin hazir oldugunu dogrula.
