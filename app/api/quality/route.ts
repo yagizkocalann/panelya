@@ -1,5 +1,5 @@
 import { assertSameOrigin } from "../../lib/auth";
-import { parseQualityEvent } from "../../lib/quality-observability";
+import { parseQualityEvent, qualityLogArguments } from "../../lib/quality-observability";
 import { qualityTelemetryMode } from "../../lib/runtime-config";
 
 const MAX_BODY_BYTES = 2_048;
@@ -38,6 +38,6 @@ export async function POST(request: Request) {
   // Olay sekli bilincli olarak message, stack, query, referrer, user/session,
   // token ve user-agent tasimaz. Cloudflare log adapter'i yalniz bu allowlist'i
   // alir; ham request veya exception hicbir zaman loglanmaz.
-  console.info("panelya.quality", JSON.stringify(event));
+  console.info(...qualityLogArguments(event));
   return noStore();
 }

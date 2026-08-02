@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 import {
-  QUALITY_EVENT_SCHEMA_VERSION,
-  sanitizeQualityPath,
+  prepareQualityEvent,
   type QualityEvent,
   type QualityMetricName,
   type QualityRating,
@@ -18,12 +17,12 @@ function privacySignalEnabled() {
 }
 
 export function reportQualityEvent(event: Omit<QualityEvent, "schemaVersion" | "path">) {
-  if (privacySignalEnabled()) return;
-  const payload: QualityEvent = {
-    schemaVersion: QUALITY_EVENT_SCHEMA_VERSION,
-    path: sanitizeQualityPath(window.location.pathname),
-    ...event,
-  };
+  const navigatorWithGpc = navigator as Navigator & { globalPrivacyControl?: boolean };
+  const payload = prepareQualityEvent(event, window.location.pathname, {
+    globalPrivacyControl: navigatorWithGpc.globalPrivacyControl,
+    doNotTrack: navigator.doNotTrack,
+  });
+  if (!payload) return;
   const body = JSON.stringify(payload);
   void fetch("/api/quality", {
     method: "POST",

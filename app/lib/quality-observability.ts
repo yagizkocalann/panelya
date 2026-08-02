@@ -14,6 +14,11 @@ export type QualityEvent = {
   rating?: QualityRating;
 };
 
+export type QualityPrivacyState = {
+  globalPrivacyControl?: boolean;
+  doNotTrack?: string | null;
+};
+
 const metricNames = new Set<string>(qualityMetricNames);
 const errorNames = new Set(["global_error", "route_error", "unhandled_rejection"]);
 const ratings = new Set<QualityRating>(["good", "needs-improvement", "poor", "unknown"]);
@@ -27,6 +32,23 @@ export function sanitizeQualityPath(input: string) {
   if (/^\/preview\/[^/]+(?:\/.*)?$/u.test(pathname)) return "/preview/:token";
   if (/^\/copyright\/status\/[^/]+$/u.test(pathname)) return "/copyright/status/:token";
   return pathname.startsWith("/") ? pathname.slice(0, 160) || "/" : "/";
+}
+
+export function prepareQualityEvent(
+  event: Omit<QualityEvent, "schemaVersion" | "path">,
+  path: string,
+  privacy: QualityPrivacyState,
+): QualityEvent | null {
+  if (privacy.globalPrivacyControl === true || privacy.doNotTrack === "1") return null;
+  return {
+    schemaVersion: QUALITY_EVENT_SCHEMA_VERSION,
+    path: sanitizeQualityPath(path),
+    ...event,
+  };
+}
+
+export function qualityLogArguments(event: QualityEvent): readonly ["panelya.quality", string] {
+  return ["panelya.quality", JSON.stringify(event)] as const;
 }
 
 function exactKeys(value: Record<string, unknown>, allowed: readonly string[]) {
