@@ -64,10 +64,28 @@ yönetimine özgü değil ve değişiklik diğer dokümü/testleri etkileyebilir
 
 ## 2. `scope=others` — current-device gateway eşlemesi
 
-Web tarafının bildirdiği bilinen sınır: native refresh credential kimliği
-access token'dan kesin eşlenemediği için mobilde `scope=others` 503
-dönüyor. Mobil istemcide bunu taklit eden bir "başarılı göster" yolu
-**yoktur**; hata olduğu gibi yüzeye çıkar. Bu teslim beklemede.
+**2026-08-02 güncellemesi — kapatıldı, sağlayıcı sınırı olarak
+kesinleşti (ADR-054).** Bu madde "beklemede" değil artık: kod
+(`app/lib/auth0-runtime.ts`, `app/lib/account-sessions.ts`,
+`app/lib/auth0-management.ts`) ve Auth0'ın resmi dokümantasyonu
+(device-credentials alan listesi, refresh token rotasyonu, `sid` claim
+kapsamı, authorize/refresh-token parametre listeleri) okunarak native
+refresh credential kimliğinin access token'dan **hiçbir resmi/desteklenen
+yolla** kesin eşlenemediği kanıtlanmıştır — bu bir eksik entegrasyon değil,
+mevcut mimarinin (Auth0 tokenlarını olduğu gibi ileten stateless gateway)
+sağlayıcı tarafından desteklenen bir sınırıdır. Tam kanıt, kaynak URL'leri
+ve desteklenebilir üç alternatif (gateway'in kendi opak refresh-token
+broker'lığını üstlenmesi, Auth0 Action custom claim, istemci-beyanlı cihaz
+kaydı — üçü de bu teslimde UYGULANMADI) `docs/production-account-lifecycle.md`
+→ "2026-08-02 native `scope=others` kararı" bölümündedir.
+
+Mobil istemcide bunu taklit eden bir "başarılı göster" yolu **yoktur**;
+sunucu 503 `service_unavailable` fail-closed döner, hata olduğu gibi
+yüzeye çıkar. Bu dürüstlük hem mobil tarafta
+(`apps/mobile/test/features/account/presentation/sessions_screen_test.dart`
+→ "BİLİNEN SINIR" testi) hem sunucu tarafında
+(`tests/account-runtime.test.mjs` → "oturum toplu iptali mevcut native
+cihaz eşlenmeden başarılı görünmez" testi) test altındadır.
 
 ## 3. Auth0 tenant'ında Türkçe kapalı
 

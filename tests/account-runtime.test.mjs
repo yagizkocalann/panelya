@@ -105,6 +105,44 @@ test("oturum toplu iptali mevcut native cihaz eşlenmeden başarılı görünmez
   assert.match(source, /scope === "others" && actor\.transport === "mobile"/);
   assert.match(source, /actor\.issuer && !native/);
   assert.match(source, /scope === "all" \|\| actor\.transport === "web"/);
+  // ADR-054: mobil `scope=others` fail-closed kontrolü fonksiyonun İLK
+  // satırıdır — herhangi bir Auth0 device-credential silme çağrısından
+  // ÖNCE çalışır. Bu sıralama bozulursa "hangi native oturum benim
+  // olduğunu bilmediğim halde diğerlerini sil" riski geri döner; bu
+  // testin amacı gelecekte bir refactor'ın bu sırayı sessizce
+  // bozmasını yakalamaktır.
+  const guardIndex = source.indexOf('scope === "others" && actor.transport === "mobile"');
+  // Bulk silme çağrısının kendisini ara (yalnız `deleteAuth0DeviceCredential`
+  // import satırını değil) — guard'dan SONRA aranır ki import sırası yanlış
+  // pozitif üretmesin.
+  const deleteCallIndex = source.indexOf(
+    "deleteAuth0DeviceCredential(native.management, credential.id)",
+    guardIndex,
+  );
+  assert.ok(guardIndex >= 0 && deleteCallIndex >= 0 && guardIndex < deleteCallIndex);
+});
+
+test("Auth0 native oturum envanteri sağlayıcı sınırını belgeler ve current'ı tahmin etmez (ADR-054)", async () => {
+  const [sessions, management] = await Promise.all([
+    readFile(new URL("../app/lib/account-sessions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/auth0-management.ts", import.meta.url), "utf8"),
+  ]);
+  // Native satırlar için `current` asla `true` üretilmez — sunucu bunu
+  // bilmediğini açıkça kabul eder, tahmin etmez. Yorum satırı bunun
+  // NEDENİNİ belgeler ve doğrudan `current: false,` öncesinde durur.
+  const reasonIndex = sessions.indexOf("do not expose the originating device credential id");
+  const currentFalseIndex = sessions.indexOf("current: false,");
+  assert.ok(reasonIndex >= 0 && currentFalseIndex >= 0 && reasonIndex < currentFalseIndex);
+  assert.doesNotMatch(sessions, /current:\s*(true|credential)/);
+  // Management API device-credential listesi bir access/refresh token
+  // örneğiyle eşleşen hiçbir alan döndürmez (yalnız id/device metadata) —
+  // yalnız TİP TANIMININ KENDİSİ denetlenir, dosyanın geri kalanında
+  // (management token exchange gibi başka amaçlarla) geçen `access_token`
+  // yanlış pozitif üretmesin.
+  const typeMatch = management.match(/export type Auth0DeviceCredential = \{[^}]*\};/);
+  assert.ok(typeMatch, "Auth0DeviceCredential tip tanımı bulunamadı");
+  assert.match(typeMatch[0], /device_name\?: string;/);
+  assert.doesNotMatch(typeMatch[0], /jti|session_id|token_id|access_token|refresh_token/i);
 });
 
 test("management hataları ortak hesap hata kodlarına çevrilir", async () => {

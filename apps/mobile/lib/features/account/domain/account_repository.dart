@@ -58,12 +58,12 @@ abstract class AccountRepository {
 
   /// `POST /api/account/sessions/revoke` — toplu kapatma.
   ///
-  /// SINIR (web tarafının bildirdiği, mobil için geçerli): native refresh
-  /// credential kimliği access token'dan kesin eşlenemediği için
-  /// `scope: others` şu an sunucuda **503 fail-closed** döner. Bu durum
-  /// TAKLİT EDİLİP başarılı gösterilmez; çağıran hatayı dürüstçe yüzeye
-  /// çıkarır (bkz. `sessions_screen.dart`). current-device gateway
-  /// eşlemesi ayrı bir teslim.
+  /// SINIR (ADR-054, kanıtlanmış sağlayıcı sınırı — bkz.
+  /// `docs/production-account-lifecycle.md`): native refresh credential
+  /// kimliği access token'dan hiçbir resmi Auth0 mekanizmasıyla kesin
+  /// eşlenemez; bu yüzden `scope: others` sunucuda **503 fail-closed**
+  /// döner. Bu durum TAKLİT EDİLİP başarılı gösterilmez; çağıran hatayı
+  /// dürüstçe yüzeye çıkarır (bkz. `sessions_screen.dart`).
   Future<AccountSessionRevocationResponse> revokeSessions({
     required String scope,
   });
